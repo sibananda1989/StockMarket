@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock History Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dark {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+        }
+        .light {
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+        }
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+        }
+        .text-secondary {
+            color: var(--text-secondary);
+        }
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--border-color) 50%, var(--bg-secondary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .table-container thead th {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-secondary);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Stock History Dashboard</h1>
+                <p class="text-secondary">Analyze historical stock performance with interactive charts and statistics</p>
+            </div>
+            <button onclick="toggleTheme()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation - injected by navigation.js -->
+        <div id="navigation"></div>
+
+        <!-- Search Card -->
+        <div class="card rounded-xl p-6 mb-6 shadow-lg">
+            <div class="flex flex-col lg:flex-row gap-4 items-end">
+                <div class="flex-1 w-full">
+                    <label class="block text-sm font-medium mb-2">Stock Symbol</label>
+                    <input type="text" id="symbolInput" 
+                           class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="RELIANCE.NS" 
+                           oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="w-full lg:w-48">
+                    <label class="block text-sm font-medium mb-2">Days</label>
+                    <select id="daysSelect" 
+                            class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="7">7 Days</option>
+                        <option value="15">15 Days</option>
+                        <option value="30" selected>30 Days</option>
+                        <option value="50">50 Days</option>
+                        <option value="100">100 Days</option>
+                        <option value="200">200 Days</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 w-full lg:w-auto">
+                    <button onclick="fetchStockHistory()" 
+                            class="flex-1 lg:flex-none px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                        Fetch Data
+                    </button>
+                    <button onclick="refreshData()" 
+                            class="flex-1 lg:flex-none px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium transition-colors">
+                        Refresh
+                    </button>
+                    <button onclick="saveToDatabase()" id="saveBtn"
+                            class="flex-1 lg:flex-none px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors hidden">
+                        <i class="fas fa-save mr-2"></i>Save to DB
+                    </button>
+                    <button onclick="exportCSV()" 
+                            class="flex-1 lg:flex-none px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                        Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Symbol Chips -->
+            <div class="mt-4 flex flex-wrap gap-2">
+                <span class="text-sm text-secondary">Quick Select:</span>
+                <button onclick="quickSelect('RELIANCE.NS')" 
+                        class="px-3 py-1 bg-blue-900 hover:bg-blue-800 text-blue-200 rounded-full text-sm transition-colors">
+                    RELIANCE.NS
+                </button>
+                <button onclick="quickSelect('TCS.NS')" 
+                        class="px-3 py-1 bg-blue-900 hover:bg-blue-800 text-blue-200 rounded-full text-sm transition-colors">
+                    TCS.NS
+                </button>
+                <button onclick="quickSelect('INFY.NS')" 
+                        class="px-3 py-1 bg-blue-900 hover:bg-blue-800 text-blue-200 rounded-full text-sm transition-colors">
+                    INFY.NS
+                </button>
+                <button onclick="quickSelect('HDFCBANK.NS')" 
+                        class="px-3 py-1 bg-blue-900 hover:bg-blue-800 text-blue-200 rounded-full text-sm transition-colors">
+                    HDFCBANK.NS
+                </button>
+                <button onclick="quickSelect('ICICIBANK.NS')" 
+                        class="px-3 py-1 bg-blue-900 hover:bg-blue-800 text-blue-200 rounded-full text-sm transition-colors">
+                    ICICIBANK.NS
+                </button>
+            </div>
+
+            <!-- Recent Searches -->
+            <div id="recentSearches" class="mt-4 hidden">
+                <span class="text-sm text-secondary">Recent Searches:</span>
+                <div id="recentSearchesChips" class="flex flex-wrap gap-2 mt-2"></div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div class="card rounded-xl p-6 h-32 skeleton"></div>
+                <div class="card rounded-xl p-6 h-32 skeleton"></div>
+                <div class="card rounded-xl p-6 h-32 skeleton"></div>
+                <div class="card rounded-xl p-6 h-32 skeleton"></div>
+                <div class="card rounded-xl p-6 h-32 skeleton"></div>
+            </div>
+            <div class="card rounded-xl p-6 h-96 skeleton mb-6"></div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden">
+            <div class="card rounded-xl p-8 text-center">
+                <div class="text-red-500 text-6xl mb-4">⚠️</div>
+                <h3 class="text-xl font-semibold mb-2">Error Loading Data</h3>
+                <p id="errorMessage" class="text-secondary mb-4"></p>
+                <button onclick="fetchStockHistory()" 
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                    Try Again
+                </button>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="card rounded-xl p-8 text-center">
+            <div class="text-6xl mb-4">📊</div>
+            <h3 class="text-xl font-semibold mb-2">Enter a Stock Symbol</h3>
+            <p class="text-secondary mb-4">Search for a stock to view its historical performance</p>
+            <p class="text-sm text-secondary">Try: RELIANCE.NS, TCS.NS, INFY.NS</p>
+        </div>
+
+        <!-- Content State -->
+        <div id="contentState" class="hidden">
+            <!-- Statistics Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div class="card rounded-xl p-6 shadow-lg">
+                    <div class="text-sm text-secondary mb-1">Current Price</div>
+                    <div id="currentPrice" class="text-2xl font-bold">--</div>
+                    <div id="priceChange" class="text-sm mt-1">--</div>
+                </div>
+                <div class="card rounded-xl p-6 shadow-lg">
+                    <div class="text-sm text-secondary mb-1">Highest Price</div>
+                    <div id="highestPrice" class="text-2xl font-bold text-green-500">--</div>
+                </div>
+                <div class="card rounded-xl p-6 shadow-lg">
+                    <div class="text-sm text-secondary mb-1">Lowest Price</div>
+                    <div id="lowestPrice" class="text-2xl font-bold text-red-500">--</div>
+                </div>
+                <div class="card rounded-xl p-6 shadow-lg">
+                    <div class="text-sm text-secondary mb-1">Average Close</div>
+                    <div id="averageClose" class="text-2xl font-bold">--</div>
+                </div>
+                <div class="card rounded-xl p-6 shadow-lg">
+                    <div class="text-sm text-secondary mb-1">Percentage Change</div>
+                    <div id="percentChange" class="text-2xl font-bold">--</div>
+                </div>
+            </div>
+
+            <!-- Chart Section -->
+            <div class="card rounded-xl p-6 mb-6 shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Price Chart</h2>
+                    <div id="chartSymbol" class="text-secondary"></div>
+                </div>
+                <div class="relative h-96">
+                    <canvas id="stockChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Historical Table -->
+            <div class="card rounded-xl p-6 shadow-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                    <h2 class="text-xl font-semibold">Historical Data</h2>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <input type="text" id="tableSearch" 
+                               class="flex-1 md:w-64 px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="Search by date..."
+                               oninput="filterTable()">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="px-4 py-3 text-left cursor-pointer hover:text-blue-400" onclick="sortTable(0)">
+                                    Date ↕
+                                </th>
+                                <th class="px-4 py-3 text-right cursor-pointer hover:text-blue-400" onclick="sortTable(1)">
+                                    Open ↕
+                                </th>
+                                <th class="px-4 py-3 text-right cursor-pointer hover:text-blue-400" onclick="sortTable(2)">
+                                    High ↕
+                                </th>
+                                <th class="px-4 py-3 text-right cursor-pointer hover:text-blue-400" onclick="sortTable(3)">
+                                    Low ↕
+                                </th>
+                                <th class="px-4 py-3 text-right cursor-pointer hover:text-blue-400" onclick="sortTable(4)">
+                                    Close ↕
+                                </th>
+                                <th class="px-4 py-3 text-right cursor-pointer hover:text-blue-400" onclick="sortTable(5)">
+                                    Volume ↕
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="flex justify-between items-center mt-4">
+                    <div id="paginationInfo" class="text-sm text-secondary"></div>
+                    <div class="flex gap-2">
+                        <button onclick="previousPage()" 
+                                class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors">
+                            Previous
+                        </button>
+                        <button onclick="nextPage()" 
+                                class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors">
+                            Next
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/stock-history.js"></script>
+    <script src="js/navigation.js"></script>
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            document.body.classList.toggle('light');
+            const icon = document.getElementById('themeIcon');
+            icon.classList.toggle('fa-moon');
+            icon.classList.toggle('fa-sun');
+        }
+    </script>
+</body>
+</html>

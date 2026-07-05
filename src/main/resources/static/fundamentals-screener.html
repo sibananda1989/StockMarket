@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - Fundamentals Screener</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .filter-card { border-left: 4px solid #3b82f6; }
+        th { user-select: none; }
+        th.sortable { cursor: pointer; }
+        th.sortable:hover { background: rgba(59, 130, 246, 0.1); }
+        th.sortable .sort-icon { font-size: 10px; margin-left: 4px; opacity: 0.4; }
+        th.sortable.active .sort-icon { opacity: 1; color: #3b82f6; }
+        input, select { color-scheme: dark; }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Stock Tracker</h1>
+                <p class="text-secondary">Fundamentals Screener</p>
+            </div>
+            <button onclick="toggleTheme()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation - injected by navigation.js -->
+        <div id="navigation"></div>
+
+        <!-- Filter Panel -->
+        <div class="card filter-card rounded-xl p-6 shadow-lg mb-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="fas fa-filter text-blue-400"></i>Filters
+                </h2>
+                <div class="flex gap-2">
+                    <button onclick="loadSectors()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors" title="Refresh sectors">
+                        <i class="fas fa-sync-alt mr-1"></i>Sectors
+                    </button>
+                    <button onclick="resetFilters()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">
+                        <i class="fas fa-undo mr-1"></i>Reset
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                <div>
+                    <label class="text-xs text-secondary block mb-1">P/E Min</label>
+                    <input type="number" id="filterPeMin" step="0.1" min="0"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">P/E Max</label>
+                    <input type="number" id="filterPeMax" step="0.1" min="0"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">Mkt Cap Min (Cr)</label>
+                    <input type="number" id="filterMcapMin" step="1" min="0"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">Mkt Cap Max (Cr)</label>
+                    <input type="number" id="filterMcapMax" step="1" min="0"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">ROE Min (%)</label>
+                    <input type="number" id="filterRoeMin" step="1"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">D/E Max</label>
+                    <input type="number" id="filterDeMax" step="0.1" min="0"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">Div Yield Min (%)</label>
+                    <input type="number" id="filterDivYieldMin" step="0.1" min="0"
+                           class="w-full px-2 py-1.5 rounded border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs text-secondary block mb-1">Sector</label>
+                    <select id="filterSector"
+                            class="w-full px-2 py-1.5 rounded border border-gray-600 bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">All</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button onclick="applyFilters()" class="w-full px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-search mr-1"></i>Apply
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="card rounded-xl shadow-lg overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-gray-700">
+                <h2 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fas fa-table text-emerald-400"></i>
+                    Results <span id="resultCount" class="text-sm text-secondary font-normal ml-2"></span>
+                </h2>
+                <div class="flex gap-2">
+                    <button onclick="fetchAllFunds()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors" title="Fetch fundamentals for all stocks from Yahoo">
+                        <i class="fas fa-cloud-download-alt mr-1"></i>Fetch All
+                    </button>
+                    <button onclick="exportCsv()" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors" title="Export to CSV">
+                        <i class="fas fa-download mr-1"></i>CSV
+                    </button>
+                </div>
+            </div>
+            <div class="table-container overflow-x-auto">
+                <table class="w-full text-sm" id="resultsTable">
+                    <thead>
+                        <tr class="border-b border-gray-700 text-secondary">
+                            <th class="px-3 py-3 text-left sortable" data-sort="symbol" onclick="sortBy('symbol')">Symbol <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-left sortable" data-sort="name" onclick="sortBy('name')">Name <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-left sortable" data-sort="sector" onclick="sortBy('sector')">Sector <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable active" data-sort="marketCap" onclick="sortBy('marketCap')">Mkt Cap <i class="sort-icon fas fa-sort-down"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="peRatio" onclick="sortBy('peRatio')">P/E <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="epsTtm" onclick="sortBy('epsTtm')">EPS <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="roe" onclick="sortBy('roe')">ROE % <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="debtToEquity" onclick="sortBy('debtToEquity')">D/E <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="dividendYield" onclick="sortBy('dividendYield')">Div % <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="beta" onclick="sortBy('beta')">Beta <i class="sort-icon fas"></i></th>
+                            <th class="px-3 py-3 text-right sortable" data-sort="revenueTtm" onclick="sortBy('revenueTtm')">Rev (Cr) <i class="sort-icon fas"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody">
+                        <tr><td colspan="11" class="text-center text-secondary py-8">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/fundamentals-screener.js"></script>
+    <script src="js/navigation.js"></script>
+    <script>
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('themeIcon');
+            if (body.classList.contains('dark')) {
+                body.classList.remove('dark');
+                body.classList.add('light');
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            } else {
+                body.classList.remove('light');
+                body.classList.add('dark');
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+- [Stock Detail Page Overview](stock-detail-overview.md) — Structure and file usage for stock detail page

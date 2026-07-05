@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - RSI Analysis</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .rsi-oversold {
+            background-color: rgba(239, 68, 68, 0.2);
+        }
+        .rsi-overbought {
+            background-color: rgba(34, 197, 94, 0.2);
+        }
+        .rsi-neutral {
+            background-color: rgba(234, 179, 8, 0.2);
+        }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">RSI Analysis</h1>
+                <p class="text-secondary">Analyze Relative Strength Index across all stocks</p>
+            </div>
+            <button onclick="toggleTheme()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation - injected by navigation.js -->
+        <div id="navigation"></div>
+
+        <!-- RSI Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="card rounded-xl p-6 shadow-lg text-center">
+                <h3 class="text-lg font-bold mb-2">Oversold (RSI < 30)</h3>
+                <div class="text-4xl font-bold text-red-500" id="oversoldCount">0</div>
+                <p class="text-secondary mt-2">Potential buying opportunity</p>
+            </div>
+            <div class="card rounded-xl p-6 shadow-lg text-center">
+                <h3 class="text-lg font-bold mb-2">Overbought (RSI > 70)</h3>
+                <div class="text-4xl font-bold text-green-500" id="overboughtCount">0</div>
+                <p class="text-secondary mt-2">Potential selling opportunity</p>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="card rounded-xl p-6 mb-6 shadow-lg">
+            <div class="flex flex-col lg:flex-row gap-4 items-center justify-between">
+                <div class="flex gap-2">
+                    <button onclick="sortRsi('asc')" 
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-sort-amount-down mr-2"></i>Sort by RSI (Low to High)
+                    </button>
+                    <button onclick="sortRsi('desc')" 
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-sort-amount-up mr-2"></i>Sort by RSI (High to Low)
+                    </button>
+                </div>
+                <button onclick="recalculateAllRsi()" 
+                        class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                    <i class="fas fa-calculator mr-2"></i>Recalculate All RSI
+                </button>
+            </div>
+        </div>
+
+        <!-- RSI Table -->
+        <div class="card rounded-xl shadow-lg overflow-hidden">
+            <div class="table-container">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="px-4 py-3 text-left">Symbol</th>
+                            <th class="px-4 py-3 text-left">Name</th>
+                            <th class="px-4 py-3 text-left">Sector</th>
+                            <th class="px-4 py-3 text-right">RSI 14</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                            <th class="px-4 py-3 text-left">Calculation Date</th>
+                            <th class="px-4 py-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rsiTableBody">
+                        <tr>
+                            <td colspan="7" class="text-center py-8">Loading RSI data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Alert -->
+    <div id="successAlert" class="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50">
+        <i class="fas fa-check-circle mr-2"></i>RSI recalculated successfully!
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/rsi-analysis.js"></script>
+    <script src="js/navigation.js"></script>
+    <script>
+        // Theme toggle
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('themeIcon');
+            if (body.classList.contains('dark')) {
+                body.classList.remove('dark');
+                body.classList.add('light');
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            } else {
+                body.classList.remove('light');
+                body.classList.add('dark');
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            }
+        }
+    </script>
+</body>
+</html>

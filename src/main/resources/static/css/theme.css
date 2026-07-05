@@ -1,0 +1,205 @@
+.dark {
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --border-color: #334155;
+    --hover-bg: #334155;
+}
+.light {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --border-color: #e2e8f0;
+    --hover-bg: #f1f5f9;
+}
+body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.3s, color 0.3s;
+}
+.stat-card.gray { border-left-color: #6b7280; }
+.card {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+.text-secondary {
+    color: var(--text-secondary);
+}
+/* Consistent form control styling — match <select> to <input> */
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: transparent;
+    color: inherit;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1em;
+    padding-right: 2.25rem;
+}
+select option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.skeleton {
+    background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--border-color) 50%, var(--bg-secondary) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+}
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+.table-container {
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: auto;
+}
+.table-container thead th {
+    position: sticky;
+    top: 0;
+    background-color: var(--bg-secondary);
+    z-index: 10;
+}
+
+/* Table Styles */
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+table tbody tr {
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.15s ease;
+}
+table tbody tr:hover {
+    background-color: var(--hover-bg);
+}
+table tbody tr:last-child {
+    border-bottom: none;
+}
+table th {
+    background-color: var(--bg-secondary);
+    border-bottom: 2px solid var(--border-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.6rem;
+    white-space: nowrap;
+}
+table td {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+table th,
+table td {
+    vertical-align: middle;
+}
+
+/* Action Button Styles */
+.btn-action {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    border: none;
+    cursor: pointer;
+    min-width: 1.8rem;
+    height: 1.7rem;
+}
+.btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.btn-action:active {
+    transform: translateY(0);
+}
+.btn-action i {
+    font-size: 0.7rem;
+}
+
+.btn-view {
+    background-color: #3b82f6;
+    color: white;
+}
+.btn-view:hover {
+    background-color: #2563eb;
+}
+
+.btn-edit {
+    background-color: #f59e0b;
+    color: white;
+}
+.btn-edit:hover {
+    background-color: #d97706;
+}
+
+.btn-delete {
+    background-color: #ef4444;
+    color: white;
+}
+.btn-delete:hover {
+    background-color: #dc2626;
+}
+
+.btn-watchlist {
+    background-color: #8b5cf6;
+    color: white;
+}
+.btn-watchlist:hover {
+    background-color: #7c3aed;
+}
+
+.btn-recalculate {
+    background-color: #8b5cf6;
+    color: white;
+}
+.btn-recalculate:hover {
+    background-color: #7c3aed;
+}
+
+/* Status Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.badge-success {
+    background-color: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.badge-warning {
+    background-color: rgba(234, 179, 8, 0.2);
+    color: #eab308;
+    border: 1px solid rgba(234, 179, 8, 0.3);
+}
+.badge-danger {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.badge-info {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.badge-neutral {
+    background-color: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}

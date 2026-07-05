@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - Daily Opportunities</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .signal-badge {
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .signal-strong-buy { background-color: #166534; color: #bbf7d0; }
+        .signal-buy { background-color: #15803d; color: #dcfce7; }
+        .signal-hold { background-color: #854d0e; color: #fef08a; }
+        .signal-sell { background-color: #b91c1c; color: #fecaca; }
+        .signal-strong-sell { background-color: #7f1d1d; color: #fee2e2; }
+        .rank-badge {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-weight: bold;
+            background-color: #1e40af;
+            color: white;
+        }
+        .rank-badge.top-3 { background-color: #d97706; }
+        .opportunity-card {
+            transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        .opportunity-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        .sort-btn.active {
+            background-color: #2563eb;
+            color: white;
+        }
+        .reason-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            margin: 2px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            background-color: #374151;
+            color: #d1d5db;
+        }
+        .loading-spinner {
+            border: 3px solid #374151;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Today's Opportunities</h1>
+                <p class="text-secondary text-sm" id="lastUpdated"></p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="refreshOpportunities()" id="refreshBtn"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="navigation"></div>
+
+        <!-- Portfolio Selector -->
+        <div class="card rounded-xl p-4 mb-6 shadow-lg">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="text-sm font-medium text-secondary">
+                    <i class="fas fa-briefcase mr-1"></i>Portfolio:
+                </span>
+                <select id="portfolioSelect" onchange="switchPortfolio(this.value)"
+                        class="px-3 py-1.5 rounded-lg border border-gray-600 bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Loading portfolios...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Summary Bar -->
+        <div class="card rounded-xl p-4 mb-6 shadow-lg" id="summaryBar" style="display: none;">
+            <div class="flex flex-wrap justify-center gap-6">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-400" id="buyCount">0</div>
+                    <div class="text-sm text-secondary">Buy Opportunities</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-yellow-400" id="holdCount">0</div>
+                    <div class="text-sm text-secondary">Hold</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-red-400" id="sellCount">0</div>
+                    <div class="text-sm text-secondary">Sell Signals</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-400" id="totalCount">0</div>
+                    <div class="text-sm text-secondary">Total Stocks</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sort Controls -->
+        <div class="card rounded-xl p-4 mb-6 shadow-lg" id="sortControls" style="display: none;">
+            <div class="flex flex-wrap items-center gap-3">
+                <span class="text-sm font-medium text-secondary mr-2">Sort by:</span>
+                <button class="sort-btn active px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+                        data-sort="score" onclick="sortOpportunities('score')">
+                    <i class="fas fa-chart-line mr-1"></i>Score
+                </button>
+                <button class="sort-btn px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+                        data-sort="riskReward" onclick="sortOpportunities('riskReward')">
+                    <i class="fas fa-balance-scale mr-1"></i>Risk/Reward
+                </button>
+                <button class="sort-btn px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+                        data-sort="agreement" onclick="sortOpportunities('agreement')">
+                    <i class="fas fa-check-circle mr-1"></i>Agreement
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="flex justify-center items-center py-12">
+            <div class="loading-spinner mr-3"></div>
+            <span class="text-secondary">Loading opportunities...</span>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="card rounded-xl shadow-lg" style="display: none;">
+            <div class="empty-state">
+                <i class="fas fa-chart-pie"></i>
+                <h3 class="text-xl font-semibold mb-2">No stocks in portfolio</h3>
+                <p class="text-secondary">Add stocks to your portfolio to see daily opportunities.</p>
+                <a href="stocks.html" class="inline-block mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                    <i class="fas fa-plus mr-2"></i>Add Stocks
+                </a>
+            </div>
+        </div>
+
+        <!-- Opportunities List -->
+        <div id="opportunitiesList" class="space-y-4" style="display: none;"></div>
+
+        <!-- Warnings -->
+        <div id="warningsContainer" class="mt-6" style="display: none;">
+            <div class="card rounded-xl p-4 shadow-lg border-l-4 border-yellow-500">
+                <h4 class="font-semibold text-yellow-400 mb-2">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>Warnings
+                </h4>
+                <ul id="warningsList" class="text-sm text-secondary space-y-1"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/watchlist-opportunities.js"></script>
+    <script src="js/navigation.js"></script>
+</body>
+</html>

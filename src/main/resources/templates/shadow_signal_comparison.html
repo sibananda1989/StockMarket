@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Shadow Signal Comparison Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0"></script>
+    <style>
+        body { padding: 20px; }
+        .card { margin-bottom: 20px; }
+        .divergent { background-color: #fff5f5; }
+        .metric { font-size: 2rem; font-weight: bold; }
+        .change-positive { color: #28a745; }
+        .change-negative { color: #dc3545; }
+        .change-neutral { color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <h1 class="mb-4">Shadow Signal Comparison Dashboard</h1>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>Date Selection</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="dateForm">
+                            <div class="mb-3">
+                                <label for="reportDate" class="form-label">Report Date</label>
+                                <input type="date" class="form-control" id="reportDate" name="reportDate"
+                                       th:value="${#temporals.format(#dates.createNow(), 'yyyy-MM-dd')}">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Generate Report</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="reportContainer">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Total Signals</h5>
+                            <p class="card-text metric" id="totalSignals">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Divergent Signals</h5>
+                            <p class="card-text metric" id="divergentSignals">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Divergence Rate</h5>
+                            <p class="card-text metric" id="divergenceRate">0%</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h5 class="card-title">Avg Score Diff (Divergent)</h5>
+                            <p class="card-text metric" id="avgScoreDiffDivergent">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Recommendation Changes</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="recommendationChangesChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Root Cause Analysis</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="rootCauseChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Top Divergent Signals</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Stock ID</th>
+                                            <th>Production Signal</th>
+                                            <th>Shadow Signal</th>
+                                            <th>Score Diff</th>
+                                            <th>Confidence Diff</th>
+                                            <th>Divergence Reasons</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="topDivergentSignals">
+                                        <!-- Filled by JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Divergence Trend (Last 30 Days)</h5>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="divergenceTrendChart" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial load
+            const today = document.getElementById('reportDate').value;
+            fetchReport(today);
+            
+            // Form submission
+            document.getElementById('dateForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const date = document.getElementById('reportDate').value;
+                fetchReport(date);
+            });
+        });
+        
+        function fetchReport(date) {
+            // Fetch daily report
+            fetch(`/api/signal-comparison/report/daily?date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderReport(data.data);
+                    } else {
+                        alert('Error fetching report: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error fetching report');
+                });
+                
+            // Fetch trend data
+            const endDate = new Date(date);
+            const startDate = new Date(endDate);
+            startDate.setDate(startDate.getDate() - 30);
+            
+            fetch(`/api/signal-comparison/divergent/stocks?startDate=${formatDate(startDate)}&endDate=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        renderDivergenceTrend(data.data, startDate, endDate);
+                    }
+                });
+        }
+        
+        function renderReport(report) {
+            // Update metrics
+            document.getElementById('totalSignals').textContent = report.totalSignals;
+            document.getElementById('divergentSignals').textContent = report.divergentSignals;
+            document.getElementById('divergenceRate').textContent = report.divergenceRate.toFixed(2) + '%';
+            document.getElementById('avgScoreDiffDivergent').textContent = report.averageScoreDifferenceDivergent.toFixed(2);
+            
+            // Render recommendation changes chart
+            renderRecommendationChangesChart(report.recommendationChanges);
+            
+            // Render root cause chart
+            renderRootCauseChart(report.rootCauseAnalysis);
+            
+            // Render top divergent signals
+            renderTopDivergentSignals(report.topDivergentSignals);
+        }
+        
+        function renderRecommendationChangesChart(changes) {
+            const ctx = document.getElementById('recommendationChangesChart').getContext('2d');
+            
+            const labels = Object.keys(changes);
+            const data = Object.values(changes);
+            
+            if (window.recommendationChangesChart) {
+                window.recommendationChangesChart.destroy();
+            }
+            
+            window.recommendationChangesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Recommendation Changes',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderRootCauseChart(causes) {
+            const ctx = document.getElementById('rootCauseChart').getContext('2d');
+            
+            const labels = Object.keys(causes);
+            const data = Object.values(causes);
+            
+            if (window.rootCauseChart) {
+                window.rootCauseChart.destroy();
+            }
+            
+            window.rootCauseChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(255, 206, 86, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(153, 102, 255, 0.7)',
+                            'rgba(255, 159, 64, 0.7)',
+                            'rgba(199, 199, 199, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 159, 64, 1)',
+                            'rgba(199, 199, 199, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            });
+        }
+        
+        function renderTopDivergentSignals(signals) {
+            const tbody = document.getElementById('topDivergentSignals');
+            tbody.innerHTML = '';
+            
+            signals.forEach(signal => {
+                const row = document.createElement('tr');
+                row.className = 'divergent';
+                
+                row.innerHTML = `
+                    <td>${signal.stockId}</td>
+                    <td>
+                        <span class="badge ${getBadgeClass(signal.productionRecommendation)}">
+                            ${signal.productionRecommendation}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${getBadgeClass(signal.shadowRecommendation)}">
+                            ${signal.shadowRecommendation}
+                        </span>
+                    </td>
+                    <td>${signal.scoreDifference}</td>
+                    <td>${Math.abs((signal.productionConfidence || 0) - (signal.shadowConfidence || 0))}</td>
+                    <td>${signal.divergenceReasons.join(', ')}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function renderDivergenceTrend(divergentCounts, startDate, endDate) {
+            const ctx = document.getElementById('divergenceTrendChart').getContext('2d');
+            
+            // Create date range
+            const dates = [];
+            const counts = [];
+            const currentDate = new Date(startDate);
+            
+            while (currentDate <= endDate) {
+                const dateStr = formatDate(currentDate);
+                dates.push(dateStr);
+                counts.push(divergentCounts[dateStr] || 0);
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            if (window.divergenceTrendChart) {
+                window.divergenceTrendChart.destroy();
+            }
+            
+            window.divergenceTrendChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: 'Divergent Signals',
+                        data: counts,
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function getBadgeClass(recommendation) {
+            switch(recommendation) {
+                case 'STRONG BUY': return 'bg-success';
+                case 'BUY': return 'bg-primary';
+                case 'HOLD': return 'bg-secondary';
+                case 'SELL': return 'bg-warning';
+                case 'STRONG SELL': return 'bg-danger';
+                default: return 'bg-dark';
+            }
+        }
+        
+        function formatDate(date) {
+            const d = new Date(date);
+            let month = '' + (d.getMonth() + 1);
+            let day = '' + d.getDate();
+            const year = d.getFullYear();
+            
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            
+            return [year, month, day].join('-');
+        }
+    </script>
+</body>
+</html>

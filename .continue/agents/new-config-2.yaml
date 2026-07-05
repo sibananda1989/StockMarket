@@ -1,0 +1,56 @@
+name: Sibananda AI Config
+version: 1.0.0
+schema: v1
+models:
+  - name: qwen3-coder 30b
+    provider: ollama
+    model: qwen3-coder:30b
+    roles:
+      - apply
+      - chat
+      - edit
+    capabilities:
+      - tool_use
+      # Gemini
+  - name: Gemini Pro
+    provider: gemini
+    model: gemini-2.5-pro
+    apiKey: AIzaSyCEoIr5XGM114lQGRPSy5eEyZHF_WcaR9o
+
+  - name: Gemini Flash
+    provider: gemini
+    model: gemini-2.5-flash
+    apiKey: AIzaSyCEoIr5XGM114lQGRPSy5eEyZHF_WcaR9o
+
+  - name: Gemma
+    provider: gemini
+    model: gemma-3-27b-it
+    apiKey: AIzaSyCEoIr5XGM114lQGRPSy5eEyZHF_WcaR9o
+
+  - name: Gemma 4 26B
+    provider: gemini
+    model: gemma-4-26b-a4b-it
+    apiKey: AIzaSyCEoIr5XGM114lQGRPSy5eEyZHF_WcaR9o
+
+  - name: Gemma 4 31B
+    provider: gemini
+    model: gemma-4-31b-it
+    apiKey: AIzaSyCEoIr5XGM114lQGRPSy5eEyZHF_WcaR9o
+
+systemMessage: |
+  You are working with limited-rate AI models.
+
+  Important rules:
+  - Do NOT load unnecessary files.
+  - Do NOT scan the full repository automatically.
+  - Only inspect files directly related to the current task.
+  - Avoid reading generated folders, build folders, logs, binaries, or dependencies.
+  - Prefer targeted code analysis over project-wide analysis.
+  - Minimize token usage.
+  - Keep responses concise unless detailed output is requested.
+  - Summarize large files before detailed reasoning.
+  - Retry once on transient 500 errors.
+  - Prefer Gemini Flash for simple coding tasks.
+  - Use Gemma 4 31B only for deep reasoning tasks.
+  - Prefer incremental edits over rewriting large files.
+  - Focus on clean production-ready Java and Spring Boot code.

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Tracker - Watchlists</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+.watchlist-card { transition: all 0.2s; }
+.watchlist-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+.stock-row:hover { background: rgba(59, 130, 246, 0.08); }
+.pnl-pos { color: #22c55e; }
+.pnl-neg { color: #ef4444; }
+th { white-space: nowrap; cursor: pointer; }
+th:hover { background: var(--hover-bg); }
+
+/* Signal badge and tooltip styles */
+.signal-badge {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+padding: 2px 8px;
+border-radius: 9999px;
+font-size: 0.7rem;
+font-weight: 600;
+color: white;
+cursor: default;
+position: relative;
+}
+.signal-badge .score {
+font-size: 0.6rem;
+opacity: 0.8;
+}
+.signal-tooltip {
+display: none;
+position: fixed;
+background: #1f2937;
+border: 1px solid #4b5563;
+border-radius: 8px;
+padding: 10px 14px;
+min-width: 220px;
+z-index: 1000;
+box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+text-align: left;
+white-space: nowrap;
+}
+.signal-tooltip .tooltip-row {
+display: flex;
+justify-content: space-between;
+font-size: 0.75rem;
+padding: 2px 0;
+color: #d1d5db;
+gap: 12px;
+}
+.signal-tooltip .tooltip-label {
+color: #9ca3af;
+}
+.signal-tooltip .tooltip-divider {
+border-top: 1px solid #374151;
+margin: 4px 0;
+}
+.badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+.badge-neutral { background: rgba(107,114,128,0.2); color: #9ca3af; }
+</style>
+</head>
+<body class="dark min-h-screen">
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+<!-- Header -->
+<div class="flex justify-between items-center mb-8">
+<div>
+<h1 class="text-3xl font-bold mb-2">Watchlists</h1>
+<p class="text-secondary">Create and manage custom stock watchlists for tracking</p>
+</div>
+<button onclick="toggleTheme()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+<i class="fas fa-moon" id="themeIcon"></i>
+</button>
+</div>
+
+<!-- Navigation -->
+        <div id="navigation"></div>
+
+<!-- Actions -->
+<div class="card rounded-xl p-4 mb-6 shadow-lg">
+<div class="flex flex-wrap gap-3 items-center justify-between">
+<div class="flex flex-wrap gap-3">
+<button onclick="openCreateModal()"
+class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+<i class="fas fa-plus mr-2"></i>New Watchlist
+</button>
+</div>
+</div>
+</div>
+
+<!-- Empty State -->
+<div id="emptyState" class="card rounded-xl p-12 text-center hidden">
+<div class="text-5xl mb-4">📋</div>
+<h3 class="text-xl font-bold mb-2">No Watchlists Yet</h3>
+<p class="text-secondary mb-4">Create your first watchlist to start tracking stocks you're interested in.</p>
+<button onclick="openCreateModal()"
+class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+<i class="fas fa-plus mr-2"></i>Create Watchlist
+</button>
+</div>
+
+<!-- Watchlist Cards Grid -->
+<div id="watchlistGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6"></div>
+
+<!-- Stock List for Selected Watchlist -->
+<div id="watchlistDetail" class="card rounded-xl shadow-lg hidden" style="overflow: visible;">
+<div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+<div>
+<h3 class="text-lg font-bold" id="detailTitle">
+<i class="fas fa-list text-cyan-400 mr-2"></i><span id="detailWatchlistName"></span>
+</h3>
+<p class="text-sm text-secondary" id="detailWatchlistDesc"></p>
+</div>
+<div class="flex gap-2">
+<button onclick="openAddStockModal()"
+class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
+<i class="fas fa-plus mr-1"></i>Add Stock
+</button>
+<div class="relative" id="syncAllDropdownWrapper">
+<button onclick="toggleSyncAllDropdown()"
+class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
+<i class="fas fa-sync-alt"></i> Sync History
+</button>
+<div id="syncAllDropdown" class="hidden absolute right-0 mt-2 w-44 bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50">
+<div class="py-1">
+<button onclick="syncWatchlistHistoryWithDays(30)" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">30 Days</button>
+<button onclick="syncWatchlistHistoryWithDays(60)" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">60 Days</button>
+<button onclick="syncWatchlistHistoryWithDays(90)" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">90 Days</button>
+<button onclick="syncWatchlistHistoryWithDays(180)" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">180 Days</button>
+<button onclick="syncWatchlistHistoryWithDays(365)" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm">365 Days</button>
+<button onclick="syncWatchlistHistoryWithDays(730)" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-sm font-semibold">730 Days</button>
+</div>
+</div>
+</div>
+<button onclick="closeDetail()"
+class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">
+<i class="fas fa-times mr-1"></i>Close
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full">
+<thead>
+<tr class="border-b border-gray-700">
+<th class="px-4 py-3 text-left">Symbol</th>
+<th class="px-4 py-3 text-left">Name</th>
+<th class="px-4 py-3 text-left">Sector</th>
+<th class="px-4 py-3 text-right">LTP</th>
+<th class="px-4 py-3 text-right">Signal</th>
+<th class="px-4 py-3 text-center">Added</th>
+<th class="px-4 py-3 text-center">Records</th>
+<th class="px-4 py-3 text-center">Actions</th>
+</tr>
+</thead>
+<tbody id="detailTableBody">
+<tr><td colspan="8" class="text-center py-8 text-secondary">Loading stocks...</td></tr>
+</tbody>
+</table>
+</div>
+<!-- Sector Allocation Chart -->
+<div id="sectorChartSection" class="px-6 py-4 border-t border-gray-700 hidden">
+<h4 class="text-sm font-bold mb-3">
+<i class="fas fa-chart-pie text-purple-400 mr-2"></i>Sector Allocation
+</h4>
+<div class="relative" style="height: 250px;">
+<canvas id="watchlistSectorChart"></canvas>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Create/Edit Watchlist Modal -->
+<div id="watchlistModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+<div class="card rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xl font-bold" id="modalTitle">Create Watchlist</h3>
+<button onclick="closeModal('watchlistModal')" class="text-gray-400 hover:text-white">
+<i class="fas fa-times text-xl"></i>
+</button>
+</div>
+<form id="watchlistForm" onsubmit="saveWatchlist(event)">
+<input type="hidden" id="editWatchlistId">
+<div class="mb-4">
+<label class="block text-sm font-medium mb-2">Name</label>
+<input type="text" id="wlName" required maxlength="100"
+class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+placeholder="e.g. Earnings Watch, Tech Growth">
+</div>
+<div class="mb-4">
+<label class="block text-sm font-medium mb-2">Description</label>
+<textarea id="wlDescription" maxlength="255" rows="2"
+class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+placeholder="Optional description..."></textarea>
+</div>
+<div class="flex gap-3 mt-6">
+<button type="button" onclick="closeModal('watchlistModal')"
+class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
+Cancel
+</button>
+<button type="submit" id="modalSubmitBtn"
+class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors">
+Create
+</button>
+</div>
+</form>
+</div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+<div class="card rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xl font-bold">Confirm Delete</h3>
+<button onclick="closeModal('deleteModal')" class="text-gray-400 hover:text-white">
+<i class="fas fa-times text-xl"></i>
+</button>
+</div>
+<p class="mb-2">Are you sure you want to delete the watchlist "<strong id="deleteWlName"></strong>"?</p>
+<p class="text-sm text-secondary mb-4">All stocks in this watchlist will be removed. This action cannot be undone.</p>
+<input type="hidden" id="deleteWatchlistId">
+<div class="flex gap-3">
+<button onclick="closeModal('deleteModal')"
+class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
+Cancel
+</button>
+<button onclick="confirmDelete()"
+class="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-medium transition-colors">
+Delete
+</button>
+</div>
+</div>
+</div>
+
+<!-- Add Stock to Watchlist Modal -->
+<div id="addStockModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+<div class="card rounded-xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xl font-bold">Add Stock to Watchlist</h3>
+<button onclick="closeModal('addStockModal')" class="text-gray-400 hover:text-white">
+<i class="fas fa-times text-xl"></i>
+</button>
+</div>
+<input type="hidden" id="addStockWatchlistId">
+
+<!-- Primary: Name Search -->
+<div class="mb-4 relative">
+<label class="block text-sm font-medium mb-2">Search Stock</label>
+<input type="text" id="addStockSearch"
+class="w-full px-4 py-2.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+placeholder="Type stock name or symbol (e.g. Reliance, TCS, Infosys)..."
+oninput="debounceSearchStocksWatchlist(this.value, 300)"
+autocomplete="off">
+<!-- Rich search results dropdown -->
+<div id="qcSearchResults" class="absolute left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-10 max-h-64 overflow-y-auto hidden">
+</div>
+</div>
+
+<!-- Auto-filled fields (shown after selection) -->
+<div id="selectedStockFields" class="hidden mb-4">
+<div class="bg-gray-700/30 rounded-lg p-4 border border-gray-600">
+<div class="flex items-center justify-between mb-3">
+<span class="text-xs text-secondary uppercase tracking-wider">Selected Stock</span>
+<button onclick="clearSelectedStock()" class="text-xs text-red-400 hover:text-red-300">
+<i class="fas fa-times mr-1"></i>Clear
+</button>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block text-xs text-secondary mb-1">Symbol</label>
+<input type="text" id="qcSymbol" readonly
+class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm font-bold text-white">
+</div>
+<div>
+<label class="block text-xs text-secondary mb-1">Name</label>
+<input type="text" id="qcName" readonly
+class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
+</div>
+<div>
+<label class="block text-xs text-secondary mb-1">Exchange</label>
+<input type="text" id="qcExchange" readonly
+class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
+</div>
+<div>
+<label class="block text-xs text-secondary mb-1">Sector</label>
+<select id="qcSector" class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+<option value="">Select</option>
+<option>Technology</option><option>Finance</option><option>Healthcare</option>
+<option>Energy</option><option>Consumer Discretionary</option>
+<option>Consumer Staples</option><option>Industrial</option>
+<option>Utilities</option><option>Real Estate</option><option>Materials</option><option>Other</option>
+</select>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Stock already in watchlist warning -->
+<div id="stockInWatchlistWarning" class="hidden mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg text-sm text-yellow-400">
+<i class="fas fa-exclamation-triangle mr-2"></i><span id="stockInWatchlistText"></span>
+</div>
+
+<div class="flex gap-3 mt-4">
+<button onclick="closeModal('addStockModal')"
+class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
+Cancel
+</button>
+<button id="addStockBtn" onclick="confirmAddSingleStock()"
+class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors" disabled>
+<i class="fas fa-plus mr-1"></i>Add to Watchlist
+</button>
+</div>
+</div>
+</div>
+
+<!-- Add to Portfolio Modal -->
+<div id="portfolioModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+<div class="card rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+<div class="flex justify-between items-center mb-4">
+<h3 class="text-xl font-bold">Add to Portfolio</h3>
+<button onclick="closePortfolioModal()" class="text-gray-400 hover:text-white">
+<i class="fas fa-times text-xl"></i>
+</button>
+</div>
+<input type="hidden" id="portfolioStockId">
+
+<div class="mb-4 bg-gray-700/30 rounded-lg p-4 border border-gray-600">
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="block text-xs text-secondary mb-1">Symbol</label>
+<input type="text" id="portfolioSymbol" readonly
+class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm font-bold text-white">
+</div>
+<div>
+<label class="block text-xs text-secondary mb-1">Name</label>
+<input type="text" id="portfolioName" readonly
+class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
+</div>
+</div>
+</div>
+
+<div class="mb-4">
+<label class="block text-sm font-medium mb-2">Target Portfolio</label>
+<select id="portfolioTargetSelector"
+class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
+<option value="">Select portfolio</option>
+</select>
+</div>
+<div class="mb-4">
+<label class="block text-sm font-medium mb-2">Quantity</label>
+<input type="number" id="portfolioQty" min="1" required
+class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
+placeholder="Enter quantity">
+</div>
+<div class="mb-4">
+<label class="block text-sm font-medium mb-2">Avg Buy Price</label>
+<input type="number" id="portfolioAvgPrice" step="0.01" min="0" required
+class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
+placeholder="Enter average buy price">
+</div>
+
+<div class="flex gap-3 mt-6">
+<button onclick="closePortfolioModal()"
+class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
+Cancel
+</button>
+<button onclick="confirmAddToPortfolio()"
+class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+<i class="fas fa-shopping-cart mr-1"></i>Add to Portfolio
+</button>
+</div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/watchlist.js"></script>
+    <script src="js/navigation.js"></script>
+    <script>
+function toggleTheme() {
+const body = document.body;
+const icon = document.getElementById('themeIcon');
+if (body.classList.contains('dark')) {
+body.classList.remove('dark');
+body.classList.add('light');
+icon.classList.remove('fa-moon');
+icon.classList.add('fa-sun');
+} else {
+body.classList.remove('light');
+body.classList.add('dark');
+icon.classList.remove('fa-sun');
+icon.classList.add('fa-moon');
+}
+}
+
+function closeModal(modalId) {
+document.getElementById(modalId).classList.add('hidden');
+document.getElementById(modalId).classList.remove('flex');
+}
+
+function openModal(modalId) {
+document.getElementById(modalId).classList.remove('hidden');
+document.getElementById(modalId).classList.add('flex');
+}
+</script>
+<script src="js/navigation.js"></script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - History Summary</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        th { white-space: nowrap; }
+        .table-container { max-height: 600px; overflow-y: auto; }
+        .table-container thead th { position: sticky; top: 0; background-color: var(--bg-secondary); z-index: 10; }
+        .result-success { border-left: 4px solid #22c55e; }
+        .result-error { border-left: 4px solid #ef4444; }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .progress-shimmer {
+            background: linear-gradient(90deg, #3b82f6 25%, #8b5cf6 50%, #3b82f6 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Historical Data Summary</h1>
+                <p class="text-secondary">View Yahoo Finance summaries for all tracked stocks</p>
+            </div>
+            <button onclick="toggleTheme()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation - injected by navigation.js -->
+        <div id="navigation"></div>
+
+        <!-- Controls -->
+        <div class="card rounded-xl p-6 mb-6 shadow-lg">
+            <div class="flex flex-col lg:flex-row gap-4 items-end">
+                <div class="w-full lg:w-48">
+                    <label class="block text-sm font-medium mb-2">Days</label>
+                    <select id="daysSelect"
+                            class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="7">7 Days</option>
+                        <option value="15">15 Days</option>
+                        <option value="30" selected>30 Days</option>
+                        <option value="50">50 Days</option>
+                        <option value="100">100 Days</option>
+                        <option value="200">200 Days</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 w-full lg:w-auto">
+                    <button onclick="fetchAllSummaries()"
+                            class="flex-1 lg:flex-none px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                        <i class="fas fa-sync-alt mr-2"></i>Fetch All Summaries
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 hidden" id="summaryCards">
+            <div class="card rounded-xl p-4 shadow-lg text-center">
+                <div class="text-secondary text-sm mb-1">Stocks</div>
+                <div class="text-xl font-bold" id="totalStocks">--</div>
+            </div>
+            <div class="card rounded-xl p-4 shadow-lg text-center">
+                <div class="text-secondary text-sm mb-1">Successful</div>
+                <div class="text-xl font-bold text-green-500" id="successCount">--</div>
+            </div>
+            <div class="card rounded-xl p-4 shadow-lg text-center">
+                <div class="text-secondary text-sm mb-1">Failed</div>
+                <div class="text-xl font-bold text-red-500" id="failedCount">--</div>
+            </div>
+            <div class="card rounded-xl p-4 shadow-lg text-center">
+                <div class="text-secondary text-sm mb-1">Last Fetched</div>
+                <div class="text-xl font-bold" id="lastFetched">--</div>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="hidden">
+            <div class="card rounded-xl p-8">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="text-3xl"><i class="fas fa-cloud-download-alt text-blue-500"></i></div>
+                    <div>
+                        <h3 class="text-xl font-semibold" id="loadingTitle">Fetching Summaries</h3>
+                        <p class="text-secondary text-sm" id="loadingSubtext">Retrieving historical data from Yahoo Finance...</p>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                    <div id="progressBar" class="h-full rounded-full progress-shimmer" style="width: 0%; transition: width 0.4s ease;"></div>
+                </div>
+                <div class="flex justify-between mt-2 text-xs text-secondary">
+                    <span id="progressLabel">Starting...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden">
+            <div class="card rounded-xl p-8 text-center">
+                <div class="text-red-500 text-6xl mb-4">&#9888;</div>
+                <h3 class="text-xl font-semibold mb-2">Error</h3>
+                <p id="errorMessage" class="text-secondary mb-4"></p>
+                <button onclick="fetchAllSummaries()"
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                    Try Again
+                </button>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="card rounded-xl p-8 text-center">
+            <div class="text-6xl mb-4">&#128202;</div>
+            <h3 class="text-xl font-semibold mb-2">No Stocks Tracked</h3>
+            <p class="text-secondary mb-4">Add stocks first to view their historical summaries.</p>
+            <a href="stocks.html"
+               class="inline-block px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                Manage Stocks
+            </a>
+        </div>
+
+        <!-- Content State -->
+        <div id="contentState" class="hidden">
+            <div class="card rounded-xl shadow-lg overflow-hidden">
+                <div class="p-4 border-b border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h2 class="text-xl font-semibold">Stock Summaries</h2>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <input type="text" id="tableSearch"
+                               class="flex-1 md:w-64 px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="Search by symbol or name..."
+                               oninput="filterTable()">
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-600">
+                                <th class="px-4 py-3 text-left">Symbol</th>
+                                <th class="px-4 py-3 text-left">Yahoo Symbol</th>
+                                <th class="px-4 py-3 text-right">Current</th>
+                                <th class="px-4 py-3 text-right">High</th>
+                                <th class="px-4 py-3 text-right">Low</th>
+                                <th class="px-4 py-3 text-right">Avg Close</th>
+                                <th class="px-4 py-3 text-right">% Change</th>
+                                <th class="px-4 py-3 text-right">Data Points</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/history-summary.js"></script>
+    <script src="js/navigation.js"></script>
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            document.body.classList.toggle('light');
+            const icon = document.getElementById('themeIcon');
+            icon.classList.toggle('fa-moon');
+            icon.classList.toggle('fa-sun');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+graph LR
+    subgraph Browser["🌐 Browser (Frontend)"]
+        HTML["Static HTML Pages
+(9 pages: Dashboard, Stock Detail,
+Strategy, Watchlist, Institutional,
+Price Entry, RSI, History, Summary)"]
+        JS["Vanilla JS (ES6)
+api.js, portfolio.js, stock-detail.js,
+strategy-manager.js, watchlist.js, etc."]
+        CSS["Tailwind CSS + Chart.js 4.4"]
+    end
+
+    subgraph SpringBoot["☕ Spring Boot 3.2.5 (Java 17)"]
+        direction TB
+        
+        subgraph Controllers["📡 Controllers (17)"]
+            StockCtrl["StockController (13)"]
+            SignalCtrl["SignalController (4)"]
+            IndicatorCtrl["TechnicalIndicatorController (7)"]
+            PortfolioCtrl["PortfolioController (3)"]
+            PortfolioMgmtCtrl["PortfolioManagementController (9)"]
+            BacktestCtrl["BacktestController (1)"]
+            WatchlistCtrl["WatchlistController (11)"]
+            SRController["SupportResistanceController (5)"]
+            InstitutionalCtrl["InstitutionalHoldingController (20)"]
+            DhanCtrl["DhanController (2)"]
+            FiiDiiCtrl["FiiDiiController (2)"]
+            EventCtrl["CorporateEventController (2)"]
+            SyncCtrl["StockSyncController (2)"]
+            PriceCtrl["PriceController (3)"]
+            RsiCtrl["RsiController (4)"]
+            MultiStratCtrl["MultiStrategySignalController (2)"]
+            StrategyCfgCtrl["StrategyConfigController (7)"]
+            StartupCtrl["StartupTaskController (1)"]
+        end
+
+        subgraph Services["⚙️ Services (28+)"]
+            SignalSvc["SignalService (34.6k LOC)
+Core signal engine - 15 factors"]
+            TechAnalysisSvc["TechnicalAnalysisService
+Orchestrates 22 calculators"]
+            BacktestSvc["BacktestService
+Trailing SL + position sizing"]
+            YahooSvc["YahooFinanceService (13.7k)
+Symbol search, history, OHLCV"]
+            DhanSvc["DhanApiService + DhanSyncService (6.5k)
+Holdings sync, candle data"]
+            PortfolioSvc["PortfolioService + PortfolioSnapshotService
+Multi-portfolio P&L"]
+            InstitutionalSvc["Institutional Engine (8 services)
+FII/DII, Bulk/Block, XBRL, Scores"]
+            WatchlistSvc["WatchlistService"]
+            SRSvc["SupportResistanceService"]
+            FiiDiiSvc["FiiDiiService"]
+            EventSvc["CorporateEventService"]
+            PriceSvc["DailyPriceService + PriceAggregationService"]
+            SyncSvc["StockSyncService + YahooFinanceSyncService"]
+            SplitDetector["StockSplitDetector"]
+            RateLimiter["ApiRateLimiter"]
+            PositionSizing["PositionSizingService"]
+            TrailingStop["TrailingStopService"]
+            BreakoutDetector["BreakoutDetector"]
+            ShadowSignalSvc["ShadowSignalService"]
+            WatchlistOppSvc["WatchlistOpportunityService"]
+            StrategyInfluence["StrategyInfluenceService"]
+            StrategyConfigSvc["StrategyConfigService"]
+            StrategyConditionSvc["StrategyConditionService"]
+            IndicatorPersistence["TechnicalIndicatorPersistenceService"]
+            RsiValueSvc["RsiValueService (deprecated)"]
+        end
+
+        subgraph Calculators["🔢 Calculators (22)"]
+            RSI["RsiCalculator (Wilder's 14)"]
+            SMA["SmaCalculator (20/50/200)"]
+            EMA["EmaCalculator (20)"]
+            MACD["MacdLineCalculator + MacdSignalCalculator"]
+            BB["BollingerUpper/LowerCalculator"]
+            Stoch["StochKCalculator + StochDCalculator"]
+            Williams["WilliamsRCalculator"]
+            ATR["ATRCalculator (14)"]
+            CCI["CCICalculator (20)"]
+            StochRSI["StochRsiCalculator"]
+            ADX["AdxCalculator (+DI/-DI)"]
+            UltimateOsc["UltimateOscillatorCalculator"]
+            ROC["RocCalculator (12)"]
+            OBV["ObvCalculator"]
+            SR["SupportResistanceCalculator"]
+            VWAP["VwapCalculator"]
+            Ichimoku["IchimokuCalculator"]
+            Candlestick["CandlestickPatternCalculator"]
+            Reversal["ReversalDetector"]
+        end
+
+        subgraph Strategy["🎯 Strategy Engine"]
+            MultiEngine["MultiStrategySignalEngine"]
+            Aggregator["StrategySignalAggregator"]
+            ConditionSvc["StrategyConditionService (25 conditions)"]
+            ConfigSvc["StrategyConfigService"]
+        end
+
+        subgraph Schedulers["⏰ Schedulers (4)"]
+            MarketScheduler["MarketAnalysisScheduler
+Daily 4:15PM Dhan sync, 9AM safety-net"]
+            SignalPerfScheduler["SignalPerformanceScheduler
+2:30AM forward returns"]
+            InstitutionalScheduler["InstitutionalHoldingScheduler
+5 cron jobs for shareholding, deals, XBRL"]
+            IndicatorStartup["IndicatorStartupTask
+On startup: calc missing indicators"]
+            PortfolioSnapshot["PortfolioSnapshotStartupTask
+On startup: ensure today's snapshots"]
+        end
+
+        subgraph Cache["💾 Cache (Caffeine)"]
+            StockCache["stockHistory (15min, 200)"]
+            SignalCache["signals (15min, 200)"]
+            IndicatorCache["indicators (15min, 200)"]
+            PortfolioCache["portfolio (15min, 200)"]
+            InstitutionalCache["institutional (15min, 200)"]
+        end
+
+        subgraph Repositories["🗄️ Repositories (15)"]
+            StockRepo["StockRepository"]
+            PriceRepo["DailyPriceRepository"]
+            IndicatorRepo["TechnicalIndicatorRepository"]
+            SRRepo["SupportResistanceLevelRepository"]
+            PortfolioRepo["PortfolioRepository"]
+            HoldingRepo["PortfolioHoldingRepository"]
+            SnapshotRepo["PortfolioSnapshotRepository"]
+            InstitutionalRepo["InstitutionalHoldingRepository"]
+            BulkDealRepo["BulkDealRepository"]
+            BlockDealRepo["BlockDealRepository"]
+            WatchlistRepo["WatchlistRepository"]
+            EventRepo["CorporateEventRepository"]
+            FiiDiiRepo["FiiDiiDataRepository"]
+            SignalPerfRepo["SignalHistoricalPerformanceRepository"]
+            SignalRecordRepo["SignalRecordRepository"]
+        end
+    end
+
+    subgraph Database["🗃️ MySQL (stockmarket)"]
+        Stocks["stocks (hub, 15 cols)"]
+        Prices["daily_prices (OHLCV, FK→stocks)"]
+        Indicators["technical_indicators (EAV, 21 types)"]
+        RSIValues["rsi_values (DEPRECATED)"]
+        SRLevels["support_resistance_levels (11 types)"]
+        Snapshots["portfolio_snapshots"]
+        Portfolios["portfolios"]
+        Holdings["portfolio_holdings"]
+        Institutional["institutional_holdings"]
+        BulkDeals["bulk_deals"]
+        BlockDeals["block_deals"]
+        Watchlists["watchlists + watchlist_items"]
+        Events["corporate_events"]
+        FiiDii["fiidii_data"]
+        SignalPerf["signal_historical_performance"]
+    end
+
+    subgraph External["🔌 External APIs"]
+        Yahoo["Yahoo Finance (public, 1 req/s)"]
+        Dhan["Dhan Brokerage API (5 req/s, token)"]
+        NSE["NSE India (0.5 req/s, cookies)"]
+        NSEBulk["NSE Bulk/Block Deals (CSV)"]
+        NSEXBRL["NSE XBRL (shareholding XML)"]
+    end
+
+    %% Browser connections
+    HTML -->|fetch()| SpringBoot
+    JS -->|fetch()| SpringBoot
+    CSS -.-> HTML
+
+    %% Controller to Service
+    Controllers --> Services
+    Controllers --> Strategy
+    Controllers --> Cache
+
+    %% Service to Calculator
+    Services --> Calculators
+    Services --> Strategy
+    Services --> Repositories
+    Services --> External
+    Services --> Cache
+
+    %% Strategy Engine flow
+    MultiEngine --> Aggregator
+    MultiEngine --> ConditionSvc
+    MultiEngine --> IndicatorRepo
+    MultiEngine --> PriceRepo
+    Aggregator --> ConfigSvc
+
+    %% Calculators to Repositories (for persistence)
+    Calculators -.->|persisted via| IndicatorRepo
+    TechAnalysisSvc --> Calculators
+
+    %% Schedulers trigger Services
+    Schedulers --> Services
+    Schedulers --> Repositories
+
+    %% Repositories to Database
+    Repositories --> Database
+    Stocks --> Prices
+    Stocks --> Indicators
+    Stocks --> RSIValues
+    Stocks --> SRLevels
+    Stocks --> Snapshots
+    Portfolios --> Holdings
+    Watchlists -.-> Stocks
+
+    %% External API integrations
+    YahooSvc --> Yahoo
+    DhanSvc --> Dhan
+    FiiDiiSvc --> NSE
+    BulkDealRepo -.-> NSEBulk
+    BlockDealRepo -.-> NSEBulk
+    InstitutionalSvc -.-> NSEXBRL
+
+    %% Cache connections
+    Services -.-> Cache
+
+    %% Styling
+    classDef frontend fill:#1e293b,stroke:#3b82f6,color:#fff
+    classDef controller fill:#7c3aed,stroke:#a855f7,color:#fff
+    classDef service fill:#059669,stroke:#10b981,color:#fff
+    classDef calc fill:#ea580c,stroke:#f97316,color:#fff
+    classDef strategy fill:#dc2626,stroke:#ef4444,color:#fff
+    classDef scheduler fill:#7c2d12,stroke:#9a3412,color:#fff
+    classDef cache fill:#166534,stroke:#22c55e,color:#fff
+    classDef repo fill:#1e3a8a,stroke:#3b82f6,color:#fff
+    classDef db fill:#374151,stroke:#6b7280,color:#fff
+    classDef ext fill:#92400e,stroke:#d97706,color:#fff
+
+    class HTML,JS,CSS frontend
+    class Controllers,StockCtrl,SignalCtrl,IndicatorCtrl,PortfolioCtrl,PortfolioMgmtCtrl,BacktestCtrl,WatchlistCtrl,SRController,InstitutionalCtrl,DhanCtrl,FiiDiiCtrl,EventCtrl,SyncCtrl,PriceCtrl,RsiCtrl,MultiStratCtrl,StrategyCfgCtrl,StartupCtrl controller
+    class Services,SignalSvc,TechAnalysisSvc,BacktestSvc,YahooSvc,DhanSvc,PortfolioSvc,InstitutionalSvc,WatchlistSvc,SRSvc,FiiDiiSvc,EventSvc,PriceSvc,SyncSvc,SplitDetector,RateLimiter,PositionSizing,TrailingStop,BreakoutDetector,ShadowSignalSvc,WatchlistOppSvc,StrategyInfluence,StrategyConfigSvc,StrategyConditionSvc,IndicatorPersistence,RsiValueSvc service
+    class Calculators,RSI,SMA,EMA,MACD,BB,Stoch,Williams,ATR,CCI,StochRSI,ADX,UltimateOsc,ROC,OBV,SR,VWAP,Ichimoku,Candlestick,Reversal calc
+    class Strategy,MultiEngine,Aggregator,ConditionSvc,ConfigSvc strategy
+    class Schedulers,MarketScheduler,SignalPerfScheduler,InstitutionalScheduler,IndicatorStartup,PortfolioSnapshot scheduler
+    class Cache,StockCache,SignalCache,IndicatorCache,PortfolioCache,InstitutionalCache cache
+    class Repositories,StockRepo,PriceRepo,IndicatorRepo,SRRepo,PortfolioRepo,HoldingRepo,SnapshotRepo,InstitutionalRepo,BulkDealRepo,BlockDealRepo,WatchlistRepo,EventRepo,FiiDiiRepo,SignalPerfRepo,SignalRecordRepo repo
+    class Database,Stocks,Prices,Indicators,RSIValues,SRLevels,Snapshots,Portfolios,Holdings,Institutional,BulkDeals,BlockDeals,Watchlists,Events,FiiDii,SignalPerf db
+    class External,Yahoo,Dhan,NSE,NSEBulk,NSEXBRL ext

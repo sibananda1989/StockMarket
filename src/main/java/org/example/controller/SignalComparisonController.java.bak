@@ -1,0 +1,50 @@
+package org.example.controller;
+
+import lombok.RequiredArgsConstructor;
+import org.example.dto.ApiResponse;
+import org.example.dto.SignalComparisonDTO;
+import org.example.dto.SignalComparisonReportDTO;
+import org.example.service.SignalComparisonService;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/signal-comparison")
+@RequiredArgsConstructor
+public class SignalComparisonController {
+
+    private final SignalComparisonService signalComparisonService;
+
+    @GetMapping("/compare")
+    public ResponseEntity<ApiResponse<List<SignalComparisonDTO>>> compareSignals(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        List<SignalComparisonDTO> comparisons = signalComparisonService.compareSignalsForDate(date);
+        return ResponseEntity.ok(ApiResponse.success(comparisons));
+    }
+
+    @GetMapping("/report/daily")
+    public ResponseEntity<ApiResponse<SignalComparisonReportDTO>> generateDailyReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        SignalComparisonReportDTO report = signalComparisonService.generateDailyReport(date);
+        return ResponseEntity.ok(ApiResponse.success(report));
+    }
+
+    @GetMapping("/divergent/count")
+    public ResponseEntity<ApiResponse<Long>> countDivergentSignals(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        long count = signalComparisonService.countDivergentSignals(date);
+        return ResponseEntity.ok(ApiResponse.success(count));
+    }
+
+    @GetMapping("/divergent/stocks")
+    public ResponseEntity<ApiResponse<Map<Long, Long>>> countDivergentSignalsByStock(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        Map<Long, Long> counts = signalComparisonService.countDivergentSignalsByStock(startDate, endDate);
+        return ResponseEntity.ok(ApiResponse.success(counts));
+    }
+}

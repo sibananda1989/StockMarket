@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Institutional Activity Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+        }
+        body { background: var(--bg-primary); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        .card { background: var(--bg-card); border-radius: 1rem; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); border: 1px solid var(--border-color); }
+        .stat-card { padding: 1rem; border-radius: 0.75rem; border-left: 4px solid; background: var(--bg-secondary); }
+        .stat-card.green { border-color: #22c55e; }
+        .stat-card.red { border-color: #ef4444; }
+        .stat-card.blue { border-color: #3b82f6; }
+        .stat-card.purple { border-color: #a855f7; }
+        .stat-card.yellow { border-color: #eab308; }
+        .stat-card.cyan { border-color: #06b6d4; }
+        .badge { padding: 0.125rem 0.625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .badge-success { background: #166534; color: #86efac; }
+        .badge-danger { background: #991b1b; color: #fca5a5; }
+        .badge-warning { background: #854d0e; color: #fde68a; }
+        .badge-info { background: #1e3a5f; color: #93c5fd; }
+        .badge-neutral { background: #334155; color: #94a3b8; }
+        .nav-link { color: var(--text-secondary); padding: 0.5rem 1rem; border-radius: 0.5rem; transition: all 0.2s; text-decoration: none; }
+        .nav-link:hover, .nav-link.active { background: var(--bg-secondary); color: var(--text-primary); }
+        .tab-btn { padding: 0.5rem 1rem; border-radius: 0.5rem; cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { background: #3b82f6; color: white; }
+        .tab-btn:not(.active) { background: var(--bg-secondary); color: var(--text-secondary); }
+        .tab-btn:hover:not(.active) { background: #334155; }
+        .sortable { cursor: pointer; }
+        .sortable:hover { color: #3b82f6; }
+        .score-bar { height: 8px; border-radius: 4px; transition: width 0.5s; background: #334155; }
+        .score-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-content { background: var(--bg-card); border-radius: 1rem; padding: 1.5rem; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .toast { position: fixed; bottom: 1rem; right: 1rem; padding: 0.75rem 1.25rem; border-radius: 0.75rem; z-index: 100; animation: slideIn 0.3s; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .gradient-badge { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; }
+        .progress-ring { width: 120px; height: 120px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; }
+        .table-container { max-height: 500px; overflow-y: auto; }
+        .table-container thead { position: sticky; top: 0; z-index: 1; }
+        .table-container thead th { background: var(--bg-secondary); }
+        .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+        .kpi-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+    </style>
+</head>
+<body class="p-4 md:p-6">
+
+    <!-- Navigation - injected by navigation.js -->
+    <div id="navigation"></div>
+
+    <!-- Status Bar -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-sm text-secondary"><span id="totalStocks">0</span> stocks tracked</span>
+            <span class="text-sm text-secondary" id="lastFetchInfo">No data fetched</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="onFetchHoldings()" class="px-3 py-1.5 text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white"><i class="fas fa-download mr-1"></i>Fetch Holdings</button>
+            <button onclick="onFetchXbrl()" class="px-3 py-1.5 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white"><i class="fas fa-file-code mr-1"></i>Parse XBRL</button>
+            <button onclick="onFetchBulkDeals()" class="px-3 py-1.5 text-sm rounded-lg bg-green-600 hover:bg-green-700 text-white"><i class="fas fa-download mr-1"></i>Fetch Bulk Deals</button>
+            <button onclick="onFetchBlockDeals()" class="px-3 py-1.5 text-sm rounded-lg bg-purple-600 hover:bg-purple-700 text-white"><i class="fas fa-download mr-1"></i>Fetch Block Deals</button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6" id="kpiCards">
+        <div class="stat-card green">
+            <div class="kpi-label">FII Acc.</div>
+            <div class="kpi-value" id="kpiFiiAcc">0</div>
+        </div>
+        <div class="stat-card blue">
+            <div class="kpi-label">DII Acc.</div>
+            <div class="kpi-value" id="kpiDiiAcc">0</div>
+        </div>
+        <div class="stat-card purple">
+            <div class="kpi-label">MF Acc.</div>
+            <div class="kpi-value" id="kpiMfAcc">0</div>
+        </div>
+        <div class="stat-card cyan">
+            <div class="kpi-label">Inst. Strong Buy</div>
+            <div class="kpi-value" id="kpiStrongBuy">0</div>
+        </div>
+        <div class="stat-card yellow">
+            <div class="kpi-label">Inst. + PA Buy</div>
+            <div class="kpi-value" id="kpiPaBuy">0</div>
+        </div>
+        <div class="stat-card green">
+            <div class="kpi-label">Bulk Deals</div>
+            <div class="kpi-value" id="kpiBulkDeals">0</div>
+        </div>
+        <div class="stat-card blue">
+            <div class="kpi-label">Block Deals</div>
+            <div class="kpi-value" id="kpiBlockDeals">0</div>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="flex flex-wrap gap-2 mb-4">
+        <button class="tab-btn active" data-tab="score">Score Overview</button>
+        <button class="tab-btn" data-tab="fii">FII Accumulation</button>
+        <button class="tab-btn" data-tab="dii">DII Accumulation</button>
+        <button class="tab-btn" data-tab="mf">MF Accumulation</button>
+        <button class="tab-btn" data-tab="combination">Combined Buy</button>
+        <button class="tab-btn" data-tab="bulk">Bulk Deals</button>
+        <button class="tab-btn" data-tab="block">Block Deals</button>
+        <button class="tab-btn" data-tab="holdings">Holdings</button>
+    </div>
+
+    <!-- =============== Tab: Score Overview =============== -->
+    <div id="tab-score" class="tab-content">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-star text-yellow-400 mr-2"></i>Institutional Score Overview</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-secondary">Score 0-100 · Sorted by score</span>
+                    <button onclick="exportTableCsv('scoreTable','institutional-scores.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+            </div>
+            <!-- Score Distribution Chart -->
+            <div id="scoreChartArea" class="mb-4" style="display:none;">
+                <div class="flex flex-wrap items-center gap-6">
+                    <div style="width:200px;height:200px;">
+                        <canvas id="scoreDistributionChart"></canvas>
+                    </div>
+                    <div id="scoreLegend" class="text-sm space-y-1"></div>
+                </div>
+            </div>
+            <p id="scoreChartEmpty" class="text-center text-secondary text-sm py-2" style="display:none;">No score data to chart</p>
+            <div class="table-container">
+                <table class="w-full text-sm" id="scoreTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2 sortable" onclick="sortTable('scoreTable', 0)">#</th>
+                            <th class="text-left p-2 sortable" onclick="sortTable('scoreTable', 1)">Symbol</th>
+                            <th class="text-left p-2 sortable" onclick="sortTable('scoreTable', 2)">Name</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 3)">Score</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 4)">Grade</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 5)">FII</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 6)">DII</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 7)">MF</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 8)">Bulk</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 9)">Block</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 10)">Vol</th>
+                            <th class="text-center p-2 sortable" onclick="sortTable('scoreTable', 11)">PA</th>
+                            <th class="text-center p-2">Signal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scoreTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: FII Accumulation =============== -->
+    <div id="tab-fii" class="tab-content hidden">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-arrow-trend-up text-green-400 mr-2"></i>FII Accumulation Stocks</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-secondary">FII holding increased ≥0.5% QoQ</span>
+                    <button onclick="exportTableCsv('fiiTable','fii-accumulation.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="w-full text-sm" id="fiiTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2">Symbol</th>
+                            <th class="text-left p-2">Name</th>
+                            <th class="text-center p-2">FII%</th>
+                            <th class="text-center p-2">FII QoQ Change</th>
+                            <th class="text-center p-2">Price</th>
+                            <th class="text-center p-2">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fiiTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: DII Accumulation =============== -->
+    <div id="tab-dii" class="tab-content hidden">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-arrow-trend-up text-blue-400 mr-2"></i>DII Accumulation Stocks</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-secondary">DII holding increased ≥0.5% QoQ</span>
+                    <button onclick="exportTableCsv('diiTable','dii-accumulation.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="w-full text-sm" id="diiTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2">Symbol</th>
+                            <th class="text-left p-2">Name</th>
+                            <th class="text-center p-2">DII%</th>
+                            <th class="text-center p-2">DII QoQ Change</th>
+                            <th class="text-center p-2">Price</th>
+                            <th class="text-center p-2">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="diiTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: MF Accumulation =============== -->
+    <div id="tab-mf" class="tab-content hidden">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-arrow-trend-up text-purple-400 mr-2"></i>Mutual Fund Accumulation</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-secondary">MF holding increased ≥0.5% QoQ</span>
+                    <button onclick="exportTableCsv('mfTable','mf-accumulation.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="w-full text-sm" id="mfTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2">Symbol</th>
+                            <th class="text-left p-2">Name</th>
+                            <th class="text-center p-2">MF%</th>
+                            <th class="text-center p-2">MF QoQ Change</th>
+                            <th class="text-center p-2">Price</th>
+                            <th class="text-center p-2">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mfTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: Combined Buy =============== -->
+    <div id="tab-combination" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="card">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="font-semibold"><i class="fas fa-shield-halved text-cyan-400 mr-2"></i>Institutional Strong Buy</h3>
+                    <button onclick="exportTableCsv('strongBuyTable','institutional-strong-buy.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+                <p class="text-xs text-secondary mb-3">Score ≥ 60 — Highest institutional confidence</p>
+                <div class="table-container">
+                    <table class="w-full text-sm" id="strongBuyTable">
+                        <thead>
+                            <tr class="text-secondary border-b border-gray-700">
+                                <th class="text-left p-2">Symbol</th>
+                                <th class="text-center p-2">Score</th>
+                                <th class="text-center p-2">Price</th>
+                                <th class="text-center p-2">Signal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="strongBuyTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="flex items-center justify-between mb-1">
+                    <h3 class="font-semibold"><i class="fas fa-handshake text-yellow-400 mr-2"></i>Institutional + Price Action Buy</h3>
+                    <button onclick="exportTableCsv('paBuyTable','price-action-buy.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+                <p class="text-xs text-secondary mb-3">Score ≥ 40 AND technical signal = BUY/STRONG BUY</p>
+                <div class="table-container">
+                    <table class="w-full text-sm" id="paBuyTable">
+                        <thead>
+                            <tr class="text-secondary border-b border-gray-700">
+                                <th class="text-left p-2">Symbol</th>
+                                <th class="text-center p-2">Score</th>
+                                <th class="text-center p-2">Price</th>
+                                <th class="text-center p-2">Signal</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paBuyTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: Bulk Deals =============== -->
+    <div id="tab-bulk" class="tab-content hidden">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-cubes text-green-400 mr-2"></i>Bulk Deals</h2>
+                <div class="flex items-center gap-2">
+                    <button onclick="exportTableCsv('bulkTable','bulk-deals.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                    <input type="date" id="bulkFromDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
+                    <input type="date" id="bulkToDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
+                    <button onclick="loadBulkDeals()" class="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"><i class="fas fa-search mr-1"></i>Search</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="w-full text-sm" id="bulkTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2">Date</th>
+                            <th class="text-left p-2">Symbol</th>
+                            <th class="text-left p-2">Client</th>
+                            <th class="text-center p-2">B/S</th>
+                            <th class="text-center p-2">Qty</th>
+                            <th class="text-center p-2">Price</th>
+                            <th class="text-center p-2">Value</th>
+                            <th class="text-center p-2">Category</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bulkTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: Block Deals =============== -->
+    <div id="tab-block" class="tab-content hidden">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-cubes text-purple-400 mr-2"></i>Block Deals</h2>
+                <div class="flex items-center gap-2">
+                    <button onclick="exportTableCsv('blockTable','block-deals.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                    <input type="date" id="blockFromDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
+                    <input type="date" id="blockToDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
+                    <button onclick="loadBlockDeals()" class="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"><i class="fas fa-search mr-1"></i>Search</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="w-full text-sm" id="blockTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2">Date</th>
+                            <th class="text-left p-2">Symbol</th>
+                            <th class="text-left p-2">Client</th>
+                            <th class="text-center p-2">B/S</th>
+                            <th class="text-center p-2">Qty</th>
+                            <th class="text-center p-2">Price</th>
+                            <th class="text-center p-2">Value</th>
+                            <th class="text-center p-2">Category</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blockTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- =============== Tab: Holdings =============== -->
+    <div id="tab-holdings" class="tab-content hidden">
+        <div class="card mb-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold"><i class="fas fa-database text-cyan-400 mr-2"></i>Shareholding Pattern Data</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-secondary">Latest quarter per stock</span>
+                    <button onclick="exportTableCsv('holdingTable','holdings.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="w-full text-sm" id="holdingTable">
+                    <thead>
+                        <tr class="text-secondary border-b border-gray-700">
+                            <th class="text-left p-2">Symbol</th>
+                            <th class="text-left p-2">Quarter</th>
+                            <th class="text-center p-2">Promoter%</th>
+                            <th class="text-center p-2">FII%</th>
+                            <th class="text-center p-2">DII%</th>
+                            <th class="text-center p-2">MF%</th>
+                            <th class="text-center p-2">Public%</th>
+                            <th class="text-center p-2">FII Chg</th>
+                            <th class="text-center p-2">DII Chg</th>
+                            <th class="text-center p-2">MF Chg</th>
+                            <th class="text-center p-2">Source</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdingTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── Theme ───
+        function toggleTheme() { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; }
+
+        // ─── Toast ───
+        function showToast(msg, type) {
+            const t = document.createElement('div');
+            var bg = 'bg-green-600';
+            var icon = '';
+            if (type === 'error') { bg = 'bg-red-600'; icon = '<i class="fas fa-exclamation-circle mr-1"></i>'; }
+            else if (type === 'loading') { bg = 'bg-blue-600'; icon = '<i class="fas fa-spinner fa-spin mr-1"></i>'; }
+            else if (type === 'warning') { bg = 'bg-yellow-600'; icon = '<i class="fas fa-triangle-exclamation mr-1"></i>'; }
+            else { icon = '<i class="fas fa-check-circle mr-1"></i>'; }
+            t.className = 'toast ' + bg + ' text-white';
+            t.innerHTML = icon + msg;
+            document.body.appendChild(t);
+            // Auto-dismiss for non-loading, non-warning toasts
+            if (type !== 'loading' && type !== 'warning') {
+                setTimeout(() => { if (t.parentNode) t.remove(); }, 3500);
+            }
+        }
+
+        // ─── Dismiss a loading toast by reference ───
+        var _loadingToast = null;
+        function showLoadingToast(msg) {
+            if (_loadingToast) { _loadingToast.remove(); _loadingToast = null; }
+            var t = document.createElement('div');
+            t.className = 'toast bg-blue-600 text-white flex items-center gap-2';
+            t.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>' + msg;
+            document.body.appendChild(t);
+            _loadingToast = t;
+            return t;
+        }
+        function dismissLoadingToast() {
+            if (_loadingToast) { _loadingToast.remove(); _loadingToast = null; }
+        }
+
+        // ─── Tab Switching ───
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.tab-content').forEach(tc => tc.classList.add('hidden'));
+                const tab = document.getElementById('tab-' + btn.dataset.tab);
+                if (tab) tab.classList.remove('hidden');
+            });
+        });
+
+        // ─── Table Sorter ───
+        function sortTable(tableId, col) {
+            const table = document.getElementById(tableId);
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const dir = table.dataset.sortDir === 'asc' ? -1 : 1;
+            table.dataset.sortDir = dir === 1 ? 'asc' : 'desc';
+
+            rows.sort((a, b) => {
+                const va = a.children[col]?.textContent.trim() || '0';
+                const vb = b.children[col]?.textContent.trim() || '0';
+                const na = parseFloat(va), nb = parseFloat(vb);
+                if (!isNaN(na) && !isNaN(nb)) return (na - nb) * dir;
+                return va.localeCompare(vb) * dir;
+            });
+
+            rows.forEach(r => tbody.appendChild(r));
+        }
+
+        // ─── Format Helpers ───
+        function fmtPrice(v) { return v != null ? '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits:2}) : '-'; }
+        function fmtPct(v) { return v != null ? Number(v).toFixed(2) + '%' : '-'; }
+        function fmtScore(v) { return v != null ? v : 0; }
+        function fmtDate(d) { return d || '-'; }
+        function fmtQty(v) { return v != null ? Number(v).toLocaleString('en-IN') : '-'; }
+
+        // ─── Export Table to CSV ───
+        function exportTableCsv(tableId, filename) {
+            var table = document.getElementById(tableId);
+            if (!table) { showToast('Table not found', 'error'); return; }
+
+            // Collect data rows
+            var rows = [];
+            // Headers: collect visible th text
+            var headers = [];
+            table.querySelectorAll('thead th').forEach(function(th) {
+                headers.push(th.textContent.trim());
+            });
+            if (headers.length) rows.push(headers);
+
+            // Body rows: visible tr only
+            var tbody = table.querySelector('tbody');
+            if (tbody) {
+                tbody.querySelectorAll('tr').forEach(function(tr) {
+                    if (tr.style.display === 'none') return;
+                    var cells = [];
+                    tr.querySelectorAll('td').forEach(function(td) {
+                        var text = td.textContent.trim().replace(/\s+/g, ' ');
+                        // Remove HTML entities via textContent
+                        cells.push(text);
+                    });
+                    if (cells.length) rows.push(cells);
+                });
+            }
+
+            if (rows.length <= 1) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            // Build CSV content with BOM for Excel
+            var csv = '﻿';
+            rows.forEach(function(row) {
+                var escaped = row.map(function(cell) {
+                    var val = String(cell);
+                    // Wrap in quotes if contains comma, quote, or newline
+                    if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+                        val = '"' + val.replace(/"/g, '""') + '"';
+                    }
+                    return val;
+                });
+                csv += escaped.join(',') + '\n';
+            });
+
+            // Trigger download
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename || 'export.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+
+            showToast('Exported ' + (rows.length - 1) + ' rows', 'success');
+        }
+
+        // ─── Format Helpers ───
+        function scoreBadge(score) {
+            if (score >= 80) return '<span class="badge badge-success">STRONG BUY</span>';
+            if (score >= 60) return '<span class="badge badge-info">BUY</span>';
+            if (score >= 40) return '<span class="badge badge-warning">NEUTRAL+</span>';
+            if (score >= 20) return '<span class="badge badge-neutral">NEUTRAL-</span>';
+            return '<span class="badge badge-danger">SELL</span>';
+        }
+
+        function signalBadge(rec) {
+            if (!rec || rec === 'N/A') return '<span class="badge badge-neutral">N/A</span>';
+            if (rec.includes('STRONG BUY')) return '<span class="badge badge-success">STRONG BUY</span>';
+            if (rec.includes('BUY')) return '<span class="badge badge-info">BUY</span>';
+            if (rec.includes('SELL')) return '<span class="badge badge-danger">SELL</span>';
+            return '<span class="badge badge-neutral">HOLD</span>';
+        }
+
+        function changeColor(val) {
+            if (val == null) return 'text-gray-400';
+            if (val > 0) return 'text-green-400';
+            if (val < 0) return 'text-red-400';
+            return 'text-gray-400';
+        }
+
+        function scoreBar(total) {
+            const pct = Math.min(total, 100);
+            let color = '#ef4444';
+            if (pct >= 80) color = '#22c55e';
+            else if (pct >= 60) color = '#3b82f6';
+            else if (pct >= 40) color = '#eab308';
+            else if (pct >= 20) color = '#f97316';
+            return `<div class="score-bar w-full"><div class="score-fill" style="width:${pct}%;background:${color}"></div></div>`;
+        }
+
+        function getDealTypeBadge(category) {
+            if (category === 'FII') return '<span class="badge badge-info">FII</span>';
+            if (category === 'MF') return '<span class="badge badge-success">MF</span>';
+            if (category === 'DII') return '<span class="badge badge-warning">DII</span>';
+            if (category === 'PROMOTER') return '<span class="badge badge-danger">PROMOTER</span>';
+            return '<span class="badge badge-neutral">' + (category || 'UNKNOWN') + '</span>';
+        }
+
+        // ─── Load All ───
+        let allScores = [];
+
+        async function loadAll() {
+            await Promise.all([
+                loadScores(),
+                loadBulkDeals(),
+                loadBlockDeals(),
+                loadScreeners(),
+                loadHoldings()
+            ]);
+            document.getElementById('lastFetchInfo').textContent = 'Last updated: ' + new Date().toLocaleString('en-IN');
+        }
+
+        // ─── Load Scores ───
+        async function loadScores() {
+            try {
+                const resp = await getAllInstitutionalScores();
+                allScores = (resp && resp.data) || [];
+                renderScoreTable(allScores);
+                renderScoreChart(allScores);
+                if (allScores.length > 0) {
+                    document.getElementById('totalStocks').textContent = allScores.length;
+                }
+            } catch(e) {
+                var msg = (e && e.message) || 'Unknown error';
+                showToast('Failed to load scores: ' + msg, 'error');
+            }
+        }
+
+        function renderScoreTable(scores) {
+            const tbody = document.getElementById('scoreTableBody');
+            let html = '';
+            scores.forEach((s, i) => {
+                html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
+                    <td class="p-2 text-secondary">${i + 1}</td>
+                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
+                    <td class="p-2 text-secondary max-w-[200px] truncate">${s.name || '-'}</td>
+                    <td class="p-2 text-center font-bold">${s.totalScore ?? 0}</td>
+                    <td class="p-2 text-center">${scoreBadge(s.totalScore)}</td>
+                    <td class="p-2 text-center ${changeColor(s.fiiChangeQoq)}">${fmtPct(s.fiiHoldingPct)}<br><span class="text-xs">${fmtPct(s.fiiChangeQoq)}</span></td>
+                    <td class="p-2 text-center ${changeColor(s.diiChangeQoq)}">${fmtPct(s.diiHoldingPct)}<br><span class="text-xs">${fmtPct(s.diiChangeQoq)}</span></td>
+                    <td class="p-2 text-center ${changeColor(s.mutualFundChangeQoq)}">${fmtPct(s.mutualFundHoldingPct)}<br><span class="text-xs">${fmtPct(s.mutualFundChangeQoq)}</span></td>
+                    <td class="p-2 text-center">${s.fiiHoldingScore ?? 0}</td>
+                    <td class="p-2 text-center">${s.blockDealScore ?? 0}</td>
+                    <td class="p-2 text-center">${s.volumeScore ?? 0}</td>
+                    <td class="p-2 text-center">${s.priceActionScore ?? 0}</td>
+                    <td class="p-2 text-center">${signalBadge(s.signalRecommendation)}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html || '<tr><td colspan="13" class="p-4 text-center text-secondary">No data. Click "Fetch Holdings" to load.</td></tr>';
+        }
+
+        // ─── Score Distribution Doughnut Chart ───
+        let _scoreChart = null;
+        function renderScoreChart(scores) {
+            var canvas = document.getElementById('scoreDistributionChart');
+            var area = document.getElementById('scoreChartArea');
+            var empty = document.getElementById('scoreChartEmpty');
+            if (!canvas) return;
+
+            if (!scores || scores.length === 0) {
+                area.style.display = 'none';
+                empty.style.display = 'block';
+                return;
+            }
+
+            // Count by grade
+            var counts = { STRONG_BUY: 0, BUY: 0, NEUTRAL_POSITIVE: 0, NEUTRAL_NEGATIVE: 0, SELL: 0 };
+            var colors = {
+                STRONG_BUY: '#22c55e',
+                BUY: '#3b82f6',
+                NEUTRAL_POSITIVE: '#eab308',
+                NEUTRAL_NEGATIVE: '#f97316',
+                SELL: '#ef4444'
+            };
+            var labels = {
+                STRONG_BUY: 'Strong Buy',
+                BUY: 'Buy',
+                NEUTRAL_POSITIVE: 'Positive',
+                NEUTRAL_NEGATIVE: 'Negative',
+                SELL: 'Sell'
+            };
+
+            scores.forEach(function(s) {
+                var grade = s.institutionalGrade || 'NEUTRAL_NEGATIVE';
+                if (counts[grade] !== undefined) counts[grade]++;
+            });
+
+            var total = scores.length;
+            var chartData = [];
+            var chartColors = [];
+            var chartLabels = [];
+            var legendHtml = '';
+            for (var g in counts) {
+                if (counts[g] > 0) {
+                    chartData.push(counts[g]);
+                    chartColors.push(colors[g]);
+                    chartLabels.push(labels[g]);
+                    legendHtml += '<div class="flex items-center gap-2"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' + colors[g] + ';"></span>'
+                        + '<span class="text-secondary">' + labels[g] + ':</span> <span class="font-medium">' + counts[g] + '</span>'
+                        + '<span class="text-xs text-secondary">(' + (counts[g]/total*100).toFixed(1) + '%)</span></div>';
+                }
+            }
+            document.getElementById('scoreLegend').innerHTML = legendHtml;
+
+            // Destroy previous chart instance
+            if (_scoreChart) _scoreChart.destroy();
+
+            area.style.display = 'block';
+            empty.style.display = 'none';
+
+            _scoreChart = new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: chartColors,
+                        borderColor: '#0f172a',
+                        borderWidth: 2,
+                        hoverOffset: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    cutout: '55%',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var pct = ((ctx.parsed / total) * 100).toFixed(1);
+                                    return ctx.label + ': ' + ctx.parsed + ' (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ─── Load Screeners ───
+        async function loadScreeners() {
+            try {
+                const [fii, dii, mf, strongBuy, paBuy, bulk, block] = await Promise.all([
+                    screenerFiiAccumulation(),
+                    screenerDiiAccumulation(),
+                    screenerMutualFundAccumulation(),
+                    screenerInstitutionalStrongBuy(),
+                    screenerInstitutionalPriceActionBuy(),
+                    screenerRecentBulkDeals(),
+                    screenerRecentBlockDeals()
+                ]);
+
+                // KPI cards
+                document.getElementById('kpiFiiAcc').textContent = (fii?.data?.length) || 0;
+                document.getElementById('kpiDiiAcc').textContent = (dii?.data?.length) || 0;
+                document.getElementById('kpiMfAcc').textContent = (mf?.data?.length) || 0;
+                document.getElementById('kpiStrongBuy').textContent = (strongBuy?.data?.length) || 0;
+                document.getElementById('kpiPaBuy').textContent = (paBuy?.data?.length) || 0;
+                document.getElementById('kpiBulkDeals').textContent = (bulk?.data?.length) || 0;
+                document.getElementById('kpiBlockDeals').textContent = (block?.data?.length) || 0;
+
+                // FII table
+                renderScreenerTable('fiiTableBody', fii?.data, 'FII');
+                renderScreenerTable('diiTableBody', dii?.data, 'DII');
+                renderScreenerTable('mfTableBody', mf?.data, 'MF');
+
+                // Combined buy tables
+                renderCombinedTable('strongBuyTableBody', strongBuy?.data);
+                renderCombinedTable('paBuyTableBody', paBuy?.data);
+
+            } catch(e) {
+                showToast('Failed to load screeners: ' + e.message, 'error');
+            }
+        }
+
+        function renderScreenerTable(tableId, data, type) {
+            const tbody = document.getElementById(tableId);
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-secondary">No stocks matching this screener</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(s => {
+                const holding = type === 'FII' ? s.fiiChangeQoq : type === 'DII' ? s.diiChangeQoq : s.mutualFundChangeQoq;
+                const pct = type === 'FII' ? s.fiiHoldingPct : type === 'DII' ? s.diiHoldingPct : s.mutualFundHoldingPct;
+                html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
+                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
+                    <td class="p-2 text-secondary max-w-[200px] truncate">${s.name || '-'}</td>
+                    <td class="p-2 text-center font-medium">${fmtPct(pct)}</td>
+                    <td class="p-2 text-center ${changeColor(holding)} font-medium">${fmtPct(holding)}</td>
+                    <td class="p-2 text-center">${fmtPrice(s.latestPrice)}</td>
+                    <td class="p-2 text-center">${scoreBadge(s.institutionalScore || 0)}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function renderCombinedTable(tableId, data) {
+            const tbody = document.getElementById(tableId);
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-secondary">No stocks matching this screener</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(s => {
+                html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
+                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
+                    <td class="p-2 text-center font-bold">${s.institutionalScore ?? 0}</td>
+                    <td class="p-2 text-center">${fmtPrice(s.latestPrice)}</td>
+                    <td class="p-2 text-center">${signalBadge(s.signalRecommendation)}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // ─── Load Bulk Deals ───
+        async function loadBulkDeals() {
+            const from = document.getElementById('bulkFromDate').value;
+            const to = document.getElementById('bulkToDate').value;
+            try {
+                const resp = await getBulkDealsRange(from || null, to || null);
+                renderDealTable('bulkTableBody', resp?.data);
+            } catch(e) {
+                showToast('Failed to load bulk deals: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        // ─── Load Block Deals ───
+        async function loadBlockDeals() {
+            const from = document.getElementById('blockFromDate').value;
+            const to = document.getElementById('blockToDate').value;
+            try {
+                const resp = await getBlockDealsRange(from || null, to || null);
+                renderDealTable('blockTableBody', resp?.data);
+            } catch(e) {
+                showToast('Failed to load block deals: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        function renderDealTable(tableId, data) {
+            const tbody = document.getElementById(tableId);
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-secondary">No deals found</td></tr>';
+                return;
+            }
+            let html = '';
+            data.slice(0, 100).forEach(d => {
+                html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
+                    <td class="p-2 text-secondary">${fmtDate(d.dealDate)}</td>
+                    <td class="p-2"><a href="stock-detail.html?id=${d.stockId}" class="text-blue-400 hover:underline">${d.symbol || '-'}</a></td>
+                    <td class="p-2 text-xs max-w-[200px] truncate" title="${d.clientName}">${d.clientName || '-'}</td>
+                    <td class="p-2 text-center font-medium ${d.buySell === 'BUY' ? 'text-green-400' : 'text-red-400'}">${d.buySell || '-'}</td>
+                    <td class="p-2 text-center text-xs">${fmtQty(d.quantity)}</td>
+                    <td class="p-2 text-center">${fmtPrice(d.tradePrice)}</td>
+                    <td class="p-2 text-center text-xs">${fmtPrice(d.dealValue)}</td>
+                    <td class="p-2 text-center">${getDealTypeBadge(d.clientCategory)}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // ─── Load Holdings ───
+        async function loadHoldings() {
+            try {
+                const resp = await getAllInstitutionalHoldings();
+                renderHoldingsTable(resp?.data);
+            } catch(e) {
+                // Not critical
+            }
+        }
+
+        function renderHoldingsTable(data) {
+            const tbody = document.getElementById('holdingTableBody');
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="p-4 text-center text-secondary">No holding data available</td></tr>';
+                return;
+            }
+            let html = '';
+            data.forEach(h => {
+                html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
+                    <td class="p-2"><a href="stock-detail.html?id=${h.stockId}" class="text-blue-400 hover:underline font-medium">${h.symbol || '-'}</a></td>
+                    <td class="p-2 text-secondary text-xs">${h.quarterEndDate || '-'}</td>
+                    <td class="p-2 text-center">${fmtPct(h.promoterHoldingPct)}</td>
+                    <td class="p-2 text-center">${fmtPct(h.fiiHoldingPct)}</td>
+                    <td class="p-2 text-center">${fmtPct(h.diiHoldingPct)}</td>
+                    <td class="p-2 text-center">${fmtPct(h.mutualFundHoldingPct)}</td>
+                    <td class="p-2 text-center">${fmtPct(h.publicHoldingPct)}</td>
+                    <td class="p-2 text-center ${changeColor(h.fiiChangeQoq)}">${fmtPct(h.fiiChangeQoq)}</td>
+                    <td class="p-2 text-center ${changeColor(h.diiChangeQoq)}">${fmtPct(h.diiChangeQoq)}</td>
+                    <td class="p-2 text-center ${changeColor(h.mutualFundChangeQoq)}">${fmtPct(h.mutualFundChangeQoq)}</td>
+                    <td class="p-2 text-center"><span class="badge badge-neutral">${h.dataSource || '-'}</span></td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // ─── Data Fetch Actions ───
+        async function onFetchHoldings() {
+            var toast = showLoadingToast('Fetching shareholding data...');
+            try {
+                const resp = await getAllInstitutionalHoldings();
+                if (resp && resp.status === 'success') {
+                    await loadHoldings();
+                    await loadScores();
+                    dismissLoadingToast();
+                    showToast('Shareholding data fetched — ' + (allScores.length || 0) + ' stocks', 'success');
+                } else {
+                    dismissLoadingToast();
+                    showToast((resp && resp.message) || 'Failed to fetch holdings', 'error');
+                }
+            } catch(e) {
+                dismissLoadingToast();
+                showToast('Failed to fetch holdings: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function onFetchXbrl() {
+            var toast = showLoadingToast('Parsing XBRL detailed data...');
+            try {
+                const resp = await fetchAllXbrlData();
+                dismissLoadingToast();
+                if (resp && resp.status === 'success') {
+                    showToast(resp.message || 'XBRL parsing complete', 'success');
+                } else {
+                    showToast((resp && resp.message) || 'XBRL parsing completed', 'warning');
+                }
+                await loadHoldings();
+                await loadScores();
+            } catch(e) {
+                dismissLoadingToast();
+                showToast('XBRL error: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function onFetchBulkDeals() {
+            var toast = showLoadingToast('Fetching bulk deals...');
+            try {
+                const resp = await fetchTodayBulkDeals();
+                dismissLoadingToast();
+                var count = (resp && resp.data && resp.data.length) || 0;
+                showToast(resp?.message || ('Fetched ' + count + ' bulk deals'), count > 0 ? 'success' : 'warning');
+                await loadBulkDeals();
+            } catch(e) {
+                dismissLoadingToast();
+                showToast('Failed to fetch bulk deals: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        async function onFetchBlockDeals() {
+            var toast = showLoadingToast('Fetching block deals...');
+            try {
+                const resp = await fetchTodayBlockDeals();
+                dismissLoadingToast();
+                var count = (resp && resp.data && resp.data.length) || 0;
+                showToast(resp?.message || ('Fetched ' + count + ' block deals'), count > 0 ? 'success' : 'warning');
+                await loadBlockDeals();
+            } catch(e) {
+                dismissLoadingToast();
+                showToast('Failed to fetch block deals: ' + (e.message || 'Network error'), 'error');
+            }
+        }
+
+        // ─── Set default date ranges ───
+        document.addEventListener('DOMContentLoaded', () => {
+            const today = new Date().toISOString().split('T')[0];
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
+            document.getElementById('bulkFromDate').value = thirtyDaysAgo;
+            document.getElementById('bulkToDate').value = today;
+            document.getElementById('blockFromDate').value = thirtyDaysAgo;
+            document.getElementById('blockToDate').value = today;
+            loadAll();
+        });
+
+        window.onFetchHoldings = onFetchHoldings;
+        window.onFetchXbrl = onFetchXbrl;
+        window.onFetchBulkDeals = onFetchBulkDeals;
+        window.onFetchBlockDeals = onFetchBlockDeals;
+        window.loadBulkDeals = loadBulkDeals;
+        window.fetchTodayBlockDeals = fetchTodayBlockDeals;
+        window.loadBulkDeals = loadBulkDeals;
+        window.loadBlockDeals = loadBlockDeals;
+    </script>
+    <script src="js/navigation.js"></script>
+</body>
+</html>

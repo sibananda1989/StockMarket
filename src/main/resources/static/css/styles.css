@@ -1,0 +1,181 @@
+body {
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+    font-weight: 600;
+}
+
+.table th {
+    cursor: pointer;
+    background-color: #f8f9fa;
+}
+
+.table th:hover {
+    background-color: #e9ecef;
+}
+
+.btn-primary {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+.btn-outline-secondary:hover {
+    background-color: #6c757d;
+    border-color: #6c757d;
+    color: white;
+}
+
+.alert {
+    border-radius: 0.5rem;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+}
+
+.text-success {
+    color: #198754 !important;
+}
+
+.text-warning {
+    color: #ffc107 !important;
+}
+
+.rsi-oversold {
+    background-color: #f8d7da;
+}
+
+.rsi-overbought {
+    background-color: #d1e7dd;
+}
+
+.rsi-neutral {
+    background-color: #fff3cd;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 0.5rem;
+    }
+    
+    .card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .btn {
+        font-size: 0.875rem;
+    }
+}
+
+/* Chart container */
+.chart-container {
+    position: relative;
+    height: 400px;
+    width: 100%;
+}
+
+/* Loading spinner */
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* Modal improvements */
+.modal-content {
+    border-radius: 0.5rem;
+}
+
+.modal-header {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.modal-footer {
+    border-top: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+/* Table improvements */
+.table-responsive {
+    border-radius: 0.5rem;
+}
+
+.table-hover tbody tr:hover {
+    filter: brightness(0.92);
+}
+
+/* Form improvements */
+.form-control:focus,
+.form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Status badges */
+.badge {
+    padding: 0.5em 0.75em;
+    font-weight: 500;
+}
+
+/* Row tint — subtle background, black text always readable */
+tr.pnl-loss-100 { background-color: rgba(107,  0,  0, 0.18) !important; }
+tr.pnl-loss-50  { background-color: rgba(165,  0,  0, 0.18) !important; }
+tr.pnl-loss-40  { background-color: rgba(192, 57, 43, 0.18) !important; }
+tr.pnl-loss-30  { background-color: rgba(231, 76, 60, 0.18) !important; }
+tr.pnl-loss-20  { background-color: rgba(231, 76, 60, 0.12) !important; }
+tr.pnl-loss-10  { background-color: rgba(231, 76, 60, 0.07) !important; }
+tr.pnl-neutral  { background-color: transparent             !important; }
+tr.pnl-gain-10  { background-color: rgba(39, 174, 96, 0.07) !important; }
+tr.pnl-gain-20  { background-color: rgba(39, 174, 96, 0.12) !important; }
+tr.pnl-gain-30  { background-color: rgba(39, 174, 96, 0.18) !important; }
+tr.pnl-gain-40  { background-color: rgba(39, 174, 96, 0.25) !important; }
+tr.pnl-gain-50  { background-color: rgba(39, 174, 96, 0.33) !important; }
+tr.pnl-gain-70  { background-color: rgba(30, 132, 73, 0.40) !important; }
+tr.pnl-gain-100 { background-color: rgba(20,  90, 50, 0.50) !important; }
+tr.pnl-gain-150 { background-color: rgba(11,  61, 32, 0.60) !important; }
+tr.pnl-gain-200 { background-color: rgba( 6,  26, 14, 0.70) !important; }
+
+/* Dark rows (gain-100+) need white text */
+tr.pnl-gain-100 td, tr.pnl-gain-150 td, tr.pnl-gain-200 td { color: #fff !important; }
+tr.pnl-gain-100 td a, tr.pnl-gain-150 td a, tr.pnl-gain-200 td a { color: #fff !important; }
+
+/* P&L% pill — solid color with matching contrast text */
+.pnl-cell { font-weight: 600; border-radius: 4px; padding: 2px 8px !important; display: inline-block; }
+
+.pnl-loss-100 { background-color: #6b0000; color: #ffcccc; }
+.pnl-loss-50  { background-color: #a50000; color: #ffd6d6; }
+.pnl-loss-40  { background-color: #c0392b; color: #ffe8e8; }
+.pnl-loss-30  { background-color: #e74c3c; color: #fff0f0; }
+.pnl-loss-20  { background-color: #f1948a; color: #5c0000; }
+.pnl-loss-10  { background-color: #fadbd8; color: #7b0000; }
+.pnl-neutral  { background-color: #e9ecef; color: #555;    }
+.pnl-gain-10  { background-color: #d5f5e3; color: #0a3d1f; }
+.pnl-gain-20  { background-color: #a9dfbf; color: #0a3d1f; }
+.pnl-gain-30  { background-color: #7dcea0; color: #052912; }
+.pnl-gain-40  { background-color: #52be80; color: #052912; }
+.pnl-gain-50  { background-color: #27ae60; color: #e8fff2; }
+.pnl-gain-70  { background-color: #1e8449; color: #c8f7dc; }
+.pnl-gain-100 { background-color: #145a32; color: #a8f0c8; }
+.pnl-gain-150 { background-color: #0b3d20; color: #90e8b8; }
+.pnl-gain-200 { background-color: #061a0e; color: #7de0a8; }
+
+th.sort-asc::after  { content: ' \25B2'; font-size: 0.75em; }
+th.sort-desc::after { content: ' \25BC'; font-size: 0.75em; }

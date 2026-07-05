@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="js/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .stat-card { border-left: 4px solid #3b82f6; }
+        .stat-card.green { border-left-color: #22c55e; }
+        .stat-card.red { border-left-color: #ef4444; }
+        .stat-card.yellow { border-left-color: #eab308; }
+        .stat-card.purple { border-left-color: #8b5cf6; }
+        .stat-card.cyan { border-left-color: #06b6d4; }
+        .pnl-pos { color: #22c55e; font-weight: 600; }
+        .pnl-neg { color: #ef4444; font-weight: 600; }
+        .table-container { max-height: 500px; }
+        th { white-space: nowrap; cursor: pointer; }
+        th:hover { background-color: var(--hover-bg); }
+        .chart-container { position: relative; height: 300px; }
+        .perf-badge { padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Portfolio Dashboard</h1>
+            </div>
+            <button onclick="toggleTheme()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation - injected by navigation.js -->
+        <div id="navigation"></div>
+
+        <!-- Snooze Countdown Banner -->
+        <div id="snoozeCountdown" class="hidden bg-blue-900/40 border border-blue-500/50 rounded-xl p-4 mb-6 shadow-lg">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-clock text-blue-400"></i>
+                    <span class="text-sm">
+                        Startup tasks snoozed — next reminder in
+                        <strong id="snoozeTimeRemaining" class="text-white font-mono"></strong>
+                    </span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearSnooze()"
+                            class="px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-lg text-xs font-medium transition-colors">
+                        Show Now
+                    </button>
+                    <button onclick="snoozeMore()"
+                            class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium transition-colors">
+                        Snooze More
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio Selector -->
+        <div class="card rounded-xl p-4 mb-6 shadow-lg">
+            <div class="flex flex-wrap items-center gap-3 justify-between">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-sm font-medium text-secondary">
+                        <i class="fas fa-briefcase mr-1"></i>Portfolio:
+                    </span>
+                    <select id="portfolioSelector" onchange="switchPortfolio(this.value)"
+                            class="px-3 py-1.5 rounded-lg border border-gray-600 bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">Loading portfolios...</option>
+                    </select>
+                    <button onclick="showPortfolioModal()"
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-plus mr-1"></i>New
+                    </button>
+                    <button onclick="showPortfolioModal(currentPortfolioId)"
+                            class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-edit mr-1"></i>Edit
+                    </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <button onclick="recalculatePortfolio()"
+                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition-colors">
+                        <i class="fas fa-calculator mr-2"></i>Recalculate All
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-secondary">Days:</label>
+                        <select id="historyDays" onchange="loadHistoryChart()"
+                                class="px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="30">30</option>
+                            <option value="90">90</option>
+                            <option value="180">180</option>
+                            <option value="365" selected>365</option>
+                            <option value="all">All</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6" id="summaryCards">
+            <div class="card stat-card rounded-xl p-4 shadow-lg">
+                <div class="text-secondary text-xs mb-1">Total Investment</div>
+                <div class="text-lg font-bold" id="totalInvestment">--</div>
+            </div>
+            <div class="card stat-card green rounded-xl p-4 shadow-lg">
+                <div class="text-secondary text-xs mb-1">Current Value</div>
+                <div class="text-lg font-bold" id="totalCurrentValue">--</div>
+            </div>
+            <div class="card stat-card rounded-xl p-4 shadow-lg" id="totalPnlCard">
+                <div class="text-secondary text-xs mb-1">Total P&L</div>
+                <div class="text-lg font-bold" id="totalPnl">--</div>
+            </div>
+            <div class="card stat-card rounded-xl p-4 shadow-lg" id="totalPnlPctCard">
+                <div class="text-secondary text-xs mb-1">Total P&L %</div>
+                <div class="text-lg font-bold" id="totalPnlPct">--</div>
+            </div>
+            <div class="card stat-card purple rounded-xl p-4 shadow-lg">
+                <div class="text-secondary text-xs mb-1">Holdings</div>
+                <div class="text-lg font-bold" id="holdingsCount">--</div>
+            </div>
+            <div class="card stat-card cyan rounded-xl p-4 shadow-lg">
+                <div class="text-secondary text-xs mb-1">Win Rate</div>
+                <div class="text-lg font-bold" id="winRate">--</div>
+            </div>
+            <div class="card stat-card rounded-xl p-4 shadow-lg" id="riskCard" style="display:none;">
+                <div class="text-secondary text-xs mb-1">Portfolio Risk</div>
+                <div id="concRisk" class="text-sm font-bold mb-1"></div>
+                <div id="sectorRisk" class="text-sm font-bold"></div>
+            </div>
+            <div class="card stat-card purple rounded-xl p-4 shadow-lg" id="regimeCard" style="display:none;">
+                <div class="text-secondary text-xs mb-1">Market Regime</div>
+                <div id="marketRegime" class="text-lg font-bold"></div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="card rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-bold mb-4">
+                    <i class="fas fa-chart-line text-blue-400 mr-2"></i>Portfolio Value Trend
+                </h3>
+                <div class="chart-container">
+                    <canvas id="portfolioTrendChart"></canvas>
+                </div>
+            </div>
+            <div class="card rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-bold mb-4">
+                    <i class="fas fa-chart-pie text-purple-400 mr-2"></i>Sector Allocation
+                </h3>
+                <div class="chart-container">
+                    <canvas id="sectorChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- P&L Distribution Chart -->
+        <div class="card rounded-xl p-6 mb-6 shadow-lg">
+            <h3 class="text-lg font-bold mb-4">
+                <i class="fas fa-chart-bar text-green-400 mr-2"></i>P&L by Stock
+            </h3>
+            <div class="chart-container">
+                <canvas id="pnlDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Signals & Insights -->
+        <div class="card rounded-xl p-6 mb-6 shadow-lg" id="signalsSection">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold">
+                    <i class="fas fa-chart-simple text-orange-400 mr-2"></i>Signals & Insights
+                </h3>
+                <div class="flex gap-4 text-sm" id="signalStats">
+                    <span class="flex items-center gap-1"><i class="fas fa-circle text-green-500"></i> Strong Buy: <strong id="strongBuyCount" class="text-green-400">--</strong></span>
+                    <span class="flex items-center gap-1"><i class="fas fa-dot-circle text-green-400"></i> Buy: <strong id="buyCount" class="text-green-500">--</strong></span>
+                    <span class="flex items-center gap-1"><i class="fas fa-minus-circle text-gray-400"></i> Hold: <strong id="holdCount" class="text-gray-400">--</strong></span>
+                    <span class="flex items-center gap-1"><i class="fas fa-dot-circle text-red-400"></i> Sell: <strong id="sellCount" class="text-red-400">--</strong></span>
+                    <span class="flex items-center gap-1"><i class="fas fa-circle text-red-500"></i> Strong Sell: <strong id="strongSellCount" class="text-red-500">--</strong></span>
+                </div>
+            </div>
+            <div id="signalsContent">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+                    <div class="card rounded-lg p-4 border-l-4 border-green-500 shadow-md bg-gradient-to-br from-gray-800 to-gray-900">
+                        <h4 class="text-sm font-bold text-green-400 mb-3 flex items-center gap-2">
+                            <i class="fas fa-bullseye"></i>Buy Opportunities (<span id="buyOpportunityCount">0</span>)
+                        </h4>
+                        <div id="buySignalsCard" class="space-y-2"></div>
+                    </div>
+                    <div class="card rounded-lg p-4 border-l-4 border-red-500 shadow-md bg-gradient-to-br from-gray-800 to-gray-900">
+                        <h4 class="text-sm font-bold text-red-400 mb-3 flex items-center gap-2">
+                            <i class="fas fa-exclamation-triangle"></i>Sell Warnings (<span id="sellWarningCount">0</span>)
+                        </h4>
+                        <div id="sellSignalsCard" class="space-y-2"></div>
+                    </div>
+                </div>
+                <!-- Signals Filter Bar -->
+                <div class="mb-4 p-4 rounded-lg bg-gray-800 shadow">
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div>
+                            <label class="block text-xs text-secondary mb-1">Symbol</label>
+                            <input type="text" id="filterSymbol" class="w-full px-3 py-2 rounded bg-gray-700 text-white text-sm" placeholder="Search...">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-secondary mb-1">RSI Min</label>
+                            <input type="number" id="filterRsiMin" class="w-full px-3 py-2 rounded bg-gray-700 text-white text-sm" placeholder="Any">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-secondary mb-1">RSI Max</label>
+                            <input type="number" id="filterRsiMax" class="w-full px-3 py-2 rounded bg-gray-700 text-white text-sm" placeholder="Any">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-secondary mb-1">Min Confidence</label>
+                            <input type="number" id="filterConfidence" min="0" max="100" class="w-full px-3 py-2 rounded bg-gray-700 text-white text-sm" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-secondary mb-1">Min Score</label>
+                            <input type="number" id="filterCompositeMin" class="w-full px-3 py-2 rounded bg-gray-700 text-white text-sm" placeholder="Any">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="applyFilters()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-white text-sm font-medium w-full">Apply</button>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="block text-xs text-secondary mb-1">Recommendation</label>
+                        <div class="flex flex-wrap gap-3">
+                            <label class="text-xs"><input type="checkbox" class="rec-filter" value="STRONG BUY" checked> Strong Buy</label>
+                            <label class="text-xs"><input type="checkbox" class="rec-filter" value="BUY" checked> Buy</label>
+                            <label class="text-xs"><input type="checkbox" class="rec-filter" value="HOLD" checked> Hold</label>
+                            <label class="text-xs"><input type="checkbox" class="rec-filter" value="SELL"> Sell</label>
+                            <label class="text-xs"><input type="checkbox" class="rec-filter" value="STRONG SELL"> Strong Sell</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm" id="signalsTable">
+                        <thead>
+                            <tr class="border-b border-gray-700">
+                                <th class="px-3 py-2 text-left">Symbol</th>
+                                <th class="px-3 py-2 text-left">Signal</th>
+                                <th class="px-3 py-2 text-right">RSI</th>
+                                <th class="px-3 py-2 text-right cursor-pointer" onclick="sortSignalTable('targetPrice')" title="Target Price (3x ATR)">Target <i id="sort-targetPrice"></i></th>
+                                <th class="px-3 py-2 text-right cursor-pointer" onclick="sortSignalTable('stopLoss')" title="Stop Loss (2x ATR)">Stop Loss <i id="sort-stopLoss"></i></th>
+                                <th class="px-3 py-2 text-right cursor-pointer" onclick="sortSignalTable('confidenceScore')" title="Confidence Score (0-100)">Confidence <i id="sort-confidenceScore"></i></th>
+                                <th class="px-3 py-2 text-right cursor-pointer" onclick="sortSignalTable('suggestedPositionSize')" title="Recommended position size (% of portfolio)">Pos Size <i id="sort-suggestedPositionSize"></i></th>
+                                <th class="px-3 py-2 text-right cursor-pointer" onclick="sortSignalTable('signalAge')" title="Days since latest price update">Age <i id="sort-signalAge"></i></th>
+                                <th class="px-3 py-2 text-right">52W Low %</th>
+                                <th class="px-3 py-2 text-right">52W High %</th>
+                                <th class="px-3 py-2 text-center">MACD</th>
+                                <th class="px-3 py-2 text-right">P/E</th>
+                                <th class="px-3 py-2 text-right">Mkt Cap</th>
+                                <th class="px-3 py-2 text-right">P&L %</th>
+                                <th class="px-3 py-2 text-right">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signalsTableBody">
+                            <tr><td colspan="15" class="text-center py-4 text-secondary">Loading signals...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top / Bottom Performers -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div class="card rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <i class="fas fa-trophy text-yellow-400"></i>Top Performers
+                </h3>
+                <div id="topPerformers">
+                    <p class="text-secondary">Loading...</p>
+                </div>
+            </div>
+            <div class="card rounded-xl p-6 shadow-lg">
+                <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                    <i class="fas fa-arrow-trend-down text-red-400"></i>Bottom Performers
+                </h3>
+                <div id="bottomPerformers">
+                    <p class="text-secondary">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Holdings Table -->
+        <div class="card rounded-xl shadow-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-bold">
+                    <i class="fas fa-table text-cyan-400 mr-2"></i>Holdings Detail
+                </h3>
+                <span class="text-sm text-secondary" id="tableSummary"></span>
+            </div>
+            <div class="table-container">
+                <table class="w-full" id="holdingsTable">
+                    <thead>
+                        <tr class="border-b border-gray-700">
+                            <th class="px-4 py-3 text-left" onclick="sortTable('symbol')">Symbol <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-left" onclick="sortTable('name')">Name <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-left" onclick="sortTable('sector')">Sector <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('quantity')">Qty <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('avgPrice')">Avg Price <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('ltp')">LTP <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('investment')">Investment <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('currentValue')">Curr Value <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('pnl')">P&L <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-right" onclick="sortTable('pnlPercent')">P&L % <i class="fas fa-sort ml-1"></i></th>
+                            <th class="px-4 py-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdingsTableBody">
+                        <tr>
+                            <td colspan="11" class="text-center py-8">Loading holdings...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio Management Modal -->
+    <div id="portfolioModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="card rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="portfolioModalTitle" class="text-lg font-bold">New Portfolio</h3>
+                <button onclick="hidePortfolioModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            <input type="hidden" id="portfolioIdInput">
+            <div class="mb-4">
+                <label class="block text-sm text-secondary mb-1">Name *</label>
+                <input type="text" id="portfolioNameInput" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g. Retirement Portfolio">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm text-secondary mb-1">Description</label>
+                <textarea id="portfolioDescInput" rows="2" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Optional description..."></textarea>
+            </div>
+            <div class="flex justify-between gap-3">
+                <button id="deletePortfolioBtn" onclick="confirmDeletePortfolio()" style="display:none;"
+                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors">
+                    <i class="fas fa-trash mr-1"></i>Delete
+                </button>
+                <div class="flex gap-3 ml-auto">
+                    <button onclick="hidePortfolioModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>
+                    <button onclick="savePortfolio()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+                        <i class="fas fa-check mr-1"></i>Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Startup Tasks Modal -->
+    <div id="startupModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick="if(event.target===this)skipStartupTasks()">
+        <div class="card rounded-xl p-6 w-full max-w-4xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-xl font-bold mb-1">Startup Tasks</h3>
+                    <p class="text-sm text-secondary">Select tasks to run before loading the dashboard</p>
+                </div>
+                <button onclick="skipStartupTasks()" class="text-gray-400 hover:text-white text-xl">&times;</button>
+            </div>
+            
+            <div id="startupTasksContainer" class="space-y-4 mb-6">
+                <div class="text-center py-8">
+                    <i class="fas fa-spinner fa-spin text-2xl text-blue-400 mb-2"></i>
+                    <p class="text-secondary">Loading tasks...</p>
+                </div>
+            </div>
+
+                <div class="flex justify-between items-center">
+                    <div class="flex gap-2">
+                        <button onclick="selectAllStartupTasks(true)" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">Select All</button>
+                        <button onclick="selectAllStartupTasks(false)" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm">Deselect All</button>
+                    </div>
+                    <div class="flex gap-2 items-center">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-secondary whitespace-nowrap">Skip for</span>
+                            <select id="snoozeDuration" class="px-2 py-1.5 rounded-lg bg-gray-700 border border-gray-600 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="15">15 min</option>
+                                <option value="30" selected>30 min</option>
+                                <option value="60">1 hour</option>
+                                <option value="120">2 hours</option>
+                                <option value="240">4 hours</option>
+                            </select>
+                        </div>
+                        <button onclick="skipStartupTasks()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-medium">Skip</button>
+                        <button onclick="runSelectedStartupTasks()" id="runTasksBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">Run Selected</button>
+                    </div>
+                </div>
+                <div class="mt-6 p-4 rounded-lg bg-indigo-900/20 border border-indigo-500/30">
+                    <h4 class="text-xs font-bold text-indigo-400 mb-2 uppercase tracking-wider">Quick Maintenance</h4>
+                    <button onclick="handleFillIndicatorGaps()" 
+                            class="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                        <i class="fas fa-magic"></i> Fill Indicators Gap (Last 7 Days)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Startup Progress Overlay -->
+    <div id="startupProgressOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+        <div class="card rounded-xl p-8 w-full max-w-md mx-4 shadow-2xl text-center">
+            <i class="fas fa-cog fa-spin text-4xl text-blue-400 mb-4"></i>
+            <h3 class="text-lg font-bold mb-2">Running Tasks</h3>
+            <p id="startupProgressText" class="text-secondary mb-4">Initializing...</p>
+            <div class="w-full bg-gray-700 rounded-full h-2 mb-4">
+                <div id="startupProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="startupProgressDetail" class="text-sm text-secondary"></p>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/portfolio.js"></script>
+    <script src="js/navigation.js"></script>
+    <script>
+        // Theme toggle (must be in global scope for inline onclick="toggleTheme()")
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('themeIcon');
+            if (body.classList.contains('dark')) {
+                body.classList.remove('dark');
+                body.classList.add('light');
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            } else {
+                body.classList.remove('light');
+                body.classList.add('dark');
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            }
+            localStorage.setItem('theme', body.classList.contains('dark') ? 'dark' : 'light');
+        }
+
+        // Startup Tasks State
+        let startupTasks = [];
+        let selectedStartupTasks = new Set();
+
+        // Initialize startup tasks on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStartupTasks();
+        });
+
+        async function loadStartupTasks() {
+            // Check if snoozed
+            const snoozeExpiry = localStorage.getItem('startupTasksSnoozeExpiry');
+            if (snoozeExpiry) {
+                const remaining = parseInt(snoozeExpiry) - Date.now();
+                if (remaining > 0) {
+                    startCountdownTimer();
+                    return;
+                }
+                localStorage.removeItem('startupTasksSnoozeExpiry');
+                localStorage.removeItem('startupTasksSnoozeDuration');
+            }
+
+            try {
+                const response = await getStartupTasks();
+                if (response.success) {
+                    startupTasks = response.data;
+                    
+                    // Inject Maintenance task
+                    startupTasks.push({
+                        id: 'task-fill-rsi-gaps',
+                        name: 'Fill RSI Gaps',
+                        description: 'Fill missing RSI values for the last 30 days for all stocks',
+                        category: 'MAINTENANCE',
+                        required: false
+                    });
+
+                    // Always show modal if there are tasks (including frontend-injected ones)
+                    renderStartupTasks();
+                    document.getElementById('startupModal').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Failed to load startup tasks:', error);
+                // Don't block dashboard on error
+            }
+        }
+
+        function renderStartupTasks() {
+            const container = document.getElementById('startupTasksContainer');
+            container.innerHTML = '';
+
+            // Group by category
+            const grouped = {};
+            startupTasks.forEach(task => {
+                if (!grouped[task.category]) grouped[task.category] = [];
+                grouped[task.category].push(task);
+            });
+
+            // Render each category
+            Object.entries(grouped).forEach(([category, tasks]) => {
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'card rounded-lg p-4';
+                
+                const header = document.createElement('h4');
+                header.className = 'text-sm font-bold text-secondary mb-3 uppercase';
+                header.textContent = category;
+                categoryDiv.appendChild(header);
+
+                tasks.forEach(task => {
+                    const taskDiv = document.createElement('div');
+                    taskDiv.className = 'flex items-center gap-3 p-2 rounded hover:bg-gray-800';
+                    
+                    const isChecked = selectedStartupTasks.has(task.id);
+                    
+                    taskDiv.innerHTML = `
+                        <input type="checkbox" id="task-${task.id}" 
+                            class="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                            ${isChecked ? 'checked' : ''}>
+                        <label for="task-${task.id}" class="flex-1 cursor-pointer">
+                            <div class="font-medium text-sm">${task.name}</div>
+                            <div class="text-xs text-secondary">${task.description}</div>
+                        </label>
+                        ${task.required ? '<span class="text-xs text-red-400">Required</span>' : ''}
+                    `;
+
+                    const checkbox = taskDiv.querySelector('input[type="checkbox"]');
+                    checkbox.addEventListener('change', (e) => {
+                        if (e.target.checked) {
+                            selectedStartupTasks.add(task.id);
+                        } else {
+                            selectedStartupTasks.delete(task.id);
+                        }
+                    });
+
+                    categoryDiv.appendChild(taskDiv);
+                });
+
+                container.appendChild(categoryDiv);
+            });
+        }
+
+        function selectAllStartupTasks(select) {
+            startupTasks.forEach(task => {
+                const checkbox = document.getElementById(`task-${task.id}`);
+                if (checkbox) {
+                    checkbox.checked = select;
+                    if (select) {
+                        selectedStartupTasks.add(task.id);
+                    } else {
+                        selectedStartupTasks.delete(task.id);
+                    }
+                }
+            });
+        }
+
+        async function runSelectedStartupTasks() {
+            if (selectedStartupTasks.size === 0) {
+                alert('Please select at least one task');
+                return;
+            }
+
+            // Show progress overlay
+            document.getElementById('startupModal').classList.add('hidden');
+            document.getElementById('startupProgressOverlay').classList.remove('hidden');
+            
+            const taskIds = Array.from(selectedStartupTasks);
+            const totalTasks = taskIds.length;
+            let completedTasks = 0;
+            let failedTasks = 0;
+
+            const progressText = document.getElementById('startupProgressText');
+            const progressBar = document.getElementById('startupProgressBar');
+            const progressDetail = document.getElementById('startupProgressDetail');
+
+            try {
+                for (const taskId of taskIds) {
+                    const task = startupTasks.find(t => t.id === taskId);
+                    const taskName = task ? task.name : taskId;
+                    const pct = Math.round((completedTasks / totalTasks) * 100);
+
+                    progressText.textContent = `Running: ${taskName}`;
+                    progressBar.style.width = pct + '%';
+                    progressDetail.textContent = `${completedTasks + 1} of ${totalTasks}${failedTasks ? ' (' + failedTasks + ' failed)' : ''}`;
+
+                    try {
+                        let res;
+                        if (taskId === 'task-fill-rsi-gaps') {
+                            res = await fillRsiGaps();
+                        } else {
+                            res = await runStartupTask(taskId);
+                        }
+                        if (res && res.status === 'success') {
+                            completedTasks++;
+                        } else {
+                            failedTasks++;
+                        }
+                    } catch (e) {
+                        console.error(`Task ${taskId} failed:`, e);
+                        failedTasks++;
+                    }
+                }
+
+                // Done
+                progressBar.style.width = '100%';
+                progressText.textContent = failedTasks === totalTasks
+                    ? 'All tasks failed'
+                    : `Completed ${completedTasks} of ${totalTasks} task(s)`;
+                progressDetail.textContent = failedTasks ? `${failedTasks} failed` : 'Done';
+
+                await new Promise(r => setTimeout(r, 1500));
+                document.getElementById('startupProgressOverlay').classList.add('hidden');
+                selectedStartupTasks.clear();
+            } catch (error) {
+                console.error('Error running startup tasks:', error);
+                document.getElementById('startupProgressOverlay').classList.add('hidden');
+                alert('Error running tasks: ' + error.message);
+            }
+        }
+
+        function skipStartupTasks() {
+            const minutes = parseInt(document.getElementById('snoozeDuration').value);
+            const expiryTime = Date.now() + (minutes * 60 * 1000);
+
+            localStorage.setItem('startupTasksSnoozeExpiry', expiryTime.toString());
+            localStorage.setItem('startupTasksSnoozeDuration', minutes.toString());
+
+            document.getElementById('startupModal').classList.add('hidden');
+            selectedStartupTasks.clear();
+            startCountdownTimer();
+        }
+
+        let countdownInterval = null;
+
+        function startCountdownTimer() {
+            const countdownDiv = document.getElementById('snoozeCountdown');
+            const timeSpan = document.getElementById('snoozeTimeRemaining');
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                const expiry = localStorage.getItem('startupTasksSnoozeExpiry');
+                if (!expiry) {
+                    clearInterval(countdownInterval);
+                    countdownDiv.classList.add('hidden');
+                    return;
+                }
+                const remaining = parseInt(expiry) - Date.now();
+                if (remaining <= 0) {
+                    clearInterval(countdownInterval);
+                    localStorage.removeItem('startupTasksSnoozeExpiry');
+                    localStorage.removeItem('startupTasksSnoozeDuration');
+                    countdownDiv.classList.add('hidden');
+                    loadStartupTasks();
+                    return;
+                }
+                const minutes = Math.floor(remaining / 60000);
+                const seconds = Math.floor((remaining % 60000) / 1000);
+                timeSpan.textContent = `${minutes}m ${seconds}s`;
+                countdownDiv.classList.remove('hidden');
+            }, 1000);
+        }
+
+        function clearSnooze() {
+            localStorage.removeItem('startupTasksSnoozeExpiry');
+            localStorage.removeItem('startupTasksSnoozeDuration');
+            if (countdownInterval) clearInterval(countdownInterval);
+            document.getElementById('snoozeCountdown').classList.add('hidden');
+            loadStartupTasks();
+        }
+
+        async function handleFillIndicatorGaps() {
+            try {
+                const res = await fillIndicatorGaps(7);
+                if (res && res.status === 'success') {
+                    alert('Indicator gaps filled successfully for the last 7 days!');
+                } else {
+                    alert('Failed to fill indicator gaps: ' + (res?.message || 'Unknown error'));
+                }
+            } catch (e) {
+                console.error('Error filling indicator gaps:', e);
+                alert('An error occurred while filling indicator gaps.');
+            }
+        }
+
+        function snoozeMore() {
+            clearSnooze();
+        }
+    </script>
+</body>
+</html>

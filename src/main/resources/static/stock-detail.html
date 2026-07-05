@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - Stock Detail</title>
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+<script defer src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script defer src="js/chartjs-plugin-annotation.min.js"></script>
+<script defer src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    <style>
+        .stat-card { position: relative; overflow: hidden; }
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background-color: #3b82f6;
+            transition: width 0.3s ease;
+        }
+        .stat-card:hover::before { width: 6px; }
+        .stat-card.green::before { background-color: #22c55e; }
+        .stat-card.red::before { background-color: #ef4444; }
+        .stat-card.yellow::before { background-color: #eab308; }
+        .pnl-pos { color: #22c55e; font-weight: 600; }
+        .pnl-neg { color: #ef4444; font-weight: 600; }
+        .signal-buy { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.3); }
+        .signal-sell { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .signal-hold { background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); }
+        .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px -8px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold uppercase rounded">Portfolio Analysis</span>
+                    <h1 class="text-3xl font-extrabold tracking-tight">Stock Tracker</h1>
+                </div>
+                <p class="text-secondary text-sm">Deep dive into stock performance and signal analysis</p>
+            </div>
+            <button onclick="toggleTheme()" class="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-all duration-200 shadow-sm border border-gray-700 active:scale-95">
+                <i class="fas fa-moon" id="themeIcon"></i>
+            </button>
+        </div>
+
+        <!-- Navigation - injected by navigation.js -->
+        <div id="navigation" class="mb-8"></div>
+
+        <!-- Stock Detail Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <div class="flex items-center gap-4">
+                <a href="stocks.html" class="group px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-all duration-200 border border-gray-700 flex items-center gap-2">
+                    <i class="fas fa-arrow-left transition-transform group-hover:-translate-x-1"></i>Back
+                </a>
+                <div>
+                    <h1 class="text-3xl font-bold leading-tight" id="stockTitle">Loading...</h1>
+                    <p class="text-secondary font-medium" id="stockSubtitle"></p>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2 items-center">
+                <div class="relative" id="watchlistBtnContainer">
+                    <button id="watchlistToggle" onclick="toggleWatchlistDropdown()"
+                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md text-sm flex items-center gap-2 active:scale-95">
+                        <i class="fas fa-eye"></i>Watchlist
+                    </button>
+                    <div id="watchlistDropdown" class="absolute right-0 mt-2 w-64 bg-gray-800 rounded-xl shadow-2xl hidden z-50 border border-gray-700 overflow-hidden">
+                        <div class="p-3 bg-gray-700/50 border-b border-gray-700">
+                            <p class="text-sm font-bold">Add to Watchlist</p>
+                        </div>
+                        <div id="watchlistDropdownItems" class="max-h-48 overflow-y-auto p-2">
+                            <p class="text-xs text-secondary text-center py-2">Loading...</p>
+                        </div>
+                        <div class="p-2 border-t border-gray-700 bg-gray-700/30">
+                            <a href="watchlist.html" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 py-1 font-medium transition-colors">
+                                 <i class="fas fa-plus mr-1"></i>Manage Watchlists
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <a href="#" id="historyBtn" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md flex items-center gap-2 active:scale-95">
+                    <i class="fas fa-chart-line"></i>History
+                </a>
+                <div class="relative">
+                    <select id="dayRange" onchange="loadAll()"
+                            class="pl-4 pr-10 py-2 rounded-lg border border-gray-600 bg-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none cursor-pointer">
+                        <option value="30">30 days</option>
+                        <option value="60">60 days</option>
+                        <option value="90">90 days</option>
+                        <option value="180" selected>180 days</option>
+                        <option value="365">1 year</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- FII/DII Status Bar -->
+        <div class="card rounded-xl p-4 shadow-md mb-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-blue-500 bg-gradient-to-r from-gray-800 to-gray-900" id="fiidiiBar">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-500/10 rounded-lg">
+                    <i class="fas fa-building-columns text-xl text-blue-400"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-sm uppercase tracking-wider text-gray-400">FII/DII Sentiment</span>
+                    <div id="fiidiiSentiment" class="text-sm font-bold px-3 py-1 rounded-full bg-gray-700 inline-block ml-2">Loading...</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-6 text-sm">
+                <div class="flex flex-col items-end">
+                    <span class="text-secondary text-[10px] uppercase font-bold">FII</span>
+                    <strong id="fiidiiFii" class="text-red-400 text-base font-mono">--</strong>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="text-secondary text-[10px] uppercase font-bold">DII</span>
+                    <strong id="fiidiiDii" class="text-green-400 text-base font-mono">--</strong>
+                </div>
+                <div class="flex flex-col items-end border-l border-gray-700 pl-6">
+                    <span class="text-secondary text-[10px] uppercase font-bold">Combined</span>
+                    <strong id="fiidiiCombined" class="text-white text-base font-mono">--</strong>
+                </div>
+                <div class="flex items-center gap-3 ml-2">
+                    <span class="text-secondary text-xs italic" id="fiidiiDate">--</span>
+                    <button id="fiidiiRefreshBtn" onclick="refreshFiiDii()" class="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-gray-300 transition-all active:scale-90" title="Refresh">
+                        <i class="fas fa-sync-alt text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upcoming Events Warning -->
+        <div id="eventsWarning" class="hidden card rounded-xl p-4 shadow-md mb-6 border-l-4 border-orange-500 bg-orange-500/5">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-orange-500/10 rounded-lg">
+                    <i class="fas fa-calendar-exclamation text-orange-400"></i>
+                </div>
+                <div>
+                    <span class="font-bold text-sm">Upcoming Corporate Events:</span>
+                    <span id="eventsList" class="text-sm ml-2 text-gray-300"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- No Events Next 5 Days -->
+        <div id="eventsNone" class="hidden card rounded-xl p-3 shadow-md mb-6 border-l-4 border-green-500 bg-green-500/5">
+            <div class="flex items-center gap-3 text-sm">
+                <div class="p-1.5 bg-green-500/10 rounded-lg">
+                    <i class="fas fa-check-circle text-green-400"></i>
+                </div>
+                <span class="text-secondary">No major corporate events in the next 5 days</span>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" id="kpiRow">
+            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
+                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">LTP</div>
+                <div class="text-xl font-bold tracking-tight" id="kpiLtp">--</div>
+            </div>
+            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700" id="kpiPnlCard">
+                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">P&L</div>
+                <div class="text-xl font-bold tracking-tight" id="kpiPnl">--</div>
+            </div>
+            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700" id="kpiPnlPctCard">
+                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">P&L %</div>
+                <div class="text-xl font-bold tracking-tight" id="kpiPnlPct">--</div>
+            </div>
+            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
+                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">Investment</div>
+                <div class="text-xl font-bold tracking-tight" id="kpiInv">--</div>
+            </div>
+            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
+                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">Curr Value</div>
+                <div class="text-xl font-bold tracking-tight" id="kpiCurr">--</div>
+            </div>
+            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
+                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">RSI 14</div>
+                <div class="text-xl font-bold tracking-tight" id="kpiRsi">--</div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Fundamentals -->
+            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <div class="p-2 bg-emerald-500/10 rounded-lg">
+                            <i class="fas fa-file-invoice-dollar text-emerald-400"></i>
+                        </div>
+                        Fundamentals
+                    </h3>
+                    <div class="flex items-center gap-3">
+                        <span id="fundFetchedDate" class="text-[11px] text-secondary font-medium"></span>
+                        <button id="fundRefreshBtn" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
+                            <i class="fas fa-sync-alt mr-1"></i>Refresh
+                        </button>
+                    </div>
+                </div>
+                <div id="fundamentalsContent" class="min-h-[100px]">
+                    <p class="text-secondary text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading fundamentals...</p>
+                </div>
+            </div>
+
+            <!-- Candlestick Chart (full width) -->
+            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <div class="p-2 bg-orange-500/10 rounded-lg">
+                            <i class="fas fa-chart-candle text-orange-400"></i>
+                        </div>
+                        Candlestick Chart
+                    </h3>
+                    <div class="flex flex-wrap gap-3 text-xs" id="chartOverlayToggles">
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+                            <input type="checkbox" id="toggleSma20" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500">
+                            <span class="text-secondary hover:text-white font-medium">SMA20</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+                            <input type="checkbox" id="toggleSma50" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-orange-500 focus:ring-orange-500">
+                            <span class="text-secondary hover:text-white font-medium">SMA50</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+                            <input type="checkbox" id="toggleSma200" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-purple-500 focus:ring-purple-500">
+                            <span class="text-secondary hover:text-white font-medium">SMA200</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+                            <input type="checkbox" id="toggleSR" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-yellow-500">
+                            <span class="text-secondary hover:text-white font-medium">S/R</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="relative h-96 md:h-[28rem] lg:h-[32rem] bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                    <div id="chartCandlestick" class="w-full h-full relative"></div>
+                    <div id="candlestickSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden"><svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V4a8 8 0 018 8h-2a6 6 0 00-6-6V4a6 6 0 00-6 6h2a6 6 0 006 6V4"></path></svg></div>
+                </div>
+            </div>
+
+            <!-- RSI Chart -->
+            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <div class="p-2 bg-pink-500/10 rounded-lg">
+                            <i class="fas fa-chart-area text-pink-400"></i>
+                        </div>
+                        RSI(14)
+                        <button class="text-gray-400 hover:text-white transition-colors focus:outline-none"
+                                title="What is RSI? Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements. It oscillates between 0 and 100. Traditionally, RSI > 70 indicates overbought conditions (potential sell signal), while RSI < 30 indicates oversold conditions (potential buy signal). The 14-period RSI is the standard setting."
+                                aria-label="RSI information">
+                            <i class="fas fa-info-circle text-sm"></i>
+                        </button>
+                    </h3>
+                </div>
+                <p class="text-sm text-secondary mb-4 font-medium">Relative Strength Index (14-day). Overbought &gt;70, Oversold &lt;30.</p>
+                <div class="relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                    <canvas id="chartRsi" class="w-full h-full" aria-label="RSI(14) chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Support & Resistance Levels -->
+            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <div class="p-2 bg-green-500/10 rounded-lg">
+                            <i class="fas fa-layer-group text-green-400"></i>
+                        </div>
+                        Support & Resistance
+                        <button class="text-gray-400 hover:text-white transition-colors focus:outline-none"
+                                title="Support & Resistance: Key price levels where buying (support) or selling (resistance) pressure historically concentrates."
+                                aria-label="S/R information">
+                            <i class="fas fa-info-circle text-sm"></i>
+                        </button>
+                    </h3>
+                    <button id="srRefreshBtn" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    </button>
+                </div>
+                <div class="relative h-64 md:h-80 mb-6 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                    <canvas id="chartSupportResistance" class="w-full h-full" aria-label="Support and Resistance chart"></canvas>
+                    <div id="srSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden">
+                        <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div id="srLevelContent" class="min-h-[60px]">
+                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading S/R levels...</p>
+                </div>
+            </div>
+
+            <!-- Signal Analysis -->
+            <div class="card rounded-xl p-6 shadow-md border border-gray-700 card-hover" id="recommendationCard">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-blue-500/10 rounded-lg">
+                        <i class="fas fa-chart-simple text-blue-400"></i>
+                    </div>
+                    Signal Analysis
+                </h3>
+                <div id="recommendationContent" class="min-h-[60px]">
+                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading signal...</p>
+                </div>
+                <div id="scoreBreakdownContent" class="mt-6"></div>
+                <div id="signalTimeline" class="mt-6"></div>
+            </div>
+
+            <!-- Technical Indicators -->
+            <div class="card rounded-xl p-6 shadow-md border border-gray-700 card-hover">
+                <h3 class="text-lg font-bold mb-6 flex items-center justify-between">
+                    <span class="flex items-center gap-2">
+                        <div class="p-2 bg-purple-500/10 rounded-lg">
+                            <i class="fas fa-chart-bar text-purple-400"></i>
+                        </div>
+                        Technical Indicators
+                    </span>
+                    <div class="flex gap-2">
+                        <button id="fillRsiGapsBtn" onclick="fillRsiGaps()" class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all active:scale-95 border border-indigo-500">
+                            <i class="fas fa-magic mr-1"></i>Fill Gaps
+                        </button>
+                        <button id="refreshIndicatorsBtn" onclick="refreshIndicators()" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
+                            <i class="fas fa-sync-alt mr-1"></i>Refresh
+                        </button>
+                    </div>
+                </h3>
+                <div id="indicatorsContent" class="min-h-[100px]">
+                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading indicators...</p>
+                </div>
+            </div>
+
+            <!-- Price Movement Chart (full width) -->
+            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-blue-500/10 rounded-lg">
+                        <i class="fas fa-chart-line text-blue-400"></i>
+                    </div>
+                    Price Movement
+                </h3>
+                <div class="relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                    <canvas id="chartLtp" class="w-full h-full"></canvas>
+                    <div id="ltpSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden"><svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></div>
+                </div>
+            </div>
+
+            <!-- Price Analysis (full width) -->
+            <div class="card rounded-xl p-6 shadow-md lg:col-span-2 border border-gray-700 card-hover">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-green-500/10 rounded-lg">
+                        <i class="fas fa-chart-line text-green-400"></i>
+                    </div>
+                    Price Analysis
+                </h3>
+                <div id="priceAnalysisContent" class="min-h-[60px]">
+                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading analysis...</p>
+                </div>
+            </div>
+
+            <!-- Risk Assessment (full width) -->
+            <div class="card rounded-xl p-6 shadow-md lg:col-span-2 border border-gray-700 card-hover">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-yellow-500/10 rounded-lg">
+                        <i class="fas fa-shield-alt text-yellow-400"></i>
+                    </div>
+                    Risk Assessment
+                </h3>
+                <div id="riskContent" class="min-h-[60px]">
+                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading risk assessment...</p>
+                </div>
+            </div>
+
+            <!-- Institutional Activity -->
+            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg font-bold flex items-center gap-2">
+                        <div class="p-2 bg-indigo-500/10 rounded-lg">
+                            <i class="fas fa-building-columns text-indigo-400"></i>
+                        </div>
+                        Institutional Activity
+                    </h3>
+                    <button id="instRefreshBtn" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
+                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    </button>
+                </div>
+                <div id="institutionalContent" class="min-h-[100px]">
+                    <p class="text-secondary text-center py-4">Loading institutional data...</p>
+                </div>
+            </div>
+
+            <!-- P&L Trend -->
+            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-purple-500/10 rounded-lg">
+                        <i class="fas fa-money-bill-trend-up text-purple-400"></i>
+                    </div>
+                    P&L Trend
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="md:col-span-2 relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                        <canvas id="chartPnl" class="w-full h-full"></canvas>
+                    </div>
+                    <div class="relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                        <canvas id="chartPnlBar" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Screener (full width) -->
+            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
+                    <div class="p-2 bg-cyan-500/10 rounded-lg">
+                        <i class="fas fa-search text-cyan-400"></i>
+                    </div>
+                    Screener
+                </h3>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="card rounded-xl p-4 shadow-sm border border-gray-700 bg-gray-800/50" id="signalCard">
+                        <h6 class="text-secondary text-xs uppercase font-bold tracking-wider mb-4">Signal Summary</h6>
+                        <div id="signalContent" class="text-sm font-medium">Loading...</div>
+                    </div>
+                    <div class="lg:col-span-2 card rounded-xl shadow-sm overflow-hidden border border-gray-700 bg-gray-800/50">
+                        <div class="table-container">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b border-gray-700">
+                                        <th class="px-4 py-3 text-left">Date</th>
+                                        <th class="px-4 py-3 text-right">LTP</th>
+                                        <th class="px-4 py-3 text-right">P&L</th>
+                                        <th class="px-4 py-3 text-right">P&L%</th>
+                                        <th class="px-4 py-3 text-right">Curr Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="snapshotTable"></tbody>
+                            </table>
+                        </div>
+                        <div class="flex justify-between items-center p-4 bg-gray-700/30">
+                            <div id="screenerPageInfo" class="text-xs text-secondary font-medium"></div>
+                            <div class="flex gap-2">
+                                <button id="screenerPrevPage" onclick="previousScreenerPage()"
+                                        class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 text-xs font-medium border border-gray-700">
+                                    Previous
+                                </button>
+                                <button id="screenerNextPage" onclick="nextScreenerPage()"
+                                        class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 text-xs font-medium border border-gray-700">
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backtest (full width) — DISABLED for performance optimization -->
+            <div class="card rounded-xl shadow-lg p-6 lg:col-span-2 hidden" id="backtestSection">
+                <div class="rounded-xl p-6 text-center">
+                    <i class="fas fa-vial text-2xl text-yellow-400 mb-3"></i>
+                    <p class="text-secondary">Backtest feature is disabled for performance optimization</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>document.write('<script src="js/api.js?_=' + Date.now() + '"><\/script>');</script>
+    <script>document.write('<script src="js/stock-detail.js?_=' + Date.now() + '"><\/script>');</script>
+    <script>document.write('<script src="js/navigation.js?_=' + Date.now() + '"><\/script>');</script>
+    <script>
+        // Theme toggle
+        function toggleTheme() {
+            const body = document.body;
+            const icon = document.getElementById('themeIcon');
+            if (body.classList.contains('dark')) {
+                body.classList.remove('dark');
+                body.classList.add('light');
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            } else {
+                body.classList.remove('light');
+                body.classList.add('dark');
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            }
+        }
+    </script>
+</body>
+</html>

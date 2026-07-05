@@ -1,0 +1,15 @@
+{
+  "name": "stockmarket-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Stock Market Tracker application",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "codegen": "playwright codegen",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  }
+}

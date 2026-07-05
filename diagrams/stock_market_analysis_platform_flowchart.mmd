@@ -1,0 +1,32 @@
+graph TD
+    A[User] --> B(Frontend: Static HTML + JS);
+    B --> C{API Wrappers: js/api.js};
+    C --> D[Backend: Controller];
+    D --> E[Backend: Service Layer];
+    E --> F{Technical Indicator Calculators};
+    E --> G{Multi-Strategy Signal Engine};
+    F --> G;
+    G --> E;
+    E --> H[Backend: Repository];
+    H --> I[(Database: MySQL)];
+    I --> H;
+    H --> J[Backend: Entity / DTO];
+    J --> E;
+    E --> D;
+    D --> C;
+    C --> B;
+    B --> A;
+
+    subgraph Backend Services
+        D
+        E
+        F
+        G
+        H
+        J
+    end
+
+    subgraph Frontend Components
+        B
+        C
+    end

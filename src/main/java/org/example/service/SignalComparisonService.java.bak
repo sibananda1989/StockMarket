@@ -1,0 +1,197 @@
+package org.example.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.example.dto.SignalComparisonDTO;
+import org.example.dto.SignalComparisonReportDTO;
+import org.example.entity.ShadowSignalRecord;
+import org.example.entity.SignalRecord;
+import org.example.repository.ShadowSignalRecordRepository;
+import org.example.repository.SignalRecordRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class SignalComparisonService {
+
+    private final ShadowSignalRecordRepository shadowSignalRecordRepository;
+    private final SignalRecordRepository signalRecordRepository;
+    private final ShadowSignalService shadowSignalService;
+
+    @Transactional(readOnly = true)
+    public List<SignalComparisonDTO> compareSignalsForDate(LocalDate date) {
+        List<SignalRecord> productionSignals = signalRecordRepository.findByRecordedAt(date);
+        List<ShadowSignalRecord> shadowSignals = shadowSignalRecordRepository.findByRecordedAtAndShadowVersion(
+            date, shadowSignalService.getShadowVersion());
+        
+        Map<Long, SignalRecord> productionMap = productionSignals.stream()
+            .collect(Collectors.toMap(SignalRecord::getStockId, s -> s));
+        
+        Map<Long, ShadowSignalRecord> shadowMap = shadowSignals.stream()
+            .collect(Collectors.toMap(ShadowSignalRecord::getStockId, s -> s));
+        
+        Set<Long> allStockIds = new HashSet<>();
+        allStockIds.addAll(productionMap.keySet());
+        allStockIds.addAll(shadowMap.keySet());
+        
+        return allStockIds.stream()
+            .map(stockId -> compareSignals(stockId, productionMap.get(stockId), shadowMap.get(stockId)))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public SignalComparisonReportDTO generateDailyReport(LocalDate date) {
+        List<SignalComparisonDTO> comparisons = compareSignalsForDate(date);
+        long divergentCount = comparisons.stream().filter(SignalComparisonDTO::isDivergent).count();
+        double divergenceRate = comparisons.isEmpty() ? 0 : (double) divergentCount / comparisons.size() * 100;
+        
+        Map<String, Long> recommendationChanges = comparisons.stream()
+            .filter(SignalComparisonDTO::isDivergent)
+            .collect(Collectors.groupingBy(
+                c -> c.getProductionRecommendation() + "->" + c.getShadowRecommendation(),
+                Collectors.counting()));
+        
+        Map<String, Long> rootCauseAnalysis = comparisons.stream()
+            .filter(SignalComparisonDTO::isDivergent)
+            .flatMap(c -> c.getDivergenceReasons().stream())
+            .collect(Collectors.groupingBy(r -> r, Collectors.counting()));
+        
+        return new SignalComparisonReportDTO(
+            date,
+            comparisons.size(),
+            divergentCount,
+            divergenceRate,
+            recommendationChanges,
+            rootCauseAnalysis,
+            comparisons.stream()
+                .filter(SignalComparisonDTO::isDivergent)
+                .sorted(Comparator.comparing(SignalComparisonDTO::getScoreDifference).reversed())
+                .limit(10)
+                .collect(Collectors.toList()),
+            comparisons.stream()
+                .filter(c -> !c.isDivergent())
+                .mapToInt(SignalComparisonDTO::getScoreDifference)
+                .average().orElse(0),
+            comparisons.stream()
+                .filter(SignalComparisonDTO::isDivergent)
+                .mapToInt(SignalComparisonDTO::getScoreDifference)
+                .average().orElse(0)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public SignalComparisonDTO compareSignals(Long stockId, SignalRecord production, ShadowSignalRecord shadow) {
+        if (production == null || shadow == null) {
+            return null;
+        }
+        
+        SignalComparisonDTO comparison = new SignalComparisonDTO();
+        comparison.setStockId(stockId);
+        comparison.setProductionRecommendation(production.getRecommendation());
+        comparison.setShadowRecommendation(shadow.getRecommendation());
+        comparison.setProductionScore(production.getCompositeScore());
+        comparison.setShadowScore(shadow.getCompositeScore());
+        comparison.setProductionConfidence(production.getConfidenceScore());
+        comparison.setShadowConfidence(shadow.getConfidenceScore());
+        
+        boolean isDivergent = !production.getRecommendation().equals(shadow.getRecommendation());
+        comparison.setDivergent(isDivergent);
+        
+        if (isDivergent) {
+            List<String> reasons = determineDivergenceReasons(production, shadow);
+            comparison.setDivergenceReasons(reasons);
+            comparison.setScoreDifference(Math.abs(production.getCompositeScore() - shadow.getCompositeScore()));
+            
+            // Store divergence info in shadow record
+            shadow.setIsDivergent(true);
+            shadow.setDivergenceReason(String.join(", ", reasons));
+            shadowSignalRecordRepository.save(shadow);
+        }
+        
+        return comparison;
+    }
+
+    private List<String> determineDivergenceReasons(SignalRecord production, ShadowSignalRecord shadow) {
+        List<String> reasons = new ArrayList<>();
+        
+        // Check recommendation change
+        if (!production.getRecommendation().equals(shadow.getRecommendation())) {
+            reasons.add("recommendation_change");
+        }
+        
+        // Check score components
+        if (production.getCompositeScore() != shadow.getCompositeScore()) {
+            if (production.getRsiScore() != shadow.getRsiScore()) reasons.add("rsi_scoring");
+            if (production.getSmaScore() != shadow.getSmaScore()) reasons.add("sma_scoring");
+            if (production.getBollingerScore() != shadow.getBollingerScore()) reasons.add("bollinger_scoring");
+            if (production.getMacdScore() != shadow.getMacdScore()) reasons.add("macd_scoring");
+            if (production.getDivergenceScore() != shadow.getDivergenceScore()) reasons.add("divergence_scoring");
+            if (production.getWeek52Score() != shadow.getWeek52Score()) reasons.add("52week_scoring");
+        }
+        
+        // Check indicator values
+        if (!valuesEqual(production.getPriceAtSignal(), shadow.getPriceAtSignal())) {
+            reasons.add("price_change");
+        }
+        if (!valuesEqual(production.getRsi14(), shadow.getRsi14())) {
+            reasons.add("rsi_value");
+        }
+        if (!valuesEqual(production.getSma20(), shadow.getSma20())) {
+            reasons.add("sma20_value");
+        }
+        if (!valuesEqual(production.getSma50(), shadow.getSma50())) {
+            reasons.add("sma50_value");
+        }
+        if (!valuesEqual(production.getMacd(), shadow.getMacd())) {
+            reasons.add("macd_value");
+        }
+        if (!valuesEqual(production.getBollingerUpper(), shadow.getBollingerUpper())) {
+            reasons.add("bollinger_upper_value");
+        }
+        if (!valuesEqual(production.getBollingerLower(), shadow.getBollingerLower())) {
+            reasons.add("bollinger_lower_value");
+        }
+        
+        // Check confidence factors
+        if (!Objects.equals(production.getConfidenceScore(), shadow.getConfidenceScore())) {
+            reasons.add("confidence_scoring");
+        }
+        
+        if (reasons.isEmpty()) {
+            reasons.add("unknown");
+        }
+        
+        return reasons;
+    }
+
+    private boolean valuesEqual(BigDecimal a, BigDecimal b) {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+        return a.compareTo(b) == 0;
+    }
+
+    @Transactional(readOnly = true)
+    public long countDivergentSignals(LocalDate date) {
+        return shadowSignalRecordRepository.countDivergentSignals(date, shadowSignalService.getShadowVersion());
+    }
+
+    @Transactional(readOnly = true)
+    public Map<Long, Long> countDivergentSignalsByStock(LocalDate startDate, LocalDate endDate) {
+        List<Object[]> results = shadowSignalRecordRepository.countDivergentSignalsByStock(
+            startDate, endDate, shadowSignalService.getShadowVersion());
+        
+        return results.stream()
+            .collect(Collectors.toMap(
+                arr -> (Long) arr[0],
+                arr -> (Long) arr[1]
+            ));
+    }
+}

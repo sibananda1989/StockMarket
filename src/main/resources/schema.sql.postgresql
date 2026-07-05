@@ -1,0 +1,95 @@
+-- Stock Tracker Database Schema for PostgreSQL
+-- This script creates the database tables for the stock tracker application
+
+-- Create stocks table
+CREATE TABLE IF NOT EXISTS stocks (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(10) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    sector VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index on symbol for faster lookups
+CREATE INDEX IF NOT EXISTS idx_stocks_symbol ON stocks(symbol);
+
+-- Create daily_prices table
+CREATE TABLE IF NOT EXISTS daily_prices (
+    id BIGSERIAL PRIMARY KEY,
+    stock_id BIGINT NOT NULL,
+    closing_price DECIMAL(10, 2) NOT NULL,
+    opening_price DECIMAL(10, 2),
+    high_price DECIMAL(10, 2),
+    low_price DECIMAL(10, 2),
+    volume BIGINT,
+    price_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_daily_prices_stock FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE,
+    CONSTRAINT unique_stock_date UNIQUE (stock_id, price_date)
+);
+
+-- Create index on stock_id and price_date for fast retrieval
+CREATE INDEX IF NOT EXISTS idx_daily_prices_stock_date ON daily_prices(stock_id, price_date DESC);
+
+-- Create rsi_values table
+CREATE TABLE IF NOT EXISTS rsi_values (
+    id BIGSERIAL PRIMARY KEY,
+    stock_id BIGINT NOT NULL,
+    rsi_14 DECIMAL(5, 2) NOT NULL,
+    calculation_date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_rsi_values_stock FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE,
+    CONSTRAINT unique_stock_rsi_date UNIQUE (stock_id, calculation_date)
+);
+
+-- Create index on stock_id and calculation_date for fast retrieval
+CREATE INDEX IF NOT EXISTS idx_rsi_values_stock_date ON rsi_values(stock_id, calculation_date DESC);
+
+-- Create support_resistance_levels table
+CREATE TABLE IF NOT EXISTS support_resistance_levels (
+    id BIGSERIAL PRIMARY KEY,
+    stock_id BIGINT NOT NULL,
+    level_type VARCHAR(30) NOT NULL,
+    level_value DECIMAL(12, 4) NOT NULL,
+    level_order INT NOT NULL DEFAULT 0,
+    calculation_date DATE NOT NULL,
+    strength_score DECIMAL(5, 2),
+    touch_count INT,
+    lookback_days INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_support_resistance_levels_stock FOREIGN KEY (stock_id) REFERENCES stocks(id) ON DELETE CASCADE,
+    CONSTRAINT unique_sr_stock_type_date_order UNIQUE (stock_id, level_type, calculation_date, level_order)
+);
+
+-- Create indexes on stock_id, calculation_date and level_type for fast retrieval
+CREATE INDEX IF NOT EXISTS idx_sr_stock_date ON support_resistance_levels(stock_id, calculation_date DESC);
+CREATE INDEX IF NOT EXISTS idx_sr_stock_type ON support_resistance_levels(stock_id, level_type);
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger to automatically update updated_at column
+CREATE TRIGGER update_stocks_updated_at BEFORE UPDATE ON stocks
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Insert sample data (optional)
+-- Uncomment the following lines to insert sample stocks
+
+-- INSERT INTO stocks (symbol, name, sector) VALUES
+-- ('AAPL', 'Apple Inc.', 'Technology'),
+-- ('GOOGL', 'Alphabet Inc.', 'Technology'),
+-- ('MSFT', 'Microsoft Corporation', 'Technology'),
+-- ('AMZN', 'Amazon.com Inc.', 'Consumer Discretionary'),
+-- ('TSLA', 'Tesla Inc.', 'Consumer Discretionary'),
+-- ('JPM', 'JPMorgan Chase & Co.', 'Finance'),
+-- ('BAC', 'Bank of America Corporation', 'Finance'),
+-- ('WMT', 'Walmart Inc.', 'Consumer Staples'),
+-- ('PG', 'Procter & Gamble Co.', 'Consumer Staples'),
+-- ('XOM', 'Exxon Mobil Corporation', 'Energy');
