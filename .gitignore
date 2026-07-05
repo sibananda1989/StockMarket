@@ -51,3 +51,7 @@ pnpm-debug.log*
 
 # Coverage
 coverage/
+
+# Log files
+*.log
+logs/
