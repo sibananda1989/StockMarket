@@ -87,8 +87,8 @@ public class PortfolioMigrationStartupTask implements StartupTask {
         // ║  exist yet. Once any holding exists, we skip this migration     ║
         // ║  forever — otherwise stocks that happen to have quantity > 0    ║
         // ║  on the 'stocks' table (e.g. from Dhan sync, CSV import) would ║
-        // ║  be silently auto-added to the Default portfolio on every       ║
-        // ║  application restart. See CLAUDE.md for root-cause analysis.    ║
+    // ║  be silently auto-added to the Default portfolio on every       ║
+    // ║  application restart. See AGENTS.md for root-cause analysis.    ║
         // ╚══════════════════════════════════════════════════════════════════╝
         long existingHoldingCount = holdingRepository.count();
         if (existingHoldingCount == 0) {

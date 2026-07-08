@@ -159,7 +159,9 @@ class MultiStrategySignalEngineTest {
     }
 
     @Test
-    void testEvaluate_EmptyActiveSet_UsesDbState() {
+    void testEvaluate_EmptyActiveSet_PassedThroughToAggregator() {
+        // When activeStrategyNames is explicitly empty (all disabled),
+        // it should be passed through to the aggregator, NOT fall back to DB state.
         Long stockId = 1L;
         List<DailyPrice> prices = List.of(
                 new DailyPrice(null, new BigDecimal("100.00"), LocalDate.now())
@@ -170,12 +172,15 @@ class MultiStrategySignalEngineTest {
 
         when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
         when(technicalIndicatorRepository.findLatestForStock(stockId)).thenReturn(SOME_INDICATORS);
-        when(aggregator.aggregate(eq(stockId), anyList(), eq(prices), eq(ALL_ACTIVE))).thenReturn(mockResult);
+        // Mock the aggregator with empty set (not ALL_ACTIVE)
+        when(aggregator.aggregate(eq(stockId), anyList(), eq(prices), eq(Set.of()))).thenReturn(mockResult);
 
         AggregatedSignalResult result = engine.evaluate(stockId, Set.of());
         assertEquals(StrategySignal.HOLD, result.finalSignal());
-        verify(strategyConfigService).getActiveStrategyNames();
-        verify(aggregator).aggregate(eq(stockId), anyList(), eq(prices), eq(ALL_ACTIVE));
+        assertEquals(0.0, result.score());
+        // Should NOT fall back to DB state — empty set is passed through
+        verify(strategyConfigService, never()).getActiveStrategyNames();
+        verify(aggregator).aggregate(eq(stockId), anyList(), eq(prices), eq(Set.of()));
     }
 
     @Test

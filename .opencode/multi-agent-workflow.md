@@ -1,113 +1,203 @@
 # Multi-Agent Software Engineering Workflow
 
-This document defines the multi-agent workflow for the Stock Market Analysis Platform.
+This document defines the lifecycle-driven multi-agent workflow for the Stock Market Analysis Platform.
 
 ## Core Philosophy
 
-**Flexible, adaptive, and practical.** Unlike rigid stage-gate processes, this workflow adapts to the task:
+**Strict lifecycle delegation.** The Team Lead routes work through six sequential lifecycle phases:
 
-- **Simple tasks** → bypass planning & formal review, implement directly
-- **Complex tasks** → use planning, formal review, and thorough testing
-- **Always** → gather context first, act second
+```
+Define → Plan → Build → Verify → Review → Ship
+```
 
-## Architecture
+Each phase has a dedicated coordinator agent that delegates work to sub-agents. The Team Lead never implements, searches, or tests directly.
+
+## Lifecycle Architecture
 
 ```
 User Request
     ↓
-[Team Lead] - Dynamic workflow coordinator
+[Team Lead] — Strict coordinator, routes to lifecycle phases
     ↓
-┌─────────────────────────────────────────────────────┐
-│ Main Agents (4):                                    │
-│ • team-lead - Workflow coordinator (FREE MODEL)    │
-│ • plan - Planning & analysis (FREE MODEL)           │
-│ • build - Implementation & testing (FREE MODEL)     │
-│ • stock-analyzer - Stock market analysis (FREE)     │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ Lifecycle Phase Coordinators:                                │
+│                                                              │
+│ define-agent — Spec-driven development                       │
+│   → Uses helpers: file-picker, code-searcher, researcher-web │
+│   → Output: Specification document (user-approved)           │
+│                                                              │
+│ plan-agent — Planning & analysis                             │
+│   → Subagents: planning-agent, impact-agent, feasibility-agent│
+│   → Output: Implementation plan                              │
+│                                                              │
+│ build-agent — Implementation with vertical slicing           │
+│   → Subagents: implementation-agent                         │
+│   → Output: Implemented, compilable code                     │
+│                                                              │
+│ verify-agent — Testing + Security + Performance              │
+│   → Subagents: testing-agent                                │
+│   → Checks: Tests, security hardening, performance review    │
+│   → Output: Verification report                              │
+│                                                              │
+│ review-agent — Code review + Documentation review            │
+│   → Subagents: code-review-agent                            │
+│   → Checks: Correctness, conventions, plan adherence         │
+│   → Output: Review report                                    │
+│                                                              │
+│ ship-agent — Changelog + Release                             │
+│   → Uses helpers: basher, code-searcher                     │
+│   → Output: Changelog, release summary, deployment notes     │
+│                                                              │
+│ stock-analyzer — Domain expert (stock market analysis)       │
+└─────────────────────────────────────────────────────────────┘
     ↓
-┌─────────────────────────────────────────────────────┐
-│ Subagents (6):                                     │
-│ • planning-agent - Requirements analysis             │
-│ • impact-agent - Impact analysis                     │
-│ • feasibility-agent - Technical validation           │
-│ • implementation-agent - Code implementation         │
-│ • code-review-agent - Critical code review           │
-│ • testing-agent - Comprehensive testing              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ Helper Agents (delegated directly by any phase coordinator): │
+│ basher, code-searcher, file-picker, browser-use,            │
+│ researcher-web, researcher-docs, thinker, code-reviewer     │
+└─────────────────────────────────────────────────────────────┘
+    ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Subagents (delegated by phase coordinators):                 │
+│ planning-agent, impact-agent, feasibility-agent,            │
+│ implementation-agent, code-review-agent, testing-agent       │
+└─────────────────────────────────────────────────────────────┘
+    ↓
+Quality Gates Validation
+    ↓
+Final Result
 ```
 
-## How Agents Are Used
+## How Lifecycle Phases Work
 
 ### Team Lead
 
 The Team Lead is the **only agent the user interacts with**. It:
 1. Understands the request
-2. Gathers context (reads files, searches codebase)
-3. Decides which main agents to invoke (if any — simple questions need no agents)
-4. Spawns agents in parallel where possible
-5. Reviews results and returns a concise summary
+2. Classifies the request type (question, simple fix, standard feature, complex feature)
+3. Routes to the appropriate lifecycle phases
+4. Reviews outputs and validates quality gates
+5. Never implements, searches, or tests directly
 
-### Plan Agent
+### Define Phase (`define-agent`)
 
-Used for **complex or uncertain work**. Not used for simple bugs or questions.
+Used for **complex or vague requirements**. Produces a formal specification:
+- Clarifies requirements by asking the user
+- Surfaces assumptions explicitly
+- Researches context (existing code, patterns, constraints)
+- Produces spec document with objective, requirements, architecture notes, edge cases
+- **Must be approved by user** before proceeding to Plan phase
 
-May invoke subagents:
-- `impact-agent` — for multi-module changes
-- `planning-agent` — for detailed implementation planning
-- `feasibility-agent` — for architecture-level decisions
+### Plan Phase (`plan-agent`)
 
-### Build Agent
+Used for **any implementation that needs planning**. Produces an implementation plan:
+- Takes approved spec (or direct request) as input
+- Delegates impact analysis to `impact-agent`
+- Delegates implementation planning to `planning-agent`
+- Delegates feasibility validation to `feasibility-agent`
+- Output: detailed step-by-step implementation plan
 
-Used for **any code change**. Adapts its approach:
-- Simple fix → implements directly, self-review
-- Feature → implements, then spawns review + testing in parallel
-- Complex → may use `implementation-agent` for careful coding
+### Build Phase (`build-agent`)
 
-### Stock Analyzer
+Used for **any code implementation**. Delegates all code work:
+- Breaks work into **thin vertical slices** (one complete feature path per slice)
+- Delegates each slice to `implementation-agent`
+- Verifies compilation after each slice
+- Output: implemented, compilable code
 
-Used for **analysis only** — signal debugging, strategy questions, indicator explanations.
+### Verify Phase (`verify-agent`)
 
-## Workflow Decision Tree
+Used for **quality verification after build**. Checks three areas:
+- **Testing**: Runs all tests via `testing-agent`, verifies backward compatibility
+- **Security**: Checks input validation, parameterized queries, output encoding, HTTPS, dependencies
+- **Performance**: Checks N+1 queries, excessive loops, caching opportunities
+- Output: verification report with pass/fail status
+
+### Review Phase (`review-agent`)
+
+Used for **human-quality review after verification**. Covers:
+- **Code review**: Delegates to `code-review-agent` for 5-axis review (correctness, readability, architecture, security, performance)
+- **Documentation review**: README, inline comments, API docs, changelog
+- **Plan adherence**: Implementation matches approved spec, no scope creep
+- Output: review report with approve/request-changes/reject status
+
+### Ship Phase (`ship-agent`)
+
+Used for **release documentation after review**. Produces:
+- **Changelog**: Categorized entries (features, fixes, perf, security, docs)
+- **Release summary**: User-friendly description of what changed
+- **Deployment notes**: Config changes, migrations, rollback plan
+- Output: ship report confirming all phases completed
+
+### Stock Analyzer (`stock-analyzer`)
+
+Used for **analysis only** — signal debugging, strategy questions, indicator explanations. Not part of the lifecycle pipeline.
+
+## Lifecycle Routing
+
+The Team Lead routes requests based on complexity:
 
 ```
 User Request
     ↓
 Team Lead evaluates:
     ↓
-┌── Is it a simple question? ──→ Answer directly or use stock-analyzer ──→ Done
+┌── Simple question/analysis → stock-analyzer or thinker → Done
 │
-├── Is it a simple bug fix? ──→ Gather context → Spawn build → Verify → Done
+├── Simple bug fix → build-agent → verify-agent → Done
 │
-├── Is it a small feature? ──→ Gather context → Spawn build → Review → Done
+├── Standard feature → plan-agent → build-agent → verify-agent → review-agent → ship-agent
 │
-├── Is it a complex feature? ──→ Spawn plan → Review plan → Spawn build → Done
+├── Complex feature (vague) → define-agent → plan-agent → build-agent → verify-agent → review-agent → ship-agent
 │
-└── Is it architecture change? ──→ Spawn plan → Get user approval → Spawn build → Done
+└── Architecture change → define-agent → plan-agent → build-agent → verify-agent → review-agent → ship-agent
 ```
 
-## Quality Philosophy
+## Quality Gates (Mandatory)
 
-- **Simple changes** → common sense review, verify it compiles
-- **Meaningful changes** → run relevant tests, quick diff review
-- **Critical changes** → formal code review + full test suite + manual verification
+Every phase enforces quality gates before passing to the next:
 
-No mandatory quality gates. No template-based output requirements. The Team Lead uses judgment.
+1. **Define** — Spec approved by user, all assumptions surfaced, edge cases documented
+2. **Plan** — Plan complete with impact analysis, risks, dependencies, test requirements
+3. **Build** — Code compiles, follows plan, all files updated
+4. **Verify** — All tests pass, security checklist clean, no performance issues
+5. **Review** — Code approved, documentation updated, plan adhered to
+6. **Ship** — Changelog generated, release summary written, all prior phases completed
 
 ## Key Principles
 
-1. **Context first** — read relevant files before making changes
-2. **Parallelize** — spawn agents together, not in sequence
-3. **Adapt** — the workflow depends on the task, not a fixed process
-4. **Ask the user** — when unclear, ask rather than guess
-5. **Be concise** — output useful summaries, not filled-in templates
-6. **Free models** — all agents use free models (mimo-v2.5-pro-free, deepseek-v4-flash-free, etc.)
+1. **Delegate everything** — Phase coordinators never implement, search, review, or test directly
+2. **Follow the lifecycle** — Phases execute in order, never skip a phase without justification
+3. **Parallelize helpers** — Spawn independent helper agents simultaneously
+4. **Ask the user** — When unclear, ask rather than guess
+5. **Loop on failure** — Send incomplete work back with specific feedback
+6. **Be concise** — Output useful summaries, not filled-in templates
 
-## Model Configuration
+## File Organization
 
-All agents are configured in `opencode.json` to use free models:
-- `team-lead` → `naraya/mimo-v2.5-pro-free`
-- `plan` → `naraya/mimo-v2.5-free`
-- `build` → `naraya/mimo-v2.5-pro-free`
-- `stock-analyzer` → `naraya/mimo-v2.5-pro-free`
-
-Fallback chains in `fallback.json` prioritize free/cheap models first.
+```
+.opencode/
+  opencode.json                — Agent model configuration
+  multi-agent-workflow.md      — This file
+  multi-agent-quickstart.md    — Quick reference
+  agent/
+    team-lead.md               — Team Lead coordinator
+    define-agent.md            — Define phase (spec-driven)
+    plan.md                    — Plan phase coordinator
+    build.md                   — Build phase coordinator
+    verify-agent.md            — Verify phase (test + security + perf)
+    review-agent.md            — Review phase (code review)
+    ship-agent.md              — Ship phase (changelog + release)
+    stock-analyzer.md          — Domain expert
+    basher.md, code-searcher.md, ... — Helper agents
+  skills/
+    team-lead/SKILL.md         — Team Lead skill
+    define/SKILL.md            — Define phase skill
+    plan/SKILL.md              — Plan phase skill
+    build/SKILL.md             — Build phase skill
+    verify/SKILL.md            — Verify phase skill
+    review/SKILL.md            — Review phase skill
+    ship/SKILL.md              — Ship phase skill
+    subagents/                 — Subagent skills
+    add-endpoint/, ...         — Project-specific skills
+```

@@ -17,6 +17,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -176,7 +179,10 @@ class StrategySignalAggregatorTest {
     }
 
     @Test
-    void testAggregate_EmptyActiveSet_EvaluatesAll() {
+    void testAggregate_EmptyActiveSet_ReturnsHold() {
+        // When activeStrategyNames is an empty set (all strategies disabled),
+        // the aggregator should return HOLD with zero score and empty breakdown.
+        // NOTE: This behavior changed from evaluating ALL strategies to returning HOLD.
         when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(7);
         when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(7);
         when(strategyConfigService.getPriority("HOLD_STRATEGY")).thenReturn(5);
@@ -188,8 +194,47 @@ class StrategySignalAggregatorTest {
                 .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, "Hold reason", "HOLD_STRATEGY", 5));
 
         AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, Set.of());
-        assertEquals(3, result.breakdown().size());
-        assertEquals(19, result.totalPriority());
+
+        // Empty set = all strategies disabled → expect HOLD with no contributions
+        assertEquals(StrategySignal.HOLD, result.finalSignal());
+        assertEquals(0.0, result.score(), 0.001);
+        assertTrue(result.breakdown().isEmpty());
+        assertEquals(0, result.totalPriority());
+        assertEquals(0.0, result.confidence(), 0.001);
+        assertTrue(result.supporting().isEmpty());
+        assertTrue(result.opposing().isEmpty());
+
+        // Verify no strategies were evaluated
+        verify(buyStrategy, never()).evaluate(any(), any(), any());
+        verify(sellStrategy, never()).evaluate(any(), any(), any());
+        verify(holdStrategy, never()).evaluate(any(), any(), any());
+    }
+
+    @Test
+    void testAggregate_AllStrategiesDisabled_ReturnsHoldWithZeroScore() {
+        // Simulates the scenario where all strategies are toggled off on the strategy page.
+        // The system config returns an empty set, and the engine passes it to the aggregator.
+        // The aggregator should short-circuit to HOLD instead of evaluating everything.
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(7);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(7);
+        when(strategyConfigService.getPriority("HOLD_STRATEGY")).thenReturn(5);
+
+        // Empty set = all strategies disabled
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, Set.of());
+
+        // Verify HOLD with no contribution
+        assertEquals(StrategySignal.HOLD, result.finalSignal());
+        assertEquals(0.0, result.score(), 0.001);
+        assertTrue(result.breakdown().isEmpty());
+        assertEquals(0, result.totalPriority());
+        assertEquals(0.0, result.confidence(), 0.001);
+        assertTrue(result.contributions().isEmpty());
+        assertTrue(result.categorySummary().isEmpty());
+
+        // Verify no strategies were ever called
+        verify(buyStrategy, never()).evaluate(any(), any(), any());
+        verify(sellStrategy, never()).evaluate(any(), any(), any());
+        verify(holdStrategy, never()).evaluate(any(), any(), any());
     }
 
     @Test
@@ -731,6 +776,229 @@ class StrategySignalAggregatorTest {
         assertEquals(0.0, result.score());
         assertEquals(1, result.supporting().size());
         assertEquals(1, result.opposing().size());
+    }
+
+    @Test
+    void testAggregate_BreakdownContributionValues() {
+        // Verify each StrategyResult in breakdown has the correct contribution field
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(10);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(5);
+        when(strategyConfigService.getPriority("HOLD_STRATEGY")).thenReturn(3);
+
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 0.8, "Buy", "BUY_STRATEGY", 10));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.SELL, 0.6, "Sell", "SELL_STRATEGY", 5));
+        when(holdStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.4, "Hold", "HOLD_STRATEGY", 3));
+
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, null);
+
+        // Contribution = signalNumeric * priority * confidence
+        // BUY: (+1) * 10 * 0.8 = 8.0
+        // SELL: (-1) * 5 * 0.6 = -3.0
+        // HOLD: (0) * 3 * 0.4 = 0.0
+
+        // Build a map of strategy name → contribution from breakdown entries
+        Map<String, Double> breakdownContributions = result.breakdown().stream()
+                .collect(Collectors.toMap(
+                    StrategyResult::strategyName,
+                    StrategyResult::contribution
+                ));
+
+        assertEquals(3, result.breakdown().size(), "All 3 strategies should be in breakdown");
+        assertEquals(8.0, breakdownContributions.get("BUY_STRATEGY"), 0.001,
+            "BUY contribution = +1 * 10 * 0.8 = 8.0");
+        assertEquals(-3.0, breakdownContributions.get("SELL_STRATEGY"), 0.001,
+            "SELL contribution = -1 * 5 * 0.6 = -3.0");
+        assertEquals(0.0, breakdownContributions.get("HOLD_STRATEGY"), 0.001,
+            "HOLD contribution = 0 * 3 * 0.4 = 0.0");
+    }
+
+    @Test
+    void testAggregate_ContributionSumEqualsTotalScore() {
+        // Verify sum of all breakdown contributions equals the aggregate score
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(7);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(6);
+        when(strategyConfigService.getPriority("HOLD_STRATEGY")).thenReturn(5);
+
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 1.0, "Buy", "BUY_STRATEGY", 7));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.SELL, 0.8, "Sell", "SELL_STRATEGY", 6));
+        when(holdStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.5, "Hold", "HOLD_STRATEGY", 5));
+
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, null);
+
+        // Contributions: BUY = 7*1*1.0 = 7, SELL = 6*(-1)*0.8 = -4.8, HOLD = 5*0*0.5 = 0
+        // Expected score = 7 + (-4.8) + 0 = 2.2
+        double contributionSum = result.breakdown().stream()
+                .mapToDouble(StrategyResult::contribution)
+                .sum();
+
+        assertEquals(2.2, contributionSum, 0.001, "Sum of breakdown contributions should be 2.2");
+        assertEquals(contributionSum, result.score(), 0.001,
+            "Total score should equal sum of breakdown contributions");
+    }
+
+    @Test
+    void testAggregate_Contribution_MixedConfidence() {
+        // Same signal but different confidence → proportional contributions
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(10);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(10);
+        when(strategyConfigService.getPriority("HOLD_STRATEGY")).thenReturn(10);
+
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 1.0, "High conf buy", "BUY_STRATEGY", 10));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 0.3, "Low conf buy", "SELL_STRATEGY", 10));
+        when(holdStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 0.5, "Mid conf buy", "HOLD_STRATEGY", 10));
+
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, null);
+
+        // All BUY, all priority=10
+        // BUY_STRATEGY: 10 * 1.0 = 10.0
+        // SELL_STRATEGY: 10 * 0.3 = 3.0
+        // HOLD_STRATEGY: 10 * 0.5 = 5.0
+        // Score = 18.0
+        assertEquals(StrategySignal.BUY, result.finalSignal());
+        assertEquals(18.0, result.score(), 0.001);
+
+        // Verify each contribution reflects the confidence multiplier
+        Map<String, Double> contribs = result.breakdown().stream()
+                .collect(Collectors.toMap(
+                    StrategyResult::strategyName,
+                    r -> Math.round(r.contribution() * 10) / 10.0
+                ));
+        assertEquals(10.0, contribs.get("BUY_STRATEGY"), 0.1);
+        assertEquals(3.0, contribs.get("SELL_STRATEGY"), 0.1);
+        assertEquals(5.0, contribs.get("HOLD_STRATEGY"), 0.1);
+    }
+
+    @Test
+    void testAggregate_Confidence_AllHold() {
+        // All strategies return HOLD — confidence should be calculated for HOLD signal
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(7);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(7);
+        when(strategyConfigService.getPriority("HOLD_STRATEGY")).thenReturn(7);
+
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.8, "Hold 1", "BUY_STRATEGY", 7));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.7, "Hold 2", "SELL_STRATEGY", 7));
+        when(holdStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.9, "Hold 3", "HOLD_STRATEGY", 7));
+
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, null);
+
+        assertEquals(StrategySignal.HOLD, result.finalSignal());
+        assertEquals(0.0, result.score(), 0.001);
+        // All HOLD with high agreement: agreement=3/3=1.0, avgConf=(0.8+0.7+0.9)/3=0.8, signalStrength=0.3
+        // confidence = 1.0*0.5 + 0.8*0.3 + 0.3*0.2 = 0.5 + 0.24 + 0.06 = 0.80
+        assertEquals(0.80, result.confidence(), 0.01,
+            "With 3/3 HOLD agreement and high avg confidence, expected ~0.80");
+    }
+
+    @Test
+    void testAggregate_Confidence_BoundaryThreshold() {
+        // Score exactly at buy threshold (3.0) should be BUY and have meaningful confidence
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(3);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(0);
+
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 1.0, "Buy at threshold", "BUY_STRATEGY", 3));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.0, "Hold", "SELL_STRATEGY", 0));
+        when(holdStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.0, "Hold", "HOLD_STRATEGY", 0));
+
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, null);
+
+        // Contribution = 3 * 1 * 1.0 = 3.0 = buyThreshold → should trigger BUY
+        assertEquals(StrategySignal.BUY, result.finalSignal());
+        assertEquals(3.0, result.score(), 0.001);
+    }
+
+    @Test
+    void testAggregate_Confidence_BoundaryThreshold_Sell() {
+        // Score exactly at sell threshold (-3.0) should be SELL
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(0);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(3);
+
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.0, "Hold", "BUY_STRATEGY", 0));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.SELL, 1.0, "Sell at threshold", "SELL_STRATEGY", 3));
+        when(holdStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.HOLD, 0.0, "Hold", "HOLD_STRATEGY", 0));
+
+        AggregatedSignalResult result = aggregator.aggregate(1L, List.of(), prices, null);
+
+        // Contribution = 3 * (-1) * 1.0 = -3.0 = sellThreshold → should trigger SELL
+        assertEquals(StrategySignal.SELL, result.finalSignal());
+        assertEquals(-3.0, result.score(), 0.001);
+    }
+
+    @Test
+    void testAggregate_CustomBuyThreshold() {
+        // Create aggregator with non-default thresholds
+        StrategySignalAggregator highBarAggregator = new StrategySignalAggregator(
+                List.of(buyStrategy, sellStrategy),
+                strategyConditionService,
+                strategyConfigService,
+                5.0,  // buy threshold
+                -2.0  // sell threshold
+        );
+
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(3);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(1);
+
+        // Score = 3 * 1 * 1.0 + 1 * (-1) * 1.0 = 2.0
+        // With default threshold (3.0) → HOLD
+        // With custom threshold (5.0) → still HOLD (needs 5.0+)
+        // With custom sell threshold (-2.0) → 2.0 > -2.0, so NOT SELL → HOLD
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 1.0, "Buy", "BUY_STRATEGY", 3));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.SELL, 1.0, "Sell", "SELL_STRATEGY", 1));
+
+        AggregatedSignalResult result = highBarAggregator.aggregate(1L, List.of(), prices, null);
+
+        // Score = 2.0, buyThreshold = 5.0, sellThreshold = -2.0
+        // 2.0 < 5.0 (not BUY), 2.0 > -2.0 (not SELL) → HOLD
+        assertEquals(StrategySignal.HOLD, result.finalSignal());
+        assertEquals(2.0, result.score(), 0.001);
+    }
+
+    @Test
+    void testAggregate_CustomThreshold_StrongBuy() {
+        // With lower buy threshold, easier to trigger BUY
+        StrategySignalAggregator lowBarAggregator = new StrategySignalAggregator(
+                List.of(buyStrategy, sellStrategy),
+                strategyConditionService,
+                strategyConfigService,
+                1.0,  // very low buy threshold
+                -5.0  // high sell threshold (harder to SELL)
+        );
+
+        when(strategyConfigService.getPriority("BUY_STRATEGY")).thenReturn(3);
+        when(strategyConfigService.getPriority("SELL_STRATEGY")).thenReturn(1);
+
+        // Score = 3 * 1 * 0.6 + 1 * (-1) * 0.5 = 1.8 - 0.5 = 1.3
+        // With default threshold (3.0) → HOLD
+        // With custom threshold (1.0) → BUY (1.3 >= 1.0)
+        when(buyStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.BUY, 0.6, "Weak buy", "BUY_STRATEGY", 3));
+        when(sellStrategy.evaluate(any(), any(), any()))
+                .thenReturn(StrategyResult.withoutContribution(StrategySignal.SELL, 0.5, "Weak sell", "SELL_STRATEGY", 1));
+
+        AggregatedSignalResult result = lowBarAggregator.aggregate(1L, List.of(), prices, null);
+
+        assertEquals(StrategySignal.BUY, result.finalSignal(),
+            "With buyThreshold=1.0, score 1.3 should trigger BUY");
+        assertEquals(1.3, result.score(), 0.001);
     }
 
     @Test

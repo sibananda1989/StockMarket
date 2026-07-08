@@ -14,7 +14,14 @@ async function apiCall(endpoint, options = {}) {
     try {
         const response = await fetch(url, mergedOptions);
         const text = await response.text();
-        const data = text ? JSON.parse(text) : null;
+        let data = null;
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                throw new Error('Invalid JSON response from server: ' + e.message);
+            }
+        }
 
         if (!response.ok) {
             throw new Error((data && data.message) || 'API call failed');
@@ -154,8 +161,16 @@ async function calculateAllRsi() {
 
 
 // Technical Indicators API
+// NOTE: getLatestIndicators / getAllIndicatorHistory / getIndicatorHistory / calculateIndicators
+// return RAW DTOs from the backend (not wrapped in ApiResponse). Callers must treat the
+// resolved value as the data itself, e.g. `res.length`, `res.every(...)`, `render(res)`.
+// Only fillIndicatorGaps returns a wrapped ApiResponse (use res.status / res.data).
 async function getLatestIndicators(stockId) {
     return apiCall(`/indicators/${stockId}`);
+}
+
+async function getAllIndicatorHistory(stockId, fromDate, toDate) {
+    return apiCall(`/indicators/${stockId}/history?fromDate=${fromDate}&toDate=${toDate}`);
 }
 
 async function calculateIndicators(stockId) {
@@ -402,8 +417,12 @@ async function searchStocksByName(name, limit = 10) {
 
 // ─── Support & Resistance API ────────────────────────────────────────────────
 
-async function getSupportResistance(stockId) {
-    return apiCall(`/support-resistance/${stockId}`);
+async function getSupportResistance(stockId, lookbackDays) {
+    let endpoint = `/support-resistance/${stockId}`;
+    if (lookbackDays) {
+        endpoint += `?lookbackDays=${lookbackDays}`;
+    }
+    return apiCall(endpoint);
 }
 
 async function calculateSupportResistance(stockId) {

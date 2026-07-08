@@ -19,8 +19,20 @@ public class SupportResistanceController {
     private final SupportResistanceService supportResistanceService;
 
     @GetMapping("/{stockId}")
-    public ResponseEntity<ApiResponse<SupportResistanceDto>> getLatestLevels(@PathVariable Long stockId) {
-        SupportResistanceDto dto = supportResistanceService.getLatestLevels(stockId);
+    public ResponseEntity<ApiResponse<SupportResistanceDto>> getLatestLevels(
+            @PathVariable Long stockId,
+            @RequestParam(required = false) Integer lookbackDays) {
+        // Validate minimum lookback — need at least 20 days of price data
+        if (lookbackDays != null && lookbackDays < 20) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("lookbackDays must be at least 20 for meaningful S/R levels"));
+        }
+        SupportResistanceDto dto;
+        if (lookbackDays != null && lookbackDays > 0) {
+            dto = supportResistanceService.getLatestLevels(stockId, lookbackDays);
+        } else {
+            dto = supportResistanceService.getLatestLevels(stockId);
+        }
         if (dto == null) {
             return ResponseEntity.ok(ApiResponse.success("No S/R levels calculated yet. Call calculate first.", null));
         }

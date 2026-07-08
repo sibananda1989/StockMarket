@@ -2,6 +2,8 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.example.dto.SignalDTO;
@@ -23,6 +25,11 @@ import org.example.repository.SignalHistoricalPerformanceRepository;
 import org.example.repository.SignalRecordRepository;
 import org.example.repository.SupportResistanceLevelRepository;
 import org.example.repository.TechnicalIndicatorRepository;
+import org.example.dto.StrategyBreakdownDTO;
+import org.example.strategy.engine.MultiStrategySignalEngine;
+import org.example.strategy.model.AggregatedSignalResult;
+import org.example.strategy.model.StrategyResult;
+import org.example.service.SignalThresholds;
 import org.example.service.calculator.ATRCalculator;
 import org.example.service.calculator.AdxCalculator;
 import org.example.service.calculator.CandlestickPatternCalculator;
@@ -39,6 +46,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import org.example.service.ShadowSignalService;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -51,12 +59,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class SignalService {
-
-    // ── Recommendation thresholds (single source of truth) ──
-    static final int STRONG_BUY_THRESHOLD  =  7;
-    static final int BUY_THRESHOLD         =  3;
-    static final int SELL_THRESHOLD        = -4;
-    static final int STRONG_SELL_THRESHOLD = -7;
 
     private final StockService stockService;
     private final DailyPriceRepository dailyPriceRepository;
@@ -73,11 +75,15 @@ public class SignalService {
     private final BreakoutDetector breakoutDetector;
     private final CorporateEventRepository corporateEventRepository;
     private final SupportResistanceLevelRepository supportResistanceLevelRepository;
+    private final MultiStrategySignalEngine multiStrategySignalEngine;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Value("${signal.gate.high-confidence.enabled:false}")
     private boolean highConfidenceGateEnabled;
 
-    @Cacheable(value = "signals", key = "'allSignals'")
+    // @Cacheable(value = "signals", key = "'allSignals'") — disabled to ensure fresh data
     public List<SignalDTO> getAllSignals() {
         List<Stock> stocks = stockService.getAllStocks();
         List<SignalDTO> signals = computeSignalsBulk(stocks);
@@ -158,12 +164,36 @@ public class SignalService {
                         .findAllByStockIdOrderByPriceDateAsc(stock.getId());
                     if (prices.size() < 20) return null;
                     
-                    return computeBaseSignalDto(
+                    SignalDTO dto = computeBaseSignalDto(
                         stock, prices, false,
                         eventsBySymbol.getOrDefault(stock.getSymbol(), Collections.emptyList()),
                         indicatorsByStock.getOrDefault(stock.getId(), Collections.emptyMap()),
                         srByStock.get(stock.getId())
                     );
+                    
+                    // Override recommendation with multi-strategy engine result
+                    // This ensures the landing page respects strategy configuration
+                    if (dto != null) {
+                        try {
+                            AggregatedSignalResult engineResult = multiStrategySignalEngine.evaluate(stock.getId());
+                            dto.setRecommendation(mapEngineRecommendation(engineResult));
+                            dto.setCompositeScore((int) Math.round(engineResult.score()));
+                            // Populate strategy breakdown for tooltip display on landing page
+                            List<StrategyBreakdownDTO> breakdown = engineResult.breakdown().stream()
+                                .map(sr -> toSignalBreakdownDTO(sr))
+                                .collect(Collectors.toList());
+                            dto.setStrategyBreakdown(breakdown);
+                            computeTargetAndStop(dto, dto.getAtr());
+                            log.debug("Multi-strategy override for {}: legacy={}/{} engine={}/{}",
+                                stock.getSymbol(), dto.getRecommendation(), dto.getCompositeScore(),
+                                engineResult.finalSignal(), (int) Math.round(engineResult.score()));
+                        } catch (Exception e2) {
+                            log.warn("Multi-strategy engine failed for {}: {}, keeping legacy signal",
+                                stock.getSymbol(), e2.getMessage());
+                        }
+                    }
+                    
+                    return dto;
                 } catch (Exception e) {
                     log.warn("Could not compute signal for {}: {}", stock.getSymbol(), e.getMessage());
                     return null;
@@ -173,7 +203,8 @@ public class SignalService {
             .collect(Collectors.toList());
         
         long elapsed = System.currentTimeMillis() - startTime;
-        log.info("Bulk signal computation: {} stocks in {} ms (DB queries: 3)", stocks.size(), elapsed);
+        log.info("Bulk signal computation: {} stocks in {} ms (DB queries: 3, multi-strategy: {})",
+            stocks.size(), elapsed, signals.size());
         
         return signals;
     }
@@ -244,9 +275,8 @@ public class SignalService {
      * the portfolio does not exist or has no holdings. Server-side filtering avoids
      * sending the entire stock universe over the wire for users with many portfolios.
      */
-    @Transactional
     public List<SignalDTO> getSignalsForPortfolio(Long portfolioId) {
-        var holdings = portfolioHoldingRepository.findByPortfolioId(portfolioId);
+        var holdings = portfolioHoldingRepository.findHoldingsOrderBySymbol(portfolioId);
         if (holdings.isEmpty()) {
             return List.of();
         }
@@ -256,14 +286,14 @@ public class SignalService {
         return computeSignalsBulk(stocks);
     }
 
-    @Cacheable(value = "signals", key = "'buySignals'")
+    // @Cacheable(value = "signals", key = "'buySignals'") — disabled to ensure fresh data
     public List<SignalDTO> getBuySignals() {
         return getAllSignals().stream()
                 .filter(s -> "BUY".equals(s.getRecommendation()) || "STRONG BUY".equals(s.getRecommendation()))
                 .collect(Collectors.toList());
     }
 
-    @Cacheable(value = "signals", key = "'sellSignals'")
+    // @Cacheable(value = "signals", key = "'sellSignals'") — disabled to ensure fresh data
     public List<SignalDTO> getSellSignals() {
         return getAllSignals().stream()
                 .filter(s -> "SELL".equals(s.getRecommendation()) || "STRONG SELL".equals(s.getRecommendation()))
@@ -287,7 +317,7 @@ public class SignalService {
         }
     }
 
-    @Cacheable(value = "signals", key = "'stock_' + #stockId")
+    // @Cacheable(value = "signals", key = "'stock_' + #stockId") — disabled to ensure fresh data
     public SignalDTO getComputedSignal(Long stockId) {
         return computeSignal(stockId);
     }
@@ -419,6 +449,7 @@ public class SignalService {
         } else {
             // Fallback to individual fetch
             tableIndicators = fetchAdditionalIndicators(dto, stock.getId());
+            if (tableIndicators == null) tableIndicators = Collections.emptyMap();
         }
 
         // --- Basic Indicators: compute SMA always from prices (DB stores only latest, wrong for history) ---
@@ -477,7 +508,7 @@ public class SignalService {
         if (tableIndicators.containsKey(IndicatorType.RSI)) {
             dto.setRsi14(tableIndicators.get(IndicatorType.RSI));
         } else {
-            dto.setRsi14(TechnicalAnalysisUtils.calculateRsi14(prices));
+            dto.setRsi14(TechnicalAnalysisUtils.calculateRsi12(prices));
         }
 
         // --- Divergence detection (not stored in DB, always computed) ---
@@ -486,7 +517,7 @@ public class SignalService {
         if (prices.size() >= 15) {
             BigDecimal avgGain = BigDecimal.ZERO;
             BigDecimal avgLoss = BigDecimal.ZERO;
-            for (int i = 1; i <= 14; i++) {
+            for (int i = 1; i <= 12; i++) {
                 BigDecimal change = prices.get(i).getClosingPrice().subtract(prices.get(i - 1).getClosingPrice());
                 if (change.compareTo(BigDecimal.ZERO) > 0) {
                     avgGain = avgGain.add(change);
@@ -494,21 +525,21 @@ public class SignalService {
                     avgLoss = avgLoss.add(change.abs());
                 }
             }
-            avgGain = avgGain.divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
-            avgLoss = avgLoss.divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+            avgGain = avgGain.divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
+            avgLoss = avgLoss.divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
             if (avgLoss.compareTo(BigDecimal.ZERO) == 0) {
-                rsiHistory.set(14, BigDecimal.valueOf(100));
+                rsiHistory.set(12, BigDecimal.valueOf(100));
             } else {
                 BigDecimal rs = avgGain.divide(avgLoss, 4, RoundingMode.HALF_UP);
-                rsiHistory.set(14, BigDecimal.valueOf(100).subtract(
+                rsiHistory.set(12, BigDecimal.valueOf(100).subtract(
                         BigDecimal.valueOf(100).divide(BigDecimal.ONE.add(rs), 2, RoundingMode.HALF_UP)));
             }
-            for (int i = 15; i < prices.size(); i++) {
+            for (int i = 13; i < prices.size(); i++) {
                 BigDecimal change = prices.get(i).getClosingPrice().subtract(prices.get(i - 1).getClosingPrice());
                 BigDecimal gain = change.compareTo(BigDecimal.ZERO) > 0 ? change : BigDecimal.ZERO;
                 BigDecimal loss = change.compareTo(BigDecimal.ZERO) > 0 ? BigDecimal.ZERO : change.abs();
-                avgGain = avgGain.multiply(BigDecimal.valueOf(13)).add(gain).divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
-                avgLoss = avgLoss.multiply(BigDecimal.valueOf(13)).add(loss).divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+                avgGain = avgGain.multiply(BigDecimal.valueOf(11)).add(gain).divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
+                avgLoss = avgLoss.multiply(BigDecimal.valueOf(11)).add(loss).divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
                 if (avgLoss.compareTo(BigDecimal.ZERO) == 0) {
                     rsiHistory.set(i, BigDecimal.valueOf(100));
                 } else {
@@ -523,9 +554,9 @@ public class SignalService {
 
         // --- Multi-Timeframe Confluence (not stored in DB) ---
         List<DailyPrice> weeklyPrices = aggregationService.aggregateWeekly(prices);
-        dto.setWeeklyRsi(TechnicalAnalysisUtils.calculateRsi14(weeklyPrices));
+        dto.setWeeklyRsi(TechnicalAnalysisUtils.calculateRsi12(weeklyPrices));
         List<DailyPrice> monthlyPrices = aggregationService.aggregateMonthly(prices);
-        dto.setMonthlyRsi(TechnicalAnalysisUtils.calculateRsi14(monthlyPrices));
+        dto.setMonthlyRsi(TechnicalAnalysisUtils.calculateRsi12(monthlyPrices));
 
         // --- Volume Confirmation ---
         if (prices.size() >= 20) {
@@ -649,21 +680,21 @@ public class SignalService {
         log.info("Pre-discount check: {} score={} sma20={} sma50={}", dto.getSymbol(), score, dto.getSma20(), dto.getSma50());
         if (dto.getSma20() != null && dto.getSma50() != null
                 && dto.getSma20().compareTo(dto.getSma50()) < 0 && score > 0) {
-            double discount = 0.85;
+            double discount = SignalThresholds.BEARISH_TREND_DISCOUNT;
             // Reversal exception: MACD improving, RSI >= 50, price above SMA20
             boolean macdOk = dto.getMacdScore() > 0;
-            boolean rsiOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() >= 50;
+            boolean rsiOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() >= SignalThresholds.RSI_REVERSAL_RSI_MIN;
             boolean priceOk = dto.getPriceVsSma20() != null && dto.getPriceVsSma20().doubleValue() > 0;
-            boolean weeklyOk = dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > 45;
+            boolean weeklyOk = dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > SignalThresholds.WEEKLY_RSI_REVERSAL_MIN;
             // High reversal conviction: all four conditions met
             if (macdOk && rsiOk && priceOk && weeklyOk) {
-                discount = 1.0;  // No discount — full signal pass-through
+                discount = SignalThresholds.BEARISH_TREND_DISCOUNT_REVERSAL_FULL;  // No discount — full signal pass-through
             } else if (macdOk && rsiOk && priceOk) {
-                discount = 0.9;  // Minimal 10% discount
+                discount = SignalThresholds.BEARISH_TREND_DISCOUNT_REVERSAL_MINIMAL;  // Minimal 10% discount
             }
             // Reversal detection flags: if reversalScore >= 2, reduce discount
-            if (dto.getReversalScore() >= 2) {
-                discount = Math.max(discount, 0.9);
+            if (dto.getReversalScore() >= SignalThresholds.REVERSAL_SCORE_THRESHOLD) {
+                discount = Math.max(discount, SignalThresholds.BEARISH_TREND_DISCOUNT_REVERSAL_FLOOR);
             }
             int originalScore = score;
             score = (int) Math.round(score * discount);
@@ -676,14 +707,14 @@ public class SignalService {
         dto.setScoreAfterDiscount(score);
 
         // ── Rolling accuracy penalty: suppress signals on stocks with poor history ──
-        if (dto.getSignalAccuracy30d() != null && dto.getSignalAccuracyTotal30d() >= 5) {
+        if (dto.getSignalAccuracy30d() != null && dto.getSignalAccuracyTotal30d() >= SignalThresholds.ACCURACY_TOTAL_MIN_FOR_PENALTY) {
             double acc = dto.getSignalAccuracy30d().doubleValue();
-            if (acc < 35) {
-                score -= 3;
-                log.debug("Rolling accuracy penalty (-3) for {}: accuracy={}%", dto.getSymbol(), acc);
-            } else if (acc < 45) {
-                score -= 1;
-                log.debug("Rolling accuracy penalty (-1) for {}: accuracy={}%", dto.getSymbol(), acc);
+            if (acc < SignalThresholds.ACCURACY_PENALTY_LOW) {
+                score -= SignalThresholds.ACCURACY_PENALTY_LOW_SCORE;
+                log.debug("Rolling accuracy penalty (-{}) for {}: accuracy={}%", dto.getSymbol(), SignalThresholds.ACCURACY_PENALTY_LOW_SCORE, acc);
+            } else if (acc < SignalThresholds.ACCURACY_PENALTY_HIGH) {
+                score -= SignalThresholds.ACCURACY_PENALTY_HIGH_SCORE;
+                log.debug("Rolling accuracy penalty (-{}) for {}: accuracy={}%", dto.getSymbol(), SignalThresholds.ACCURACY_PENALTY_HIGH_SCORE, acc);
             }
         }
 
@@ -692,15 +723,15 @@ public class SignalService {
         // Gated behind config flag for safe rollout (default: OFF)
         // All adjustments expressed as score modifications (not direct dto mutation)
         // so recommendation + compositeScore are always derived together at the end.
-        if (highConfidenceGateEnabled && score >= BUY_THRESHOLD) {
+        if (highConfidenceGateEnabled && score >= SignalThresholds.BUY_THRESHOLD) {
             boolean trendOk = dto.getSma20() != null && dto.getSma50() != null
                     && dto.getSma20().compareTo(dto.getSma50()) > 0;
-            boolean momentumOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() < 75;
+            boolean momentumOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() < SignalThresholds.GATE_RSI_MOMENTUM_MAX;
             boolean riskRewardOk = false;
-            double maxPriceRatio = 1.0;
+            double maxPriceRatio = SignalThresholds.GATE_PRICE_RATIO_DEFAULT;
             // Price-action confirmation: strong bullish candlestick pattern relaxes the entry threshold
-            if (dto.getCandlestickScore() >= 2) {
-                maxPriceRatio = 1.05;
+            if (dto.getCandlestickScore() >= SignalThresholds.GATE_CANDLESTICK_SCORE_THRESHOLD) {
+                maxPriceRatio = SignalThresholds.GATE_PRICE_RATIO_CANDLESTICK_RELAXED;
             }
             if (dto.getLatestPrice() != null && dto.getSma20() != null) {
                 BigDecimal maxPrice = dto.getSma20().multiply(BigDecimal.valueOf(maxPriceRatio));
@@ -711,7 +742,7 @@ public class SignalService {
                         dto.getSymbol(), trendOk, momentumOk, riskRewardOk);
                 // Clamp score to HOLD zone (score <= 4 < BUY_THRESHOLD) so
                 // mapRecommendation() returns "HOLD"
-                score = Math.min(score, BUY_THRESHOLD - 1);
+                score = Math.min(score, SignalThresholds.BUY_THRESHOLD - 1);
                 dto.setGateBlocked(true);
                 List<String> reasons = new ArrayList<>();
                 if (!trendOk) reasons.add("trend");
@@ -724,7 +755,7 @@ public class SignalService {
         // Channel trading override: when price is at extreme 52-week positions
         // and other indicators agree, override the HOLD recommendation
         // Guard: requires trend confirmation to prevent value trap buys
-        if (score > SELL_THRESHOLD && score < BUY_THRESHOLD
+        if (score > SignalThresholds.SELL_THRESHOLD && score < SignalThresholds.BUY_THRESHOLD
                 && dto.getHigh52Week() != null && dto.getLow52Week() != null
                 && dto.getLatestPrice() != null) {
             double price = dto.getLatestPrice().doubleValue();
@@ -736,20 +767,20 @@ public class SignalService {
 
                 // Trend confirmation: weekly SMA20 > SMA50 or weekly RSI > 40
                 // Prevents buying into a fundamentally bearish stock just because it's cheap
-                boolean weeklyTrendOk = (dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > 40);
+                boolean weeklyTrendOk = (dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > SignalThresholds.CHANNEL_WEEKLY_RSI_TREND_MIN);
 
                 // Near channel bottom (0-15%): override to BUY only if trend confirms
                 boolean channelTrendBearish = dto.getSma20() != null && dto.getSma50() != null
                         && (dto.getSma20().compareTo(dto.getSma50()) < 0
                             || (dto.getLatestPrice() != null && dto.getLatestPrice().compareTo(dto.getSma50()) < 0));
-                if (channelPct <= 15 && score >= -2 && weeklyTrendOk && !channelTrendBearish) {
+                if (channelPct <= SignalThresholds.CHANNEL_BOTTOM_PCT && score >= SignalThresholds.CHANNEL_OVERRIDE_BUY_FLOOR_SCORE && weeklyTrendOk && !channelTrendBearish) {
                     // Force score into BUY zone
-                    score = Math.max(score, BUY_THRESHOLD);
+                    score = Math.max(score, SignalThresholds.BUY_THRESHOLD);
                 }
                 // Near channel top (85-100%): override to SELL if trend is not strongly bullish
-                else if (channelPct >= 85 && score <= 2) {
+                else if (channelPct >= SignalThresholds.CHANNEL_TOP_PCT && score <= SignalThresholds.CHANNEL_OVERRIDE_SELL_CEIL_SCORE) {
                     // Force score into SELL zone
-                    score = Math.min(score, SELL_THRESHOLD);
+                    score = Math.min(score, SignalThresholds.SELL_THRESHOLD);
                 }
             }
         }
@@ -839,8 +870,8 @@ public class SignalService {
     }
 
     /**
-     * Computes historical signal timeline for a stock by walking through price
-     * bars at a regular step. Each sampled bar produces a SignalHistoryPoint
+     * Computes historical signal timeline for a stock by computing the signal
+     * for EVERY trading date in the window. Each date produces a SignalHistoryPoint
      * containing the recommendation, score, and closing price at that date.
      * Uses the lightweight backtest path (no ATR/target/stop) for performance.
      *
@@ -881,12 +912,6 @@ public class SignalService {
             List<org.example.entity.CorporateEvent> preFetchedEvents =
                     corporateEventService.getEventsForSymbol(stock.getSymbol());
 
-            // Adaptive step: fewer points for longer ranges
-            int step;
-            if (days <= 30) step = 1;
-            else if (days <= 90) step = 3;
-            else step = 5;
-
             // PHASE 1 OPTIMIZATION: Pre-compute all indicators in ONE O(N) pass
             List<HistoricalIndicatorSet> allIndicators = 
                 computeAllIndicatorsIncrementally(prices);
@@ -898,9 +923,6 @@ public class SignalService {
             List<SignalHistoryPoint> history = new ArrayList<>();
             for (int i = firstWindowedIndex; i < prices.size(); i++) {
                 if (prices.get(i).getPriceDate().isBefore(cutoff)) {
-                    continue;
-                }
-                if ((i - firstWindowedIndex) % step != 0) {
                     continue;
                 }
                 
@@ -945,8 +967,8 @@ public class SignalService {
             }
             
             long totalTime = System.currentTimeMillis() - startTime;
-            log.info("[{}] Signal history: {} points in {} ms (step={}, precompute={} ms)",
-                stock.getSymbol(), history.size(), totalTime, step, precomputeTime);
+            log.info("[{}] Signal history: {} points in {} ms (all dates, precompute={} ms)",
+                stock.getSymbol(), history.size(), totalTime, precomputeTime);
 
             // Merge accuracy data from persisted SignalRecord
             try {
@@ -1181,6 +1203,13 @@ public class SignalService {
             record.setIndicatorCoverage(dto.getIndicatorCoverage());
             record.setPriceAtSignal(dto.getLatestPrice());
             signalRecordRepository.save(record);
+        } catch (DataIntegrityViolationException e) {
+            // Duplicate entry: another thread/session already saved for this stock+date.
+            // Evict the failed entity from persistence context to prevent null-id flush.
+            if (entityManager != null) {
+                entityManager.clear();
+            }
+            log.debug("Duplicate signal record for stock {} on {} (already exists)", dto.getStockId(), LocalDate.now());
         } catch (Exception e) {
             log.debug("Could not save signal record for stock {}: {}", dto.getStockId(), e.getMessage());
         }
@@ -1188,7 +1217,7 @@ public class SignalService {
 
     /**
      * Backfills historical SignalRecord entries for all stocks.
-     * For each stock, computes signals at every 3rd bar (starting at index 20)
+     * For each stock, computes signals for every bar (starting at index 20)
      * and persists a SignalRecord if one doesn't already exist for that date.
      * Returns the total number of records created.
      */
@@ -1211,8 +1240,7 @@ public class SignalService {
                 }
 
                 int created = 0;
-                int step = 3;
-                for (int i = 20; i < prices.size(); i += step) {
+                for (int i = 20; i < prices.size(); i++) {
                     LocalDate signalDate = prices.get(i).getPriceDate();
                     if (existingDates.contains(signalDate)) continue;
 
@@ -1354,7 +1382,7 @@ public class SignalService {
             return latestValues;
         } catch (Exception e) {
             log.debug("Could not fetch additional indicators for stock {}: {}", stockId, e.getMessage());
-            return null;
+            return Collections.emptyMap();
         }
     }
 
@@ -1407,7 +1435,7 @@ public class SignalService {
             double macdVal = dto.getMacd().doubleValue();
             double sigVal = dto.getMacdSignal().doubleValue();
             boolean macdAboveSignal = macdVal > sigVal;
-            boolean macdAboveZero = macdVal > 1;
+            boolean macdAboveZero = macdVal > SignalThresholds.MACD_ABOVE_ZERO_THRESHOLD;
             boolean bothPositive = macdVal > 0 && sigVal > 0;
             boolean bothNegative = macdVal < 0 && sigVal < 0;
 
@@ -1547,7 +1575,7 @@ public class SignalService {
         // ── Bearish trend dampener: cap bullish trend contributions when SMA20 < SMA50 ──
         // Prevents false BUY from Ichimoku/MACD/etc during downtrends
         if (trendBearish && trendScore > 0) {
-            trendScore = (int) Math.round(trendScore * 0.5) - 2;
+            trendScore = (int) Math.round(trendScore * SignalThresholds.BEARISH_DAMPENER_MULTIPLIER) - SignalThresholds.BEARISH_DAMPENER_SUBTRACT;
         }
 
         // Ichimoku Cloud (capped at ±4 to prevent single-factor dominance)
@@ -1608,9 +1636,9 @@ public class SignalService {
                 int endIdx = prices.size() - i;
                 int startIdx = Math.max(0, endIdx - 14);
                 if (startIdx >= 1 && endIdx > startIdx) {
-                    BigDecimal prevRsi = TechnicalAnalysisUtils.calculateRsi14(
+                    BigDecimal prevRsi = TechnicalAnalysisUtils.calculateRsi12(
                             prices.subList(0, endIdx - 1));
-                    BigDecimal currRsi = TechnicalAnalysisUtils.calculateRsi14(
+                    BigDecimal currRsi = TechnicalAnalysisUtils.calculateRsi12(
                             prices.subList(0, endIdx));
                     if (prevRsi != null && currRsi != null && currRsi.compareTo(prevRsi) > 0) {
                         risingPeriods++;
@@ -1777,8 +1805,8 @@ public class SignalService {
 
         // ── Factor group caps: prevent any single category from dominating ──
         // Historical data showed oversold cluster could inflate score by +13 alone
-        momentumScore = Math.max(-5, Math.min(5, momentumScore));
-        structureScore = Math.max(-3, Math.min(3, structureScore));
+        momentumScore = Math.max(-SignalThresholds.MOMENTUM_SCORE_CAP, Math.min(SignalThresholds.MOMENTUM_SCORE_CAP, momentumScore));
+        structureScore = Math.max(-SignalThresholds.STRUCTURE_SCORE_CAP, Math.min(SignalThresholds.STRUCTURE_SCORE_CAP, structureScore));
 
         // ── Combine categories ──
         double rawTotal = trendScore + momentumScore + structureScore;
@@ -1788,17 +1816,17 @@ public class SignalService {
         // ADX 15-25: weak trend → multiply by 0.5 + 0.02*(adx-15)
         // ADX 25-35: moderate trend → multiply by 0.7 + 0.01*(adx-25)
         // ADX 35+: strong trend → multiply by 1.0 (full confidence)
-        double adxMultiplier = 1.0;
+        double adxMultiplier = SignalThresholds.ADX_STRONG_MULTIPLIER;
         if (dto.getAdx() != null) {
             double adx = dto.getAdx().doubleValue();
-            if (adx < 15) {
-                adxMultiplier = 0.3;
-            } else if (adx < 25) {
-                adxMultiplier = 0.5 + 0.02 * (adx - 15);
-            } else if (adx < 35) {
-                adxMultiplier = 0.7 + 0.01 * (adx - 25);
+            if (adx < SignalThresholds.ADX_WEAK_THRESHOLD) {
+                adxMultiplier = SignalThresholds.ADX_NO_TREND_MULTIPLIER;
+            } else if (adx < SignalThresholds.ADX_MODERATE_THRESHOLD) {
+                adxMultiplier = SignalThresholds.ADX_WEAK_BASE_MULTIPLIER + SignalThresholds.ADX_WEAK_SLOPE * (adx - SignalThresholds.ADX_WEAK_THRESHOLD);
+            } else if (adx < SignalThresholds.ADX_STRONG_THRESHOLD) {
+                adxMultiplier = SignalThresholds.ADX_MOD_BASE_MULTIPLIER + SignalThresholds.ADX_MOD_SLOPE * (adx - SignalThresholds.ADX_MODERATE_THRESHOLD);
             } else {
-                adxMultiplier = 1.0;
+                adxMultiplier = SignalThresholds.ADX_STRONG_MULTIPLIER;
             }
 
             // Counter-trend dampening: if signal opposes ADX direction, reduce further
@@ -1806,8 +1834,8 @@ public class SignalService {
                 boolean withTrend = false;
                 if (rawTotal > 0 && dto.getPlusDi().compareTo(dto.getMinusDi()) > 0) withTrend = true;
                 if (rawTotal < 0 && dto.getMinusDi().compareTo(dto.getPlusDi()) > 0) withTrend = true;
-                if (!withTrend && adx > 25) {
-                    adxMultiplier *= 0.7;
+                if (!withTrend && adx > SignalThresholds.ADX_MODERATE_THRESHOLD) {
+                    adxMultiplier *= SignalThresholds.ADX_COUNTER_TREND_MULTIPLIER;
                     dto.setAdxFilterApplied(1);
                 }
             }
@@ -1843,7 +1871,7 @@ public class SignalService {
             for (int i = 0; i < prices.size(); i++) {
                 List<DailyPrice> subPrices = prices.subList(0, Math.min(i + 1, prices.size()));
                 if (subPrices.size() >= 14) {
-                    BigDecimal r = TechnicalAnalysisUtils.calculateRsi14(subPrices);
+                    BigDecimal r = TechnicalAnalysisUtils.calculateRsi12(subPrices);
                     reversalRsiValues.add(r != null ? r : BigDecimal.ZERO);
                 } else {
                     reversalRsiValues.add(BigDecimal.ZERO);
@@ -1867,15 +1895,15 @@ public class SignalService {
         if (dto.getStochRsi() != null && dto.getCci() != null && score > 0
                 && dto.getReversalScore() < 2) {
             int overboughtCount = 0;
-            if (dto.getStochRsi().doubleValue() > 85) overboughtCount++;
-            if (dto.getCci().doubleValue() > 150) overboughtCount++;
-            if (dto.getStochK() != null && dto.getStochK().doubleValue() > 80) overboughtCount++;
-            if (dto.getWilliamsR() != null && dto.getWilliamsR().doubleValue() > -20) overboughtCount++;
+            if (dto.getStochRsi().doubleValue() > SignalThresholds.OVERBOUGHT_STOCH_RSI) overboughtCount++;
+            if (dto.getCci().doubleValue() > SignalThresholds.OVERBOUGHT_CCI) overboughtCount++;
+            if (dto.getStochK() != null && dto.getStochK().doubleValue() > SignalThresholds.OVERBOUGHT_STOCH_K) overboughtCount++;
+            if (dto.getWilliamsR() != null && dto.getWilliamsR().doubleValue() > SignalThresholds.OVERBOUGHT_WILLIAMS_R) overboughtCount++;
             if (dto.getBollingerUpper() != null && dto.getLatestPrice() != null &&
                 dto.getLatestPrice().doubleValue() >= dto.getBollingerUpper().doubleValue()) overboughtCount++;
-            int threshold = (trendBullish && strongAdx) ? 4 : 3;
+            int threshold = (trendBullish && strongAdx) ? SignalThresholds.OVERBOUGHT_THRESHOLD_BULLISH_ADX : SignalThresholds.OVERBOUGHT_THRESHOLD_DEFAULT;
             if (overboughtCount >= threshold) {
-                score = (int) Math.round(score * 0.7);
+                score = (int) Math.round(score * SignalThresholds.OVERBOUGHT_DAMPENER_MULTIPLIER);
             }
         }
 
@@ -1966,11 +1994,27 @@ public class SignalService {
      * Thresholds: STRONG_BUY ≥7, BUY ≥3, HOLD −3..+2, SELL ≤−4, STRONG_SELL ≤−7.
      * Package-private for direct unit testing.
      */
+    /**
+     * Maps multi-strategy engine result to recommendation string.
+     * Uses the engine's finalSignal() as the primary signal type,
+     * and applies legacy thresholds only for the STRONG modifier.
+     * This prevents threshold mismatches (engine uses ≤ -3 for SELL,
+     * legacy uses ≤ -4) from creating false HOLD signals.
+     */
+    private String mapEngineRecommendation(AggregatedSignalResult result) {
+        double score = result.score();
+        return switch (result.finalSignal()) {
+            case BUY -> score >= SignalThresholds.STRONG_BUY_THRESHOLD ? "STRONG BUY" : "BUY";
+            case SELL -> score <= SignalThresholds.STRONG_SELL_THRESHOLD ? "STRONG SELL" : "SELL";
+            case HOLD -> "HOLD";
+        };
+    }
+
     String mapRecommendation(int score) {
-        if (score >= STRONG_BUY_THRESHOLD) return "STRONG BUY";
-        else if (score >= BUY_THRESHOLD) return "BUY";
-        else if (score <= STRONG_SELL_THRESHOLD) return "STRONG SELL";
-        else if (score <= SELL_THRESHOLD) return "SELL";
+        if (score >= SignalThresholds.STRONG_BUY_THRESHOLD) return "STRONG BUY";
+        else if (score >= SignalThresholds.BUY_THRESHOLD) return "BUY";
+        else if (score <= SignalThresholds.STRONG_SELL_THRESHOLD) return "STRONG SELL";
+        else if (score <= SignalThresholds.SELL_THRESHOLD) return "SELL";
         else return "HOLD";
     }
 
@@ -2502,19 +2546,19 @@ public class SignalService {
         // Bearish trend discount
         if (dto.getSma20() != null && dto.getSma50() != null
                 && dto.getSma20().compareTo(dto.getSma50()) < 0 && score > 0) {
-            double discount = 0.85;
+            double discount = SignalThresholds.BEARISH_TREND_DISCOUNT;
             boolean macdOk = dto.getMacdScore() > 0;
-            boolean rsiOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() >= 50;
+            boolean rsiOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() >= SignalThresholds.RSI_REVERSAL_RSI_MIN;
             boolean priceOk = dto.getPriceVsSma20() != null && dto.getPriceVsSma20().doubleValue() > 0;
-            boolean weeklyOk = dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > 45;
+            boolean weeklyOk = dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > SignalThresholds.WEEKLY_RSI_REVERSAL_MIN;
             
             if (macdOk && rsiOk && priceOk && weeklyOk) {
-                discount = 1.0;
+                discount = SignalThresholds.BEARISH_TREND_DISCOUNT_REVERSAL_FULL;
             } else if (macdOk && rsiOk && priceOk) {
-                discount = 0.9;
+                discount = SignalThresholds.BEARISH_TREND_DISCOUNT_REVERSAL_MINIMAL;
             }
-            if (dto.getReversalScore() >= 2) {
-                discount = Math.max(discount, 0.9);
+            if (dto.getReversalScore() >= SignalThresholds.REVERSAL_SCORE_THRESHOLD) {
+                discount = Math.max(discount, SignalThresholds.BEARISH_TREND_DISCOUNT_REVERSAL_FLOOR);
             }
             int originalScore = score;
             score = (int) Math.round(score * discount);
@@ -2527,33 +2571,33 @@ public class SignalService {
         dto.setScoreAfterDiscount(score);
 
         // Rolling accuracy penalty
-        if (dto.getSignalAccuracy30d() != null && dto.getSignalAccuracyTotal30d() >= 5) {
+        if (dto.getSignalAccuracy30d() != null && dto.getSignalAccuracyTotal30d() >= SignalThresholds.ACCURACY_TOTAL_MIN_FOR_PENALTY) {
             double acc = dto.getSignalAccuracy30d().doubleValue();
-            if (acc < 35) {
-                score -= 3;
-            } else if (acc < 45) {
-                score -= 1;
+            if (acc < SignalThresholds.ACCURACY_PENALTY_LOW) {
+                score -= SignalThresholds.ACCURACY_PENALTY_LOW_SCORE;
+            } else if (acc < SignalThresholds.ACCURACY_PENALTY_HIGH) {
+                score -= SignalThresholds.ACCURACY_PENALTY_HIGH_SCORE;
             }
         }
 
         // High-confidence gate (if enabled)
-        if (highConfidenceGateEnabled && score >= BUY_THRESHOLD) {
+        if (highConfidenceGateEnabled && score >= SignalThresholds.BUY_THRESHOLD) {
             boolean trendOk = dto.getSma20() != null && dto.getSma50() != null
                     && dto.getSma20().compareTo(dto.getSma50()) > 0;
-            boolean momentumOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() < 75;
+            boolean momentumOk = dto.getRsi14() != null && dto.getRsi14().doubleValue() < SignalThresholds.GATE_RSI_MOMENTUM_MAX;
             boolean riskRewardOk = false;
             if (dto.getLatestPrice() != null && dto.getSma20() != null) {
                 riskRewardOk = dto.getLatestPrice().compareTo(
-                    dto.getSma20().multiply(BigDecimal.valueOf(1.05))) <= 0;
+                    dto.getSma20().multiply(BigDecimal.valueOf(SignalThresholds.GATE_PRICE_RATIO_CANDLESTICK_RELAXED))) <= 0;
             }
             if (!trendOk || !momentumOk || !riskRewardOk) {
-                score = Math.min(score, BUY_THRESHOLD - 1);
+                score = Math.min(score, SignalThresholds.BUY_THRESHOLD - 1);
                 dto.setGateBlocked(true);
             }
         }
 
         // Channel trading override
-        if (score > SELL_THRESHOLD && score < BUY_THRESHOLD
+        if (score > SignalThresholds.SELL_THRESHOLD && score < SignalThresholds.BUY_THRESHOLD
                 && dto.getHigh52Week() != null && dto.getLow52Week() != null
                 && dto.getLatestPrice() != null) {
             double price = dto.getLatestPrice().doubleValue();
@@ -2562,15 +2606,15 @@ public class SignalService {
             double range = high52 - low52;
             if (range > 0) {
                 double channelPct = ((price - low52) / range) * 100;
-                boolean weeklyTrendOk = (dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > 40);
+                boolean weeklyTrendOk = (dto.getWeeklyRsi() != null && dto.getWeeklyRsi().doubleValue() > SignalThresholds.CHANNEL_WEEKLY_RSI_TREND_MIN);
                 boolean channelTrendBearish = dto.getSma20() != null && dto.getSma50() != null
                         && (dto.getSma20().compareTo(dto.getSma50()) < 0
                             || (dto.getLatestPrice() != null && dto.getLatestPrice().compareTo(dto.getSma50()) < 0));
                 
-                if (channelPct <= 15 && score >= -2 && weeklyTrendOk && !channelTrendBearish) {
-                    score = Math.max(score, BUY_THRESHOLD);
-                } else if (channelPct >= 85 && score <= 2) {
-                    score = Math.min(score, SELL_THRESHOLD);
+                if (channelPct <= SignalThresholds.CHANNEL_BOTTOM_PCT && score >= SignalThresholds.CHANNEL_OVERRIDE_BUY_FLOOR_SCORE && weeklyTrendOk && !channelTrendBearish) {
+                    score = Math.max(score, SignalThresholds.BUY_THRESHOLD);
+                } else if (channelPct >= SignalThresholds.CHANNEL_TOP_PCT && score <= SignalThresholds.CHANNEL_OVERRIDE_SELL_CEIL_SCORE) {
+                    score = Math.min(score, SignalThresholds.SELL_THRESHOLD);
                 }
             }
         }
@@ -2579,5 +2623,20 @@ public class SignalService {
         dto.setCompositeScore(score);
 
         return dto;
+    }
+
+    /**
+     * Converts a StrategyResult to a StrategyBreakdownDTO for the landing page tooltip.
+     * Maps the records contribution field to the DTOs weightedScore field.
+     */
+    private static StrategyBreakdownDTO toSignalBreakdownDTO(StrategyResult sr) {
+        return new StrategyBreakdownDTO(
+                sr.strategyName(),
+                sr.signal().name(),
+                sr.confidence(),
+                sr.priority(),
+                sr.contribution(),
+                sr.reason()
+        );
     }
 }

@@ -29,16 +29,28 @@ mvn test -Dtest=SignalServiceTest#testComputeWeightedScore
 
 Specialized workflows for this codebase. Load with `/skill <name>` or invoke when the task matches.
 
-### Multi-Agent Workflow Skills
+### Lifecycle Phase Skills
 
-| Skill | Use For |
-|-------|---------|
-| `team-lead` | Coordinate multi-agent workflow — orchestrate planning, feasibility, implementation, review, and testing stages |
-| `planning-agent` | Analyze requirements — identify affected modules, produce implementation plan, document risks and assumptions |
-| `feasibility-agent` | Validate implementation plans — check technical feasibility, architecture conflicts, backward compatibility |
-| `implementation-agent` | Implement approved features — write code following plan exactly, follow project conventions |
-| `code-review-agent` | Critical code review — find defects, verify quality, approve or reject code |
-| `testing-agent` | Comprehensive testing — verify functionality, add/update tests, produce test coverage report |
+| Skill | Phase | Use For |
+|-------|-------|---------|
+| `team-lead` | Orchestration | Coordinate multi-agent workflow across all lifecycle phases |
+| `define` | Define | Spec-driven development — clarify requirements, surface assumptions, write spec document |
+| `plan` | Plan | Planning — impact analysis, feasibility validation, implementation plan |
+| `build` | Build | Implementation — thin vertical slicing, delegate to implementation-agent |
+| `verify` | Verify | Testing + security hardening + performance checks |
+| `review` | Review | Critical code review + documentation review + plan adherence |
+| `ship` | Ship | Changelog + release summary + deployment notes |
+
+### Subagent Skills
+
+| Skill | Used By | Use For |
+|-------|---------|---------|
+| `planning-agent` | Plan | Analyze requirements, produce implementation plan, document risks |
+| `impact-agent` | Plan | Impact analysis for code changes |
+| `feasibility-agent` | Plan | Technical validation and feasibility checking |
+| `implementation-agent` | Build | Implement approved features following plan exactly |
+| `code-review-agent` | Review | Critical code review, defect finding, quality verification |
+| `testing-agent` | Verify | Comprehensive testing, coverage verification, backward compatibility |
 
 ### Existing Project Skills
 
@@ -140,228 +152,122 @@ Spring Boot serves `src/main/resources/static/` directly. Edit files there — n
 
 ~37 strategy tests, ~99 total (15 integration + 84 unit). Run `mvn test` to verify.
 
-## Multi-Agent Workflow
+## Lifecycle-Driven Multi-Agent Workflow
 
 ### Overview
 
-This project uses a **dynamic multi-agent software engineering workflow** with 4 main agents and specialized subagents. The Team Lead intelligently determines which agents are needed for each task.
+This project uses a **lifecycle-driven multi-agent workflow** with 6 sequential phases. The Team Lead routes requests through the appropriate phases based on complexity.
 
 ### Architecture
 
 ```
 User Request
     ↓
-[Team Lead] - Dynamic workflow coordinator
+[Team Lead] — Routes to lifecycle phases
     ↓
-┌─────────────────────────────────────────────────────┐
-│ Main Agents (4):                                    │
-│ • team-lead - Workflow coordinator                 │
-│ • plan - Planning & analysis coordinator             │
-│ • build - Implementation & testing coordinator       │
-│ • stock-analyzer - Stock market analysis            │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Lifecycle Phase Coordinators (6):                       │
+│ • define-agent — Spec-driven development                │
+│ • plan-agent — Planning & analysis                      │
+│ • build-agent — Implementation with vertical slicing    │
+│ • verify-agent — Testing + Security + Performance       │
+│ • review-agent — Code review + Documentation review     │
+│ • ship-agent — Changelog + Release                      │
+│ • stock-analyzer — Stock market analysis (domain expert) │
+└─────────────────────────────────────────────────────────┘
     ↓
-┌─────────────────────────────────────────────────────┐
-│ Subagents (6):                                     │
-│ • planning-agent - Requirements analysis             │
-│ • impact-agent - Impact analysis                     │
-│ • feasibility-agent - Technical validation           │
-│ • implementation-agent - Code implementation         │
-│ • code-review-agent - Critical code review           │
-│ • testing-agent - Comprehensive testing              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│ Subagents (6):                                          │
+│ • planning-agent, impact-agent, feasibility-agent       │
+│   → Used by Plan phase                                  │
+│ • implementation-agent                                   │
+│   → Used by Build phase                                 │
+│ • code-review-agent                                      │
+│   → Used by Review phase                                │
+│ • testing-agent                                          │
+│   → Used by Verify phase                                │
+└─────────────────────────────────────────────────────────┘
     ↓
 Quality Gates Validation
     ↓
 Final Result
 ```
 
-### Main Agents
+### Phase Coordinators
 
-| Agent | Purpose | When to Use |
-|-------|---------|-------------|
-| `team-lead` | Workflow coordinator | Always - coordinates all work |
-| `plan` | Planning coordinator | New features, major refactoring, architecture changes |
-| `build` | Build coordinator | Code implementation, bug fixes, feature additions |
-| `stock-analyzer` | Stock market analysis | Stock analysis, signal debugging, trading decisions |
+| Agent | Phase | Purpose |
+|-------|-------|---------|
+| `team-lead` | Orchestration | Routes requests to lifecycle phases, reviews outputs |
+| `define-agent` | Define | Spec-driven: clarify requirements, write spec, validate with user |
+| `plan-agent` | Plan | Impact analysis, feasibility, implementation plan |
+| `build-agent` | Build | Vertical slicing, delegate to implementation-agent |
+| `verify-agent` | Verify | Testing + security hardening + performance checks |
+| `review-agent` | Review | Critical code review + doc review + plan adherence |
+| `ship-agent` | Ship | Changelog + release summary + deployment notes |
+| `stock-analyzer` | Domain | Stock market analysis, signal debugging |
 
-### Subagents
+### Lifecycle Routing
 
-**Plan Agent Subagents:**
-- `planning-agent` - Requirements analysis and implementation planning
-- `impact-agent` - Impact analysis for code changes
-- `feasibility-agent` - Technical validation and feasibility checking
+The Team Lead routes based on request complexity:
 
-**Build Agent Subagents:**
-- `implementation-agent` - Code implementation following approved plans
-- `code-review-agent` - Critical code review and defect finding
-- `testing-agent` - Comprehensive testing and coverage verification
-
-### Dynamic Routing
-
-The Team Lead decides which main agents are required for each request:
-
-| Request Type | Agents to Invoke |
-|--------------|------------------|
-| **Stock Analysis/Question** | `stock-analyzer` → Return explanation |
-| **Simple Bug Fix** | `build` → Return fix summary |
-| **Documentation Update** | `build` → Return success message |
-| **New Feature** | `plan` → `build` → Return implementation summary |
-| **Major Refactoring** | `plan` → `build` → Return implementation summary |
-| **Architecture Change** | `plan` → `build` → Return implementation summary |
+| Request Type | Route |
+|--------------|-------|
+| **Simple Question** | Spawn `stock-analyzer` or `thinker` → Return |
+| **Simple Bug Fix** | `build-agent` → `verify-agent` → Return |
+| **Standard Feature** | `plan-agent` → `build-agent` → `verify-agent` → `review-agent` → `ship-agent` |
+| **Complex Feature** | `define-agent` → `plan-agent` → `build-agent` → `verify-agent` → `review-agent` → `ship-agent` |
+| **Architecture Change** | `define-agent` → `plan-agent` → `build-agent` → `verify-agent` → `review-agent` → `ship-agent` |
 
 ### Quality Gates
 
-Before returning results, all quality gates must pass:
-
-1. **Implementation Quality Gates**
-   - Implementation matches requirements exactly
-   - All impacted files have been updated
-   - Configuration is updated if required
-   - Documentation is updated if required
-   - Tests are updated if required
-
-2. **Code Review Quality Gates**
-   - Code review passes (no critical defects)
-   - No regressions introduced
-   - No edge cases missed
-   - Code follows project conventions
-   - Maintainability is acceptable
-
-3. **Testing Quality Gates**
-   - All existing tests still pass
-   - New tests added for new functionality
-   - Regression tests added
-   - Backward compatibility verified
-   - Test coverage is adequate
-
-### When to Use Multi-Agent Workflow
-
-Use the multi-agent workflow for:
-- New features
-- Major enhancements
-- Architecture changes
-- Refactoring affecting multiple modules
-- Database schema changes
-- API endpoint additions
-- Security-sensitive changes
-
-### Quick Start
-
-For simple tasks (bug fixes, small changes), use existing project skills directly. For complex work requiring multiple stages, invoke the Team Lead agent.
+1. **Define** — Spec approved by user
+2. **Plan** — Impact analyzed, feasibility validated
+3. **Build** — Code compiles, plan followed
+4. **Verify** — Tests pass, security clean, perf ok
+5. **Review** — Code approved, docs updated, plan adhered to
+6. **Ship** — Changelog generated, all phases complete
 
 ### Agent Files
 
-**Main Agent Files (`.opencode/agent/`):**
-- `team-lead.md` - Team Lead coordination
-- `plan.md` - Planning coordinator
-- `build.md` - Build coordinator
-- `stock-analyzer.md` - Stock market analysis
+**Phase Agent Files (`.opencode/agent/`):**
+- `team-lead.md` — Team Lead coordinator
+- `define-agent.md` — Define phase
+- `plan.md` — Plan phase
+- `build.md` — Build phase
+- `verify-agent.md` — Verify phase
+- `review-agent.md` — Review phase
+- `ship-agent.md` — Ship phase
+- `stock-analyzer.md` — Stock market analysis
 
-**Subagent Files (`.opencode/agent/subagents/`):**
-- `planning-agent.md` - Requirements analysis
-- `impact-agent.md` - Impact analysis
-- `feasibility-agent.md` - Technical validation
-- `implementation-agent.md` - Code implementation
-- `code-review-agent.md` - Code review
-- `testing-agent.md` - Testing and verification
+**Subagent Files (`.opencode/agent/`):**
+- `planning-agent.md`, `impact-agent.md`, `feasibility-agent.md`
+- `implementation-agent.md`, `code-review-agent.md`, `testing-agent.md`
 
 **Skill Files (`.opencode/skills/`):**
-- `team-lead/SKILL.md` - Team Lead coordination
-- `plan/SKILL.md` - Planning coordinator
-- `build/SKILL.md` - Build coordinator
+- `team-lead/SKILL.md`, `define/SKILL.md`, `plan/SKILL.md`, `build/SKILL.md`
+- `verify/SKILL.md`, `review/SKILL.md`, `ship/SKILL.md`
+- `subagents/*/SKILL.md` (6 subagent skills)
 
-**Subagent Skill Files (`.opencode/skills/subagents/`):**
-- `planning-agent/SKILL.md` - Requirements analysis
-- `impact-agent/SKILL.md` - Impact analysis
-- `feasibility-agent/SKILL.md` - Technical validation
-- `implementation-agent/SKILL.md` - Code implementation
-- `code-review-agent/SKILL.md` - Code review
-- `testing-agent/SKILL.md` - Testing and verification
-
-### Dynamic Workflow Examples
-
-**Example 1: Question about Provider Fallback**
-```
-Team Lead
-→ stock-analyzer (understand provider fallback logic)
-→ Return explanation to user
-```
-
-**Example 2: Fix NullPointerException**
-```
-Team Lead
-→ build (delegates to implementation-agent → code-review-agent → testing-agent)
-→ Return fix summary to user
-```
-
-**Example 3: Add Timeout Support**
-```
-Team Lead
-→ plan (delegates to impact-agent → planning-agent → feasibility-agent)
-→ build (delegates to implementation-agent → code-review-agent → testing-agent)
-→ Return implementation summary to user
-```
-
-**Example 4: Update README**
-```
-Team Lead
-→ build (delegates to implementation-agent)
-→ Return success message to user
-```
-
-### Team Lead Responsibilities
-
-1. **Understand the user's intent** - Read the request carefully
-2. **Classify the request** - Determine the request type
-3. **Decide which main agents are required** - Select appropriate agents
-4. **Delegate work only to those agents** - Don't invoke unnecessary agents
-5. **Collect results from each agent** - Aggregate outputs
-6. **Validate the outputs** - Check quality gates
-7. **If an agent's output is insufficient, send the task back for refinement** - Don't proceed with incomplete work
-8. **Continue until the work satisfies all quality gates** - Ensure quality
-9. **Return the final response to the user** - Deliver results
+**Project Skill Files (`.opencode/skills/`):**
+- `add-endpoint/SKILL.md`, `add-indicator/SKILL.md`, `add-strategy/SKILL.md`
+- `add-frontend-page/SKILL.md`, `run-tests/SKILL.md`, `trace-signal/SKILL.md`
 
 ### Team Lead Never
 
-- Blindly executes every agent in a fixed sequence
-- Implements code directly (unless explicitly instructed)
-- Skips quality gates
-- Accepts incomplete work
-- Sends vague feedback
+- ❌ Implements code directly — **never**, under any circumstances
+- ❌ Runs bash commands
+- ❌ Searches the codebase with grep/glob
+- ❌ Reviews code changes
+- ❌ Writes tests
+- ❌ Skips lifecycle phases without justification
+- ❌ Accepts incomplete work
+- ❌ Sends vague feedback
 
 ### Team Lead Always
 
-- Delegates only when beneficial
-- Optimizes for correctness first, efficiency second
-- Preserves existing functionality
-- Minimizes regressions
-- Treats every implementation as potentially incomplete until validated
-- Behaves like an experienced engineering manager
-
-### Extensibility
-
-New specialist agents can be added without changing the Team Lead's overall orchestration logic. The Team Lead discovers available agents from configuration rather than hard-coding them.
-
-### Agent Configuration
-
-Agents are configured in `.opencode/opencode.json`:
-
-```json
-{
-  "agent": {
-    "team-lead": {
-      "model": "naraya/claude-sonnet-4.5"
-    },
-    "plan": {
-      "model": "naraya/mistral-large"
-    },
-    "build": {
-      "model": "naraya/mimo-v2.5-pro-free"
-    },
-    "stock-analyzer": {
-      "model": "naraya/mimo-v2.5-pro-free"
-    }
-  }
-}
-```
+- ✅ Routes work through appropriate lifecycle phases
+- ✅ Reads files for context (this is allowed)
+- ✅ Spawns agents in parallel when possible
+- ✅ Validates outputs before accepting them
+- ✅ Sends incomplete work back for refinement
+- ✅ Asks the user when unclear

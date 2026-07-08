@@ -8,8 +8,8 @@ import java.util.Objects;
 
 public class TechnicalAnalysisUtils {
 
-    public static BigDecimal calculateRsi14(List<DailyPrice> prices) {
-        if (prices == null || prices.size() < 15) {
+    public static BigDecimal calculateRsi12(List<DailyPrice> prices) {
+        if (prices == null || prices.size() < 13) {
             return null;
         }
 
@@ -29,20 +29,20 @@ public class TechnicalAnalysisUtils {
 
         BigDecimal sumGain = BigDecimal.ZERO;
         BigDecimal sumLoss = BigDecimal.ZERO;
-        for (int i = 0; i < 14; i++) {
+        for (int i = 0; i < 12; i++) {
             sumGain = sumGain.add(gains[i]);
             sumLoss = sumLoss.add(losses[i]);
         }
-        BigDecimal avgGain = sumGain.divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
-        BigDecimal avgLoss = sumLoss.divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+        BigDecimal avgGain = sumGain.divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
+        BigDecimal avgLoss = sumLoss.divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
 
-        for (int i = 14; i < gains.length; i++) {
-            avgGain = avgGain.multiply(BigDecimal.valueOf(13))
+        for (int i = 12; i < gains.length; i++) {
+            avgGain = avgGain.multiply(BigDecimal.valueOf(11))
                     .add(gains[i])
-                    .divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
-            avgLoss = avgLoss.multiply(BigDecimal.valueOf(13))
+                    .divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
+            avgLoss = avgLoss.multiply(BigDecimal.valueOf(11))
                     .add(losses[i])
-                    .divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+                    .divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP);
         }
 
         if (avgLoss.compareTo(BigDecimal.ZERO) == 0) {
@@ -55,7 +55,54 @@ public class TechnicalAnalysisUtils {
                         BigDecimal.ONE.add(rs), 2, RoundingMode.HALF_UP));
     }
 
-    public static boolean hasBullishDivergence(List<DailyPrice> prices, List<BigDecimal> rsiValues) {
+    public static BigDecimal calculateRsi14(List<DailyPrice> prices) {
+    if (prices == null || prices.size() < 14) {
+        return null;
+    }
+
+    BigDecimal[] gains = new BigDecimal[prices.size() - 1];
+    BigDecimal[] losses = new BigDecimal[prices.size() - 1];
+    for (int i = 0; i < gains.length; i++) {
+        BigDecimal change = prices.get(i + 1).getClosingPrice()
+            .subtract(prices.get(i).getClosingPrice());
+        if (change.compareTo(BigDecimal.ZERO) > 0) {
+            gains[i] = change;
+            losses[i] = BigDecimal.ZERO;
+        } else {
+            gains[i] = BigDecimal.ZERO;
+            losses[i] = change.abs();
+        }
+    }
+
+    BigDecimal sumGain = BigDecimal.ZERO;
+    BigDecimal sumLoss = BigDecimal.ZERO;
+    for (int i = 0; i < 14; i++) {
+        sumGain = sumGain.add(gains[i]);
+        sumLoss = sumLoss.add(losses[i]);
+    }
+    BigDecimal avgGain = sumGain.divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+    BigDecimal avgLoss = sumLoss.divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+
+    for (int i = 14; i < gains.length; i++) {
+        avgGain = avgGain.multiply(BigDecimal.valueOf(13))
+            .add(gains[i])
+            .divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+        avgLoss = avgLoss.multiply(BigDecimal.valueOf(13))
+            .add(losses[i])
+            .divide(BigDecimal.valueOf(14), 4, RoundingMode.HALF_UP);
+    }
+
+    if (avgLoss.compareTo(BigDecimal.ZERO) == 0) {
+        return BigDecimal.valueOf(100);
+    }
+
+    BigDecimal rs = avgGain.divide(avgLoss, 4, RoundingMode.HALF_UP);
+    return BigDecimal.valueOf(100)
+        .subtract(BigDecimal.valueOf(100).divide(
+            BigDecimal.ONE.add(rs), 2, RoundingMode.HALF_UP));
+}
+
+public static boolean hasBullishDivergence(List<DailyPrice> prices, List<BigDecimal> rsiValues) {
         if (prices.size() < 20 || rsiValues.size() < 20) return false;
 
         // Simple divergence: check the last two troughs

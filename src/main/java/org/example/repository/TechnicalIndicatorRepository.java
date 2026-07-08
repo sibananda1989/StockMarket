@@ -34,6 +34,9 @@ public interface TechnicalIndicatorRepository extends JpaRepository<TechnicalInd
     @Query("SELECT ti FROM TechnicalIndicator ti WHERE ti.stock.id = :stockId AND ti.calculationDate = :date")
     List<TechnicalIndicator> findByStockIdAndCalculationDate(@Param("stockId") Long stockId, @Param("date") LocalDate date);
 
+    @Query("SELECT ti FROM TechnicalIndicator ti WHERE ti.stock.id = :stockId AND ti.calculationDate BETWEEN :fromDate AND :toDate ORDER BY ti.calculationDate ASC")
+    List<TechnicalIndicator> findByStockIdAndCalculationDateBetween(@Param("stockId") Long stockId, @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
     @Query(value = "SELECT DISTINCT ti.calculation_date FROM technical_indicators ti WHERE ti.stock_id = :stockId ORDER BY ti.calculation_date DESC LIMIT 2", nativeQuery = true)
     List<LocalDate> findLatestTwoCalculationDates(@Param("stockId") Long stockId);
 

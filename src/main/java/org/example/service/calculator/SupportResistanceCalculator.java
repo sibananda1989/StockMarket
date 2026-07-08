@@ -24,8 +24,20 @@ public class SupportResistanceCalculator {
 
     /**
      * Full calculation pipeline: returns all S/R levels for a stock.
+     * Uses the default historical lookback (180 days).
      */
     public Result calculate(Stock stock, List<DailyPrice> prices) {
+        return calculate(stock, prices, HISTORICAL_LOOKBACK_DAYS);
+    }
+
+    /**
+     * Full calculation pipeline with configurable historical lookback.
+     *
+     * @param stock                  the stock entity
+     * @param prices                 all available price data (ascending by date)
+     * @param historicalLookbackDays number of days to use for major historical level detection
+     */
+    public Result calculate(Stock stock, List<DailyPrice> prices, int historicalLookbackDays) {
         LocalDate today = LocalDate.now();
         List<SupportResistanceLevel> levels = new ArrayList<>();
         SupportResistanceDto dto = new SupportResistanceDto();
@@ -68,8 +80,9 @@ public class SupportResistanceCalculator {
             persistPivot(levels, stock, today, LevelType.PIVOT_R3, pivots.getR3(), 3);
         }
 
-        // 3. Major Historical Pivots (6-month)
-        List<DailyPrice> historicalPrices = getLookback(prices, HISTORICAL_LOOKBACK_DAYS);
+        // 3. Major Historical Levels (configurable lookback)
+        int effectiveLookback = Math.max(historicalLookbackDays, PIVOT_LOOKBACK_DAYS);
+        List<DailyPrice> historicalPrices = getLookback(prices, effectiveLookback);
         List<SupportResistanceDto.MajorLevel> majorLevels = detectMajorLevels(historicalPrices);
         dto.setMajorLevels(majorLevels);
 
@@ -79,7 +92,7 @@ public class SupportResistanceCalculator {
             // Use index (rank by strength) as levelOrder to avoid unique-constraint collisions
             // when multiple major levels share the same touch count
             levels.add(buildLevel(stock, lt, ml.getPrice(), i, today,
-                    ml.getStrength(), ml.getTouches(), HISTORICAL_LOOKBACK_DAYS));
+                    ml.getStrength(), ml.getTouches(), effectiveLookback));
         }
 
         return new Result(dto, levels);

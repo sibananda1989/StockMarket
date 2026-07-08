@@ -121,6 +121,44 @@ public class CandlestickPatternCalculator {
             }
         }
 
+        // ── Fuzzy Pattern Detection (≥90% match threshold) ──
+        // If no exact pattern matched, check for near-misses with continuous scoring
+        if (c3Body.compareTo(BigDecimal.ZERO) > 0 && c3Range.compareTo(BigDecimal.ZERO) > 0) {
+            double bodyPct = c3Body.divide(c3Range, 6, RoundingMode.HALF_UP).doubleValue() * 100;
+            double lwRatio = c3LowerWick.divide(c3Body, 4, RoundingMode.HALF_UP).doubleValue();
+            double uwRatio = c3UpperWick.divide(c3Body, 4, RoundingMode.HALF_UP).doubleValue();
+
+            // Fuzzy Hammer: score each condition continuously
+            double hammerPct = 0;
+            // Condition 1: body > 0 (already passed)
+            hammerPct += 100;
+            // Condition 2: body ≤ 30% of range
+            hammerPct += bodyPct <= 30 ? 100 : Math.min(100, 30.0 / bodyPct * 100);
+            // Condition 3: lower wick ≥ 2× body
+            hammerPct += lwRatio >= 2 ? 100 : Math.min(100, lwRatio / 2.0 * 100);
+            // Condition 4: upper wick ≤ body
+            hammerPct += uwRatio <= 1 ? 100 : Math.min(100, 1.0 / uwRatio * 100);
+            double hammerAvg = hammerPct / 4;
+
+            if (hammerAvg >= 90) {
+                return new Result(Pattern.HAMMER, (int) Math.round(hammerAvg),
+                        String.format("Hammer (%.0f%%)", hammerAvg));
+            }
+
+            // Fuzzy Shooting Star
+            double starPct = 0;
+            starPct += 100; // body > 0
+            starPct += bodyPct <= 30 ? 100 : Math.min(100, 30.0 / bodyPct * 100);
+            starPct += uwRatio >= 2 ? 100 : Math.min(100, uwRatio / 2.0 * 100);
+            starPct += lwRatio <= 1 ? 100 : Math.min(100, 1.0 / lwRatio * 100);
+            double starAvg = starPct / 4;
+
+            if (starAvg >= 90) {
+                return new Result(Pattern.SHOOTING_STAR, -(int) Math.round(starAvg),
+                        String.format("Shooting Star (%.0f%%)", starAvg));
+            }
+        }
+
         return new Result(Pattern.NONE, 0, null);
     }
 

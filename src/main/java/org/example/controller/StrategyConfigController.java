@@ -9,6 +9,7 @@ import org.example.entity.StrategyConfig;
 import org.example.entity.StrategyConditionGroup;
 import org.example.service.StrategyConditionService;
 import org.example.service.StrategyConfigService;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,6 +58,7 @@ public class StrategyConfigController {
         return ResponseEntity.ok(ApiResponse.success(stats));
     }
 
+    @CacheEvict(value = "signals", allEntries = true)
     @PutMapping("/conditions/{strategyName}")
     public ResponseEntity<ApiResponse<String>> saveConditions(
             @PathVariable String strategyName,
@@ -66,6 +68,7 @@ public class StrategyConfigController {
         return ResponseEntity.ok(ApiResponse.success("Conditions saved", "Conditions saved"));
     }
 
+    @CacheEvict(value = "signals", allEntries = true)
     @PostMapping("/conditions/reset")
     public ResponseEntity<ApiResponse<String>> resetConditions() {
         strategyConditionService.resetToDefaults();
@@ -81,6 +84,7 @@ public class StrategyConfigController {
         return ResponseEntity.ok(ApiResponse.success("Priority updated", config));
     }
 
+    @CacheEvict(value = "signals", allEntries = true)
     @PatchMapping("/conditions/{strategyName}/{conditionId}")
     public ResponseEntity<ApiResponse<StrategyConditionGroup>> toggleCondition(
             @PathVariable String strategyName,

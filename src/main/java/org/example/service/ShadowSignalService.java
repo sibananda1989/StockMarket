@@ -136,7 +136,7 @@ public class ShadowSignalService {
         computeOldMacd(dto, closes);
         
         // Old RSI calculation (inline, no DB fallback)
-        dto.setRsi14(TechnicalAnalysisUtils.calculateRsi14(prices));
+        dto.setRsi14(TechnicalAnalysisUtils.calculateRsi12(prices));
         
         // Old Bollinger Bands (population stddev)
         computeOldBollingerBands(dto, closes);
@@ -154,9 +154,9 @@ public class ShadowSignalService {
         
         // Old multi-timeframe RSI
         List<DailyPrice> weeklyPrices = aggregationService.aggregateWeekly(prices);
-        dto.setWeeklyRsi(TechnicalAnalysisUtils.calculateRsi14(weeklyPrices));
+        dto.setWeeklyRsi(TechnicalAnalysisUtils.calculateRsi12(weeklyPrices));
         List<DailyPrice> monthlyPrices = aggregationService.aggregateMonthly(prices);
-        dto.setMonthlyRsi(TechnicalAnalysisUtils.calculateRsi14(monthlyPrices));
+        dto.setMonthlyRsi(TechnicalAnalysisUtils.calculateRsi12(monthlyPrices));
         
         // Old volume confirmation
         computeOldVolumeConfirmation(dto, prices);

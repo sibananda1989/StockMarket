@@ -27,7 +27,7 @@
     }
 
     function signalBadge(signal) {
-        const cls = signal === 'BUY' ? 'bg-green-600 text-green-100'
+        const cls = signal === 'BUY' ? 'bg-green-800 text-green-100'
             : signal === 'SELL' ? 'bg-red-600 text-red-100'
                 : 'bg-gray-500 text-gray-100';
         return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + cls + '">' + signal + '</span>';
@@ -122,15 +122,15 @@
     function renderStrategies() {
         const html = state.strategies.map((s, idx) => {
             const activeCount = state.strategies.filter(x => x.active).length;
-            strategyContainers.activeCount.textContent = activeCount + ' of 5 active';
-            const disabled = !s.active ? 'opacity-40' : '';
+            strategyContainers.activeCount.textContent = activeCount + ' of 7 active';
+            const disabled = !s.active ? 'strategy-disabled' : '';
             return `
                 <div class="border-b border-gray-700 last:border-b-0" data-strategy-idx="${idx}">
                     <div class="flex items-center gap-4 px-4 py-4 ${disabled}">
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-white">${s.displayName || s.strategyName}</div>
                             <div class="flex flex-wrap gap-1.5 mt-1">
-                                ${s.tags.map(t => '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-900 text-blue-200">' + t + '</span>').join('')}
+                                ${s.tags.map(t => '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-300">' + t + '</span>').join('')}
                             </div>
                         </div>
                         <div class="flex items-center gap-2 text-sm text-gray-400">
@@ -138,7 +138,7 @@
                             <span class="stock-count-pill font-mono" data-strategy="${s.strategyName}">
                                 ${s.totalStocksMatched !== undefined ? s.totalStocksMatched : '\u2014'}
                             </span>
-                            <span class="text-xs text-gray-500">stocks matched</span>
+                            <span class="text-xs text-gray-400">stocks matched</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <label class="text-xs text-gray-400">Priority</label>
@@ -199,17 +199,17 @@
                     const content = row.querySelector('.flex.items-center.gap-4');
                     if (content) {
                         if (newActive) {
-                            content.classList.remove('opacity-40');
+                            content.classList.remove('strategy-disabled');
                             content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = false);
                         } else {
-                            content.classList.add('opacity-40');
+                            content.classList.add('strategy-disabled');
                             content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = true);
                         }
                     }
                 }
                 const activeCount = state.strategies.filter(x => x.active).length;
                 if (strategyContainers.activeCount) {
-                    strategyContainers.activeCount.textContent = activeCount + ' of 5 active';
+                    strategyContainers.activeCount.textContent = activeCount + ' of 7 active';
                 }
                 try {
                     await toggleStrategyConfig(strategyName, newActive);
@@ -220,15 +220,15 @@
                         const content = row.querySelector('.flex.items-center.gap-4');
                         if (content) {
                             if (wasActive) {
-                                content.classList.remove('opacity-40');
+                                content.classList.remove('strategy-disabled');
                                 content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = false);
                             } else {
-                                content.classList.add('opacity-40');
+                                content.classList.add('strategy-disabled');
                                 content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = true);
                             }
                         }
                     }
-                    strategyContainers.activeCount.textContent = state.strategies.filter(x => x.active).length + ' of 5 active';
+                    strategyContainers.activeCount.textContent = state.strategies.filter(x => x.active).length + ' of 7 active';
                     showToast('Failed to update strategy: ' + err.message, 'error');
                 }
             });
@@ -283,7 +283,7 @@
                         <i class="fas fa-list-check text-gray-400 mr-1.5"></i>Signal conditions \u00b7 ${s.conditions.length} rules
                     </span>
                     <button class="px-3 py-1 text-sm rounded-lg transition-colors edit-mode-btn
-                        ${isEditing ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}">
+                        ${isEditing ? 'bg-green-800 hover:bg-green-900 text-green-100' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}">
                         <i class="fas ${isEditing ? 'fa-check' : 'fa-pencil'} mr-1"></i>${isEditing ? 'Done editing' : 'Edit rules'}
                     </button>
                 </div>
@@ -426,7 +426,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-1 flex-shrink-0">
-                    <button class="condition-toggle px-2 py-1 text-xs rounded transition-colors ${c.enabled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'}"
+                    <button class="condition-toggle px-2 py-1 text-xs rounded transition-colors ${c.enabled ? 'bg-green-800 hover:bg-green-900 text-green-100' : 'bg-gray-600 hover:bg-gray-500 text-gray-200'}"
                         data-strategy="${strategyName}" data-condition-id="${c.conditionId}" data-enabled="${c.enabled}"
                         title="${toggleTitle}">
                         ${c.enabled ? 'ON' : 'OFF'}
@@ -499,9 +499,17 @@
 
     function updateSaveButton() {
         if (strategyContainers.saveBtn) {
-            strategyContainers.saveBtn.disabled = !state.dirty;
-            strategyContainers.saveBtn.classList.toggle('opacity-50', !state.dirty);
-            strategyContainers.saveBtn.classList.toggle('cursor-not-allowed', !state.dirty);
+            const isDisabled = !state.dirty;
+            strategyContainers.saveBtn.disabled = isDisabled;
+            // Use gray styling instead of opacity to preserve contrast
+            strategyContainers.saveBtn.classList.toggle('cursor-not-allowed', isDisabled);
+            if (isDisabled) {
+                strategyContainers.saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+                strategyContainers.saveBtn.classList.add('bg-gray-600', 'text-gray-300');
+            } else {
+                strategyContainers.saveBtn.classList.remove('bg-gray-600', 'text-gray-300');
+                strategyContainers.saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+            }
         }
     }
 

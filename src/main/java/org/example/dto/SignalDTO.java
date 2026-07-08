@@ -153,4 +153,7 @@ public class SignalDTO {
     private int scoreAfterCandlestick;
     private int scoreAfterReversal;
     private int scoreAfterDiscount;
+
+    // Multi-strategy engine breakdown (strategy contributions to this signal)
+    private List<StrategyBreakdownDTO> strategyBreakdown;
 }

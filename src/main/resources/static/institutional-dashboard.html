@@ -56,6 +56,23 @@
         .kpi-value { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
         .kpi-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
     </style>
+    <!-- WCAG AA color contrast overrides for dark mode (data-theme="dark" variant) -->
+    <style>
+        [data-theme="dark"] .bg-blue-600 { background-color: #2563eb !important; }
+        [data-theme="dark"] .hover\:bg-blue-700:hover { background-color: #1d4ed8 !important; }
+        [data-theme="dark"] .bg-indigo-600 { background-color: #4338ca !important; }
+        [data-theme="dark"] .hover\:bg-indigo-700:hover { background-color: #3730a3 !important; }
+        [data-theme="dark"] .bg-green-600 { background-color: #166534 !important; }
+        [data-theme="dark"] .hover\:bg-green-700:hover { background-color: #14532d !important; }
+        [data-theme="dark"] .bg-purple-600 { background-color: #6d28d9 !important; }
+        [data-theme="dark"] .hover\:bg-purple-700:hover { background-color: #5b21b6 !important; }
+        [data-theme="dark"] .bg-yellow-600 { background-color: #92400e !important; }
+        [data-theme="dark"] .bg-red-500 { background-color: #dc2626 !important; }
+        /* tab-btn.active uses hardcoded #3b82f6 background — darken to #2563eb for WCAG AA */
+        [data-theme="dark"] .tab-btn.active { background: #2563eb !important; color: white !important; }
+        /* gradient-badge: linear-gradient(135deg, #3b82f6, #8b5cf6) on text white = ~3.7:1 — darken */
+        [data-theme="dark"] .gradient-badge { background: linear-gradient(135deg, #2563eb, #6d28d9) !important; color: white !important; }
+    </style>
 </head>
 <body class="p-4 md:p-6">
 
@@ -302,7 +319,9 @@
                 <h2 class="text-lg font-semibold"><i class="fas fa-cubes text-green-400 mr-2"></i>Bulk Deals</h2>
                 <div class="flex items-center gap-2">
                     <button onclick="exportTableCsv('bulkTable','bulk-deals.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                    <label for="bulkFromDate" class="sr-only">From date</label>
                     <input type="date" id="bulkFromDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
+                    <label for="bulkToDate" class="sr-only">To date</label>
                     <input type="date" id="bulkToDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
                     <button onclick="loadBulkDeals()" class="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"><i class="fas fa-search mr-1"></i>Search</button>
                 </div>
@@ -334,7 +353,9 @@
                 <h2 class="text-lg font-semibold"><i class="fas fa-cubes text-purple-400 mr-2"></i>Block Deals</h2>
                 <div class="flex items-center gap-2">
                     <button onclick="exportTableCsv('blockTable','block-deals.csv')" class="px-2 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 text-gray-300"><i class="fas fa-download mr-1"></i>CSV</button>
+                    <label for="blockFromDate" class="sr-only">From date</label>
                     <input type="date" id="blockFromDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
+                    <label for="blockToDate" class="sr-only">To date</label>
                     <input type="date" id="blockToDate" class="px-2 py-1 text-sm rounded bg-gray-700 border border-gray-600 text-white text-xs">
                     <button onclick="loadBlockDeals()" class="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"><i class="fas fa-search mr-1"></i>Search</button>
                 </div>
@@ -955,6 +976,7 @@
         window.loadBulkDeals = loadBulkDeals;
         window.loadBlockDeals = loadBlockDeals;
     </script>
+    <script src="js/api.js"></script>
     <script src="js/navigation.js"></script>
 </body>
 </html>

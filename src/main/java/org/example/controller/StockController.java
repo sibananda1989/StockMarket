@@ -137,4 +137,9 @@ public class StockController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Deleted " + count + " stock(s) with symbol prefix '" + prefix + "'", null));
     }
+
+    @GetMapping("/health")
+    public ResponseEntity<ApiResponse<String>> healthCheck() {
+        return ResponseEntity.ok(ApiResponse.success("OK", null));
+    }
 }

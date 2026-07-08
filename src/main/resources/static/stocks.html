@@ -73,14 +73,14 @@
             <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
                 <div class="flex items-center gap-2 shrink-0">
                     <i class="fas fa-briefcase text-secondary"></i>
-                    <select id="portfolioSelector" onchange="switchPortfolioMgmt(this.value)"
+                    <select id="portfolioSelector" aria-label="Portfolio" onchange="switchPortfolioMgmt(this.value)"
                             class="px-3 py-1.5 rounded-lg border border-gray-600 bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[140px]">
                         <option value="">All Stocks</option>
                     </select>
                 </div>
                 <div class="flex-1 flex items-center gap-2">
                     <i class="fas fa-search text-secondary"></i>
-                    <input type="text" id="searchInput"
+                    <input type="text" id="searchInput" aria-label="Search stocks"
                            class="flex-1 px-4 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                            placeholder="Search by name or symbol..." oninput="filterStocks()">
                 </div>
@@ -149,7 +149,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Primary: Name / Symbol Search -->
                     <div class="md:col-span-2 relative">
-                        <label class="block text-sm font-medium mb-2">Search Stock</label>
+                        <label for="addStockSearch" class="block text-sm font-medium mb-2">Search Stock</label>
                         <input type="text" id="addStockSearch"
                                class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
                                placeholder="Type stock name or symbol (e.g. Reliance, TCS, Infosys)..."
@@ -169,22 +169,22 @@
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-xs text-secondary mb-1">Symbol</label>
+                                    <label for="mgmtSymbol" class="block text-xs text-secondary mb-1">Symbol</label>
                                     <input type="text" id="mgmtSymbol" readonly
                                            class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm font-bold text-white">
                                 </div>
                                 <div>
-                                    <label class="block text-xs text-secondary mb-1">Name</label>
+                                    <label for="mgmtName" class="block text-xs text-secondary mb-1">Name</label>
                                     <input type="text" id="mgmtName" readonly
                                            class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-xs text-secondary mb-1">Exchange</label>
+                                    <label for="mgmtExchange" class="block text-xs text-secondary mb-1">Exchange</label>
                                     <input type="text" id="mgmtExchange" readonly
                                            class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
                                 </div>
                                 <div>
-                                    <label class="block text-xs text-secondary mb-1">Sector</label>
+                                    <label for="mgmtSector" class="block text-xs text-secondary mb-1">Sector</label>
                                     <select id="mgmtSector" class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                                         <option value="">Select</option>
                                         <option>Technology</option><option>Finance</option><option>Healthcare</option>
@@ -200,19 +200,19 @@
                     <hr class="md:col-span-2 border-gray-700 my-2">
                     <h4 class="md:col-span-2 text-md font-semibold">Portfolio Details</h4>
                     <div>
-                        <label class="block text-sm font-medium mb-2">Portfolio</label>
+                        <label for="addPortfolioId" class="block text-sm font-medium mb-2">Portfolio</label>
                         <select id="addPortfolioId" required
                                 class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="">Select Portfolio</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2">Quantity</label>
+                        <label for="addQty" class="block text-sm font-medium mb-2">Quantity</label>
                         <input type="number" id="addQty" min="0"
                                class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium mb-2">Avg Price</label>
+                        <label for="addAvgPrice" class="block text-sm font-medium mb-2">Avg Price</label>
                         <input type="number" id="addAvgPrice" step="0.01" min="0"
                                class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
@@ -254,17 +254,17 @@
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-medium mb-1">Symbol</label>
+                            <label for="editStockSymbol" class="block text-xs font-medium mb-1">Symbol</label>
                             <input type="text" id="editStockSymbol" required maxlength="10"
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">Name</label>
+                            <label for="editStockName" class="block text-xs font-medium mb-1">Name</label>
                             <input type="text" id="editStockName" required
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">Sector</label>
+                            <label for="editStockSector" class="block text-xs font-medium mb-1">Sector</label>
                             <select id="editStockSector" required
                                     class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                                 <option value="">Select Sector</option>
@@ -275,25 +275,25 @@
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">Yahoo Symbol</label>
+                            <label for="editYahooSymbol" class="block text-xs font-medium mb-1">Yahoo Symbol</label>
                             <input type="text" id="editYahooSymbol" maxlength="20"
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                    placeholder="Default: Symbol">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">Portfolio</label>
+                            <label for="editPortfolioId" class="block text-xs font-medium mb-1">Portfolio</label>
                             <select id="editPortfolioId"
                                     class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                                 <option value="">Stock Only (no portfolio)</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium mb-1">Quantity</label>
+                            <label for="editQty" class="block text-xs font-medium mb-1">Quantity</label>
                             <input type="number" id="editQty" min="0" oninput="recalcEditPreview()"
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                         <div class="sm:col-span-2">
-                            <label class="block text-xs font-medium mb-1">Avg Price</label>
+                            <label for="editAvgPrice" class="block text-xs font-medium mb-1">Avg Price</label>
                             <input type="number" id="editAvgPrice" step="0.01" min="0" oninput="recalcEditPreview()"
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
@@ -307,27 +307,27 @@
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <div>
-                            <label class="block text-xs text-secondary mb-1">LTP</label>
+                            <label for="editLtp" class="block text-xs text-secondary mb-1">LTP</label>
                             <input type="text" id="editLtp" readonly
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 cursor-not-allowed text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs text-secondary mb-1">Investment</label>
+                            <label for="editInvestment" class="block text-xs text-secondary mb-1">Investment</label>
                             <input type="text" id="editInvestment" readonly
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 cursor-not-allowed text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs text-secondary mb-1">Current Value</label>
+                            <label for="editCurrentValue" class="block text-xs text-secondary mb-1">Current Value</label>
                             <input type="text" id="editCurrentValue" readonly
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 cursor-not-allowed text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs text-secondary mb-1">P&amp;L</label>
+                            <label for="editPnl" class="block text-xs text-secondary mb-1">P&amp;L</label>
                             <input type="text" id="editPnl" readonly
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 cursor-not-allowed text-sm">
                         </div>
                         <div>
-                            <label class="block text-xs text-secondary mb-1">P&amp;L %</label>
+                            <label for="editPnlPercent" class="block text-xs text-secondary mb-1">P&amp;L %</label>
                             <input type="text" id="editPnlPercent" readonly
                                    class="w-full px-3 py-1.5 rounded-lg border border-gray-700 bg-gray-800 text-gray-400 cursor-not-allowed text-sm">
                         </div>
@@ -445,14 +445,14 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label class="block text-sm font-medium mb-2">Stock</label>
+                    <label for="alertStock" class="block text-sm font-medium mb-2">Stock</label>
                     <select id="alertStock"
                             class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">-- All Stocks (Global Alert) --</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-2">Parameter</label>
+                    <label for="alertParam" class="block text-sm font-medium mb-2">Parameter</label>
                     <select id="alertParam"
                             class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="pnlPercent">P&L %</option>
@@ -466,7 +466,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-2">Condition</label>
+                    <label for="alertCondition" class="block text-sm font-medium mb-2">Condition</label>
                     <select id="alertCondition"
                             class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="lt">Less than (&lt;)</option>
@@ -477,12 +477,12 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-2">Value</label>
+                    <label for="alertValue" class="block text-sm font-medium mb-2">Value</label>
                     <input type="number" id="alertValue" step="0.01" placeholder="e.g. -10"
                            class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-2">Severity</label>
+                    <label for="alertSeverity" class="block text-sm font-medium mb-2">Severity</label>
                     <select id="alertSeverity"
                             class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="warning">⚠️ Warning</option>
@@ -491,7 +491,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium mb-2">Alert Message</label>
+                    <label for="alertMessage" class="block text-sm font-medium mb-2">Alert Message</label>
                     <input type="text" id="alertMessage" placeholder="e.g. P&L dropped below -10%"
                            class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>

@@ -51,7 +51,7 @@ public class InstitutionalScoreService {
      * Computes the institutional score for a single stock by ID.
      * Results are cached with 15-minute TTL and evicted when new data is fetched.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public InstitutionalScoreDTO computeScore(Long stockId) {
         Stock stock = stockRepository.findById(stockId).orElse(null);
         if (stock == null) return null;
@@ -63,7 +63,7 @@ public class InstitutionalScoreService {
      * Results are cached with 15-minute TTL and evicted when new data is fetched.
      */
     @Cacheable(value = "institutionalScores", key = "#stock.id")
-    @Transactional(readOnly = true)
+    @Transactional
     public InstitutionalScoreDTO computeScoreCached(Stock stock) {
         return computeScore(stock);
     }
@@ -73,7 +73,7 @@ public class InstitutionalScoreService {
      * The aggregated list is cached and evicted when new data is fetched.
      */
     @Cacheable(value = "institutionalScores", key = "'all'")
-    @Transactional(readOnly = true)
+    @Transactional
     public List<InstitutionalScoreDTO> computeAllScores() {
         List<Stock> stocks = stockRepository.findAll();
         return stocks.stream()
@@ -87,7 +87,7 @@ public class InstitutionalScoreService {
      * Core scoring logic — computes the 0-100 institutional score.
      * Optimized to fetch holding and signal ONCE, not N times.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public InstitutionalScoreDTO computeScore(Stock stock) {
         Long stockId = stock.getId();
         InstitutionalScoreDTO.InstitutionalScoreDTOBuilder builder = InstitutionalScoreDTO.builder()
@@ -484,7 +484,7 @@ public class InstitutionalScoreService {
      * Safely computes the signal for a stock, returning null on any exception.
      * Used by computeScoreInternal to avoid duplicate signal computation.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     private SignalDTO computeSignalSafely(Long stockId) {
         try {
             return signalService.computeSignal(stockId);

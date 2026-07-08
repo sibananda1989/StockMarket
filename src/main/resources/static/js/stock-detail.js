@@ -120,11 +120,17 @@ async function loadStockData() {
         // Pre-fetch RSI history for candlestick tooltip
         getRsiHistory(_stockId, parseInt(document.getElementById('dayRange').value) || 180)
             .then(res => {
+                if (gen !== _loadAllGen) return;
                 _cachedRsiHistory = (res?.data || []).filter(r => r.rsi14 != null);
             })
             .catch(() => {});
-        // Pre-fetch all technical indicators for candlestick tooltip
-        getLatestIndicators(_stockId).then(res => {
+        // Pre-fetch all technical indicators for candlestick tooltip (per-date data)
+        const days = parseInt(document.getElementById('dayRange').value) || 180;
+        const toDateStr = new Date().toISOString().slice(0, 10);
+        const fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - days);
+        const fromDateStr = fromDate.toISOString().slice(0, 10);
+        getAllIndicatorHistory(_stockId, fromDateStr, toDateStr).then(res => {
             _cachedIndicatorsByDate = {};
             if (res && res.length) {
                 res.forEach(ind => {
@@ -132,7 +138,7 @@ async function loadStockData() {
                     if (!_cachedIndicatorsByDate[date]) {
                         _cachedIndicatorsByDate[date] = {};
                     }
-                    _cachedIndicatorsByDate[date][ind.indicatorType] = ind.value;
+                    _cachedIndicatorsByDate[date][ind.type] = ind.value;
                 });
             }
         }).catch(() => {});
@@ -220,8 +226,7 @@ async function loadAllCharts() {
 // ─── KPI Updates ────────────────────────────────────────────────────────────
 function updateRsiKpi(value) {
     const rsiEl = document.getElementById('kpiRsi');
-    if (!rsiEl) return;
-    if (value != null) {
+    if (rsiEl && value != null) {
         const rv = parseFloat(value);
         rsiEl.textContent = rv.toFixed(2);
         const card = rsiEl.closest('.stat-card');
@@ -229,10 +234,54 @@ function updateRsiKpi(value) {
             card.classList.remove('green', 'red', 'yellow', 'gray');
             card.classList.add(rv > 70 ? 'red' : rv < 30 ? 'green' : 'gray');
         }
-    } else {
+    } else if (rsiEl) {
         rsiEl.textContent = '--';
         const card = rsiEl.closest('.stat-card');
         if (card) card.classList.remove('green', 'red', 'yellow', 'gray');
+    }
+
+    const heroRsi = document.getElementById('heroKpiRsi');
+    if (heroRsi) {
+        if (value != null) {
+            const rv = parseFloat(value);
+            heroRsi.textContent = rv.toFixed(2);
+            heroRsi.className = 'text-2xl font-bold ' + (rv > 70 ? 'text-red-400' : rv < 30 ? 'text-green-400' : 'text-orange-400');
+        } else {
+            heroRsi.textContent = '--';
+            heroRsi.className = 'text-2xl font-bold text-orange-400';
+        }
+    }
+}
+
+function updateHeroSignal(signal) {
+    const badge = document.getElementById('heroSignalBadge');
+    const text = document.getElementById('heroSignalText');
+    const score = document.getElementById('heroCompositeScore');
+    if (!badge || !text || !score) return;
+
+    if (!signal) {
+        badge.className = 'px-5 py-3 rounded-xl font-bold text-white shadow-lg flex items-center gap-3 min-w-[140px] justify-center transition-all duration-300 bg-gradient-to-r from-gray-500 to-gray-600';
+        text.textContent = 'NO SIGNAL';
+        score.textContent = '--';
+        return;
+    }
+
+    const rec = signal.recommendation || 'HOLD';
+    const compositeScore = signal.compositeScore != null ? signal.compositeScore : 0;
+    score.textContent = (compositeScore >= 0 ? '+' : '') + compositeScore;
+
+    const isBuy = rec === 'STRONG BUY' || rec === 'BUY';
+    const isSell = rec === 'STRONG SELL' || rec === 'SELL';
+
+    if (isBuy) {
+        badge.className = 'px-5 py-3 rounded-xl font-bold text-white shadow-lg flex items-center gap-3 min-w-[140px] justify-center transition-all duration-300 bg-gradient-to-r from-green-500 to-emerald-600';
+        text.innerHTML = '<i class="fas fa-thumbs-up mr-2"></i>' + rec;
+    } else if (isSell) {
+        badge.className = 'px-5 py-3 rounded-xl font-bold text-white shadow-lg flex items-center gap-3 min-w-[140px] justify-center transition-all duration-300 bg-gradient-to-r from-red-500 to-rose-600';
+        text.innerHTML = '<i class="fas fa-thumbs-down mr-2"></i>' + rec;
+    } else {
+        badge.className = 'px-5 py-3 rounded-xl font-bold text-white shadow-lg flex items-center gap-3 min-w-[140px] justify-center transition-all duration-300 bg-gradient-to-r from-gray-500 to-gray-600';
+        text.innerHTML = '<i class="fas fa-minus mr-2"></i>' + rec;
     }
 }
 
@@ -240,27 +289,41 @@ function updateKpis(priceData, rsiData, stockData) {
     const getVal = (obj, key) => obj && obj.status === 'success' && obj.data ? obj.data[key] : null;
 
     // LTP
-    const ltpEl = document.getElementById('kpiLtp');
     const cp = getVal(priceData, 'closingPrice');
-    ltpEl.textContent = cp != null ? '₹' + parseFloat(cp).toFixed(2) : '--';
+    const heroLtp = document.getElementById('heroKpiLtp');
+    if (heroLtp) heroLtp.textContent = cp != null ? '₹' + parseFloat(cp).toFixed(2) : '--';
 
     // P&L
-    setPnlKpi('kpiPnl', stockData, 'pnl', v => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    const heroPnl = document.getElementById('heroKpiPnl');
+    if (heroPnl && stockData && stockData.pnl != null) {
+        const pv = parseFloat(stockData.pnl);
+        heroPnl.textContent = '₹' + Number(pv).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        heroPnl.className = 'text-2xl font-bold ' + (pv >= 0 ? 'text-green-400' : 'text-red-400');
+    } else if (heroPnl) { heroPnl.textContent = '--'; heroPnl.className = 'text-2xl font-bold text-secondary'; }
 
     // P&L%
-    setPnlKpi('kpiPnlPct', stockData, 'pnlPercent', v => (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%');
+    const heroPnlPct = document.getElementById('heroKpiPnlPct');
+    if (heroPnlPct && stockData && stockData.pnlPercent != null) {
+        const ppv = parseFloat(stockData.pnlPercent);
+        heroPnlPct.textContent = (ppv >= 0 ? '+' : '') + Number(ppv).toFixed(2) + '%';
+        heroPnlPct.className = 'text-2xl font-bold ' + (ppv >= 0 ? 'text-green-400' : 'text-red-400');
+    } else if (heroPnlPct) { heroPnlPct.textContent = '--'; heroPnlPct.className = 'text-2xl font-bold text-secondary'; }
 
     // Investment
-    const invEl = document.getElementById('kpiInv');
-    if (stockData && stockData.investment != null) {
-        invEl.textContent = '₹' + Number(stockData.investment).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    } else { invEl.textContent = '--'; }
+    const heroInv = document.getElementById('heroKpiInv');
+    if (heroInv) {
+        if (stockData && stockData.investment != null) {
+            heroInv.textContent = '₹' + Number(stockData.investment).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } else { heroInv.textContent = '--'; }
+    }
 
     // Current Value
-    const currEl = document.getElementById('kpiCurr');
-    if (stockData && stockData.currentValue != null) {
-        currEl.textContent = '₹' + Number(stockData.currentValue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    } else { currEl.textContent = '--'; }
+    const heroCurr = document.getElementById('heroKpiCurr');
+    if (heroCurr) {
+        if (stockData && stockData.currentValue != null) {
+            heroCurr.textContent = '₹' + Number(stockData.currentValue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } else { heroCurr.textContent = '--'; }
+    }
 
     // RSI - use stored value for consistency
     updateRsiKpi(_latestRsiValue);
@@ -344,13 +407,13 @@ async function loadCandlestickTab(days) {
             shouldUseMulti
                 ? getMultiStrategySignal(_stockId, activeStrategyNames).catch(e => { console.error('[Candlestick] Multi-strategy signal failed:', e); return null; })
                 : getStockSignal(_stockId).catch(e => { console.error('[Candlestick] Current signal fetch failed:', e); return null; }),
-            getSupportResistance(_stockId).catch(() => null)
+            getSupportResistance(_stockId, days).catch(() => null)
         ]);
         const prices = (priceRes?.data || []).filter(p => p.closingPrice != null);
         const signalHistory = signalHistoryRes?.status === 'success' ? signalHistoryRes.data : null;
         console.log('[Candlestick] Prices returned: ' + prices.length + ' records, range: ' +
             (prices.length > 0 ? prices[0].priceDate + ' to ' + prices[prices.length - 1].priceDate : 'empty'));
-        
+
         // Transform multi-strategy result to signal DTO format for chart
         let currentSignal = null;
         if (currentSignalRes?.status === 'success' && currentSignalRes.data) {
@@ -360,8 +423,9 @@ async function loadCandlestickTab(days) {
                 currentSignal = {
                     recommendation: data.finalSignal,
                     compositeScore: Math.round(data.score),
-                    strategyBreakdown: data.strategyBreakdown || [],
-                    buyThreshold: data.buyThreshold || 5
+                    strategyBreakdown: data.breakdown || [],
+                    buyThreshold: data.buyThreshold || 5,
+                    sellThreshold: data.sellThreshold || -3
                 };
             } else {
                 currentSignal = data;
@@ -371,10 +435,12 @@ async function loadCandlestickTab(days) {
         let srData = srRes && srRes.status === 'success' ? srRes.data : null;
         if (!srData) {
             await calculateSupportResistance(_stockId).catch(() => {});
-            const retryRes = await getSupportResistance(_stockId).catch(() => null);
+            const retryRes = await getSupportResistance(_stockId, days).catch(() => null);
             srData = retryRes && retryRes.status === 'success' ? retryRes.data : null;
         }
         console.log('[Candlestick] prices:', prices.length, 'signalHistory:', signalHistory?.length || 0, 'currentSignal:', currentSignal?.recommendation, 'activeStrategies:', activeStrategyNames?.length || 0, 'srData:', !!srData);
+        // Render active strategies badge with populated signal data
+        renderActiveStrategiesBadge(activeStrategyNames, currentSignal);
         renderCandlestickChart(prices, signalHistory, currentSignal, srData);
     } catch (e) {
         console.error('Candlestick tab error:', e);
@@ -385,6 +451,7 @@ async function loadCandlestickTab(days) {
 }
 
 async function loadPnlTab(days) {
+    const gen = _loadAllGen;
     try {
         const end = new Date();
         const start = new Date();
@@ -403,18 +470,20 @@ async function loadPnlTab(days) {
                 pnl: (parseFloat(p.closingPrice) - parseFloat(avgPrice)) * qty
             }));
 
-            // Show latest price freshness
-            const latestDate = prices[prices.length - 1].priceDate;
-            const daysSince = Math.floor((Date.now() - new Date(latestDate + 'T00:00:00')) / 86400000);
-            const pnlDescEl = document.querySelector('#chartPnl').closest('.card')?.querySelector('.text-secondary.mb-4');
-            if (pnlDescEl && daysSince > 3) {
-                pnlDescEl.innerHTML = 'P&amp;L based on last close: <strong>' + latestDate + '</strong> <span class="text-yellow-400">(stale — ' + daysSince + 'd old)</span>';
-            }
-
-            renderPnlCharts(dailyPnl);
-        } else {
-            renderPnlCharts([]);
+        // Show latest price freshness
+        const latestDate = prices[prices.length - 1].priceDate;
+        const daysSince = Math.floor((Date.now() - new Date(latestDate + 'T00:00:00')) / 86400000);
+        const pnlDescEl = document.querySelector('#chartPnl').closest('.card')?.querySelector('.text-secondary.mb-4');
+        if (pnlDescEl && daysSince > 3) {
+            pnlDescEl.innerHTML = 'P&amp;L based on last close: <strong>' + latestDate + '</strong> <span class="text-yellow-400">(stale — ' + daysSince + 'd old)</span>';
         }
+
+        renderPnlCharts(dailyPnl);
+    } else {
+        renderPnlCharts([]);
+    }
+    if (gen !== _loadAllGen) return;
+}
     } catch (e) {
         console.error('P&L tab error:', e);
         showChartMsg('chartPnl', 'No P&L data');
@@ -423,6 +492,7 @@ async function loadPnlTab(days) {
 }
 
 async function loadInvValueTab(days) {
+    const gen = _loadAllGen;
     try {
         const qty = _stockData?.quantity;
         const avgPrice = _stockData?.avgPrice;
@@ -443,6 +513,7 @@ async function loadInvValueTab(days) {
             currentValue: parseFloat(p.closingPrice) * qty
         }));
         renderInvValueChart(dailyData);
+        if (gen !== _loadAllGen) return;
     } catch (e) {
         console.error('Inv vs Value tab error:', e);
         showChartMsg('chartInvValue', 'No investment data');
@@ -450,12 +521,14 @@ async function loadInvValueTab(days) {
 }
 
 async function loadRsiTab(days) {
+    const gen = _loadAllGen;
     try {
         const res = await getRsiHistory(_stockId, days);
         const history = (res.data || [])
             .filter(r => r.rsi14 != null)
             .reverse(); // clock starts at the left: oldest → newest
         renderRsiChart(history);
+        if (gen !== _loadAllGen) return;
     } catch (e) {
         console.error('RSI tab error:', e);
         showChartMsg('chartRsi', 'No RSI data');
@@ -464,6 +537,7 @@ async function loadRsiTab(days) {
 
 // ─── Support & Resistance ──────────────────────────────────────────────────
 async function loadSupportResistanceTab(days) {
+    const gen = _loadAllGen;
     const spinner = document.getElementById('srSpinner');
     if (spinner) spinner.classList.remove('hidden');
     try {
@@ -474,7 +548,7 @@ async function loadSupportResistanceTab(days) {
         const fmt = d => d.toISOString().split('T')[0];
         const [priceRes, srRes] = await Promise.all([
             getCachedPriceHistory(_stockId, fmt(start), fmt(end), days),
-            getSupportResistance(_stockId).catch(() => null)
+            getSupportResistance(_stockId, days).catch(() => null)
         ]);
         const prices = (priceRes?.data || []).filter(p => p.closingPrice != null);
         const srData = srRes && srRes.status === 'success' ? srRes.data : null;
@@ -482,7 +556,7 @@ async function loadSupportResistanceTab(days) {
         // If no S/R data exists, auto-calculate once
         if (!srData) {
             await calculateSupportResistance(_stockId).catch(() => {});
-            const retryRes = await getSupportResistance(_stockId).catch(() => null);
+            const retryRes = await getSupportResistance(_stockId, days).catch(() => null);
             const retryData = retryRes && retryRes.status === 'success' ? retryRes.data : null;
             renderSupportResistanceChart(prices, retryData);
             renderSrLevelTable(retryData);
@@ -490,6 +564,7 @@ async function loadSupportResistanceTab(days) {
             renderSupportResistanceChart(prices, srData);
             renderSrLevelTable(srData);
         }
+        if (gen !== _loadAllGen) return;
     } catch (e) {
         console.error('S/R tab error:', e);
         showChartMsg('chartSupportResistance', 'No support/resistance data — click Refresh to calculate');
@@ -728,7 +803,7 @@ function renderSrLevelTable(srData) {
     // Major historical levels
     const majorLevels = (srData.majorLevels || []);
     let majorHtml = `
-        <div class="rounded-lg border border-gray-700 bg-gray-800/30 p-4 sm:col-span-2 lg:col-span-2">
+        <div class="rounded-lg border border-gray-700 bg-gray-800/30 p-4 sm:col-span-2">
             <h4 class="text-xs font-semibold text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
                 <i class="fas fa-layer-group text-purple-400"></i>Major Historical Levels
             </h4>`;
@@ -753,7 +828,7 @@ function renderSrLevelTable(srData) {
     majorHtml += `</div>`;
 
     el.innerHTML = `
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             ${pivotHtml}
             ${swingHtml}
             ${majorLevels.length > 0 ? majorHtml : ''}
@@ -775,16 +850,20 @@ async function loadInsightsTab() {
             updateRsiKpi(signalData.rsi14);
         }
         renderSignalContent(signalData);
+        updateHeroSignal(signalData);
         renderScoreBreakdown(signalData);
         renderPriceAnalysis(signalData);
 
         // Fire-and-forget: signal history, indicators, risk assessment
+        const gen = _loadAllGen;
         getCachedSignalHistory(_stockId, days).then(res => {
+            if (gen !== _loadAllGen) return;
             const historyData = res && res.status === 'success' ? res.data : null;
             renderSignalTimeline(historyData, signalData);
         }).catch(() => {});
 
         getLatestIndicators(_stockId).then(res => {
+            if (gen !== _loadAllGen) return;
             var needsRecalc = !res || !res.length;
             if (!needsRecalc) {
                 var today = new Date();
@@ -793,14 +872,22 @@ async function loadInsightsTab() {
             }
             if (needsRecalc) {
                 calculateIndicators(_stockId).then(function() {
-                    getLatestIndicators(_stockId).then(function(retry) { renderIndicatorsContent(retry); }).catch(function() {});
-                }).catch(function() { renderIndicatorsContent(res); });
+                    getLatestIndicators(_stockId).then(function(retry) { 
+                        if (gen !== _loadAllGen) return;
+                        renderIndicatorsContent(retry); 
+                    }).catch(function() {});
+                }).catch(function() { 
+                    renderIndicatorsContent(res); 
+                });
             } else {
                 renderIndicatorsContent(res);
             }
         }).catch(function() {
             calculateIndicators(_stockId).then(function() {
-                getLatestIndicators(_stockId).then(function(retry) { renderIndicatorsContent(retry); }).catch(function() {});
+                getLatestIndicators(_stockId).then(function(retry) { 
+                    if (gen !== _loadAllGen) return;
+                    renderIndicatorsContent(retry); 
+                }).catch(function() {});
             }).catch(function() {});
         });
 
@@ -940,6 +1027,64 @@ function fmtBreakdown(val) {
     return (n >= 0 ? '+' : '') + n.toFixed(1);
 }
 
+function renderActiveStrategiesBadge(activeStrategyNames, currentSignal) {
+    const container = document.getElementById('activeStrategiesBadge');
+    if (!container) return;
+
+    // Build a lookup: strategy name → signal from the breakdown
+    const breakdownMap = {};
+    const breakdown = currentSignal?.strategyBreakdown || [];
+    if (breakdown && breakdown.length) {
+        breakdown.forEach(function(s) {
+            breakdownMap[s.strategyName] = s.signal;
+        });
+    }
+
+    if (!activeStrategyNames || activeStrategyNames.length === 0) {
+        container.innerHTML = '<span class="text-xs text-yellow-400 font-medium flex items-center gap-1"><i class="fas fa-triangle-exclamation"></i>No strategies active — all signals will be HOLD</span>';
+        return;
+    }
+
+    var chips = '<span class="text-xs text-secondary font-semibold mr-1">Strategies:</span>';
+    activeStrategyNames.forEach(function(name) {
+        var signal = breakdownMap[name] || '?';
+        var color, icon;
+        if (signal === 'BUY') {
+            color = 'bg-green-900/40 text-green-400 border-green-700/50';
+            icon = '<i class="fas fa-arrow-up mr-0.5"></i>';
+        } else if (signal === 'SELL') {
+            color = 'bg-red-900/40 text-red-400 border-red-700/50';
+            icon = '<i class="fas fa-arrow-down mr-0.5"></i>';
+        } else if (signal === 'HOLD') {
+            color = 'bg-gray-700/50 text-gray-400 border-gray-600';
+            icon = '<i class="fas fa-minus mr-0.5"></i>';
+        } else {
+            color = 'bg-gray-700/50 text-gray-400 border-gray-600';
+            icon = '';
+        }
+        chips += '<span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ' + color + '">' + icon + escHtml(name) + '</span>';
+    });
+
+    // Add current overall signal as a summary chip
+    if (currentSignal && currentSignal.recommendation) {
+        var rec = currentSignal.recommendation;
+        var recColor, recIcon;
+        if (rec === 'STRONG BUY' || rec === 'BUY') {
+            recColor = 'bg-green-600/30 text-green-300 border-green-500/50';
+            recIcon = '<i class="fas fa-flag mr-0.5"></i>';
+        } else if (rec === 'STRONG SELL' || rec === 'SELL') {
+            recColor = 'bg-red-600/30 text-red-300 border-red-500/50';
+            recIcon = '<i class="fas fa-flag mr-0.5"></i>';
+        } else {
+            recColor = 'bg-gray-600/30 text-gray-300 border-gray-500/50';
+            recIcon = '<i class="fas fa-flag mr-0.5"></i>';
+        }
+        chips += '<span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ' + recColor + '">' + recIcon + rec + '</span>';
+    }
+
+    container.innerHTML = chips;
+}
+
 function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
     const container = document.getElementById('chartCandlestick');
     if (!container) return;
@@ -1000,6 +1145,7 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
             if (currentSignal.strategyBreakdown) {
                 sigByDate[latestTime].strategyBreakdown = currentSignal.strategyBreakdown;
                 sigByDate[latestTime].buyThreshold = currentSignal.buyThreshold;
+                sigByDate[latestTime].sellThreshold = currentSignal.sellThreshold;
             }
         } else {
             sigByDate[latestTime] = currentSignal;
@@ -1022,7 +1168,7 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
     });
     cs.setData(ohlc);
 
-    // Volume histogram
+    // Volume histogram colored by price direction
     const cleanVolume = volume.filter(v => v.value != null && v.value > 0 && !isNaN(v.value));
     if (cleanVolume.length > 0) {
         try {
@@ -1030,11 +1176,20 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                 priceFormat: { type: 'volume' },
                 priceScaleId: 'volume',
                 color: '#26a69a',
+                priceLineVisible: false,
+                lastValueVisible: false,
             });
             chart.priceScale('volume').applyOptions({
                 scaleMargins: { top: 0.8, bottom: 0 },
             });
-            volSeries.setData(cleanVolume);
+            // Color each volume bar by its corresponding candle direction
+            // Build an O(1) lookup for up/down direction by time
+            const upByTime = new Set(ohlc.filter(o => o.close >= o.open).map(o => o.time));
+            const coloredVolume = cleanVolume.map(v => ({
+                ...v,
+                color: upByTime.has(v.time) ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)',
+            }));
+            volSeries.setData(coloredVolume);
         } catch (e) {
             console.warn('[Candlestick] Volume histogram not available:', e);
         }
@@ -1103,7 +1258,7 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
     _chartOverlays.sr = srPriceLines;
     _chartOverlays.srColors = srColorMap;
 
-    // ── Buy/Sell markers ──
+    // ── Buy/Sell markers — arrows only for strong signals, small dots for regular ──
     const markers = [];
     const validEpochs = new Set(ohlc.map(d => d.time));
 
@@ -1114,25 +1269,46 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                 && s.recommendation !== 'NEUTRAL'
                 && s.recommendation !== 'HOLD'
                 && validEpochs.has(epoch)) {
-                console.log('[Markers] Adding signal:', s.priceDate, s.recommendation, 'score=', s.compositeScore, 'epoch=', epoch);
                 const isBuy = s.recommendation === 'STRONG BUY' || s.recommendation === 'BUY';
                 const isSell = s.recommendation === 'STRONG SELL' || s.recommendation === 'SELL';
-                const isHold = s.recommendation === 'HOLD';
-                const isStrong = s.compositeScore >= 7;
+                const isStrong = s.compositeScore >= 7 || s.compositeScore <= -7;
                 markers.push({
                     time: epoch,
                     position: isBuy ? 'belowBar' : isSell ? 'aboveBar' : 'inBar',
-                    color: isBuy ? '#22c55e' : isSell ? '#ef4444' : '#6b7280',
-                    shape: isBuy ? 'arrowUp' : isSell ? 'arrowDown' : 'circle',
-                    text: isStrong && isBuy ? 'SB' :
-                          s.compositeScore <= -7 && isSell ? 'SS' :
-                          isHold ? '' :
-                          s.recommendation.substring(0, 1),
+                    color: isStrong && isBuy ? '#16a34a' : isBuy ? '#22c55e' :
+                           isStrong && isSell ? '#dc2626' : isSell ? '#ef4444' : '#6b7280',
+                    // All buy/sell signals use arrows, just at smaller sizes
+                    shape: isBuy ? 'arrowUp' : 'arrowDown',
+                    size: isStrong ? 2 : 1,
+                    text: isBuy ? (s.compositeScore >= 7 ? 'SB' : 'B') :
+                          isSell ? (s.compositeScore <= -7 ? 'SS' : 'S') : '',
                 });
             }
         });
     }
 
+    // Add candlestick pattern annotations as special markers
+    if (signalHistory && signalHistory.length) {
+        signalHistory.forEach(s => {
+            if (!s.priceDate || !s.candlestickPattern || s.candlestickPattern === 'NONE') return;
+            const epoch = Math.floor(new Date(s.priceDate + 'T00:00:00Z').getTime() / 1000);
+            if (!validEpochs.has(epoch)) return;
+            // Don't add pattern markers where we already have a BUY/SELL marker
+            const hasSignal = markers.some(m => m.time === epoch);
+            if (hasSignal) return;
+            const isBullish = s.candlestickScore >= 2;
+            markers.push({
+                time: epoch,
+                position: 'belowBar',
+                color: isBullish ? 'rgba(168,85,247,0.5)' : 'rgba(168,85,247,0.35)',
+                shape: 'circle',
+                size: 8,
+                text: '',
+            });
+        });
+    }
+
+    // Current signal marker — always an arrow, but smaller
     if (currentSignal && currentSignal.recommendation
         && currentSignal.recommendation !== 'HOLD' && currentSignal.recommendation !== 'NEUTRAL'
         && ohlc.length) {
@@ -1143,28 +1319,65 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
             markers.splice(existingIdx, 1);
         }
         const isBuy = currentSignal.recommendation === 'STRONG BUY' || currentSignal.recommendation === 'BUY';
-        const isStrongCur = currentSignal.compositeScore >= 7;
+        const isStrongCur = currentSignal.compositeScore >= 7 || currentSignal.compositeScore <= -7;
         markers.push({
             time: lastTime,
             position: isBuy ? 'belowBar' : 'aboveBar',
-            color: isBuy ? '#22c55e' : '#ef4444',
+            color: isStrongCur && isBuy ? '#16a34a' : isBuy ? '#22c55e' :
+                   isStrongCur && !isBuy ? '#dc2626' : '#ef4444',
             shape: isBuy ? 'arrowUp' : 'arrowDown',
+            size: isStrongCur ? 2 : 1,
             text: isStrongCur && isBuy ? 'SB' :
                   currentSignal.compositeScore <= -7 && !isBuy ? 'SS' :
-                  currentSignal.recommendation.substring(0, 1),
+                  isBuy ? 'B' : 'S',
         });
     }
 
     markers.sort((a, b) => a.time - b.time);
+    // Limit markers to prevent chart clutter — keep only the most recent 40
+    if (markers.length > 40) {
+        markers.splice(0, markers.length - 40);
+    }
     window._lastMarkers = markers;
     window._lastSignalHistory = signalHistory;
 
-    // ── Enhanced tooltip with factor breakdown ──
+    // ── Enhanced tooltip with modern design ──
     container.querySelectorAll('.lw-tooltip').forEach(el => el.remove());
     const tooltip = document.createElement('div');
     tooltip.className = 'lw-tooltip';
-    tooltip.style.cssText = 'position:absolute;display:none;color:#d1d5db;background:#1f2937;border:1px solid #374151;border-radius:8px;padding:12px;font-size:12px;pointer-events:none;z-index:100;min-width:200px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+    tooltip.style.cssText = [
+        'position:absolute;display:none;z-index:100;min-width:240px;max-width:320px',
+        'background:rgba(30,41,59,0.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)',
+        'border:1px solid rgba(255,255,255,0.08);border-radius:12px',
+        'padding:14px 16px;font-size:12px;',
+        'box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.04) inset',
+        'color:#e2e8f0;line-height:1.5',
+        'transition:opacity 0.15s ease',
+    ].join(';');
     container.appendChild(tooltip);
+
+    // Helper: format key indicators in a compact 2-column grid without group headers
+    function buildCompactIndicators(indicatorsForDate) {
+        const keys = [
+            { label: 'RSI(14)', key: 'RSI', pr: 1, col: v => v > 70 ? '#ef4444' : v < 30 ? '#22c55e' : null },
+            { label: 'MACD', key: 'MACD_LINE', pr: 2, col: v => v >= 0 ? '#22c55e' : '#ef4444' },
+            { label: 'ADX', key: 'ADX', pr: 1, col: v => v > 25 ? '#22c55e' : null },
+            { label: 'SMA20', key: 'SMA_20', pr: 2, col: null },
+            { label: 'SMA50', key: 'SMA_50', pr: 2, col: null },
+            { label: 'Bollinger U', key: 'BOLLINGER_UPPER', pr: 2, col: null },
+            { label: 'Bollinger L', key: 'BOLLINGER_LOWER', pr: 2, col: null },
+        ];
+        const items = keys
+            .map(k => ({ label: k.label, pr: k.pr, col: k.col, val: indicatorsForDate[k.key] }))
+            .filter(x => x.val != null && !isNaN(x.val));
+        if (!items.length) return '';
+        const rows = items.map(x => {
+            const f = Number(x.val).toFixed(x.pr);
+            const color = x.col ? x.col(parseFloat(x.val)) : null;
+            return `<span style="color:#8892a0;font-size:10px;">${x.label}</span><span style="font-weight:600;text-align:right;color:${color || '#e2e8f0'};font-size:10px;font-variant-numeric:tabular-nums;">${f}</span>`;
+        }).join('');
+        return `<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;">${rows}</div>`;
+    }
 
     chart.subscribeCrosshairMove(param => {
         if (!param.point || !param.time) { tooltip.style.display = 'none'; return; }
@@ -1187,167 +1400,161 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                Number(volItem.value).toLocaleString('en-IN'))
             : '--';
         const c = isUp ? '#22c55e' : '#ef4444';
+        const bgColor = isUp ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)';
         const p = v => '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
-        // Get RSI(14) for this date from cached history
-        const rsiForDate = _cachedRsiHistory.find(r => {
-            const rsiDate = r.calculationDate || r.priceDate;
-            const rsiEpoch = Math.floor(new Date(rsiDate + 'T00:00:00Z').getTime() / 1000);
-            return rsiEpoch === epoch && r.rsi14 != null;
-        });
-        const rsiVal = rsiForDate ? Number(rsiForDate.rsi14).toFixed(1) : null;
-        const rsiCol = rsiVal ? (parseFloat(rsiVal) > 70 ? '#ef4444' : parseFloat(rsiVal) < 30 ? '#22c55e' : '#d1d5db') : '#d1d5db';
-
         // Get all technical indicators for this date from cached data
-        const indicatorsForDate = _cachedIndicatorsByDate[epoch] || {};
+        const indicatorLookupDate = epoch ? new Date(epoch * 1000).toISOString().split('T')[0] : '';
+        const indicatorsForDate = _cachedIndicatorsByDate[indicatorLookupDate] || {};
+        const indicatorHtml = buildCompactIndicators(indicatorsForDate);
         
-        // Build indicator rows for ALL candles (not just when signal exists)
-        const indicatorRows = [];
-        if (rsiVal) {
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px; margin-top: 4px;">RSI(14)</span><span style="font-weight:600;text-align:right;color:${rsiCol};font-size:11px; margin-top: 4px;">${rsiVal}</span>`);
-        }
-        if (indicatorsForDate.ADX) {
-            const adxVal = Number(indicatorsForDate.ADX).toFixed(1);
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px;">ADX</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${adxVal}</span>`);
-        }
-        if (indicatorsForDate.SMA_20 && indicatorsForDate.SMA_50) {
-            const sma20 = Number(indicatorsForDate.SMA_20).toFixed(2);
-            const sma50 = Number(indicatorsForDate.SMA_50).toFixed(2);
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px;">SMA20/SMA50</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${sma20}/${sma50}</span>`);
-        }
-        if (indicatorsForDate.MACD_LINE) {
-            const macdVal = Number(indicatorsForDate.MACD_LINE).toFixed(2);
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px;">MACD</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${macdVal}</span>`);
-        }
-        if (indicatorsForDate.BOLLINGER_UPPER && indicatorsForDate.BOLLINGER_LOWER) {
-            const upper = Number(indicatorsForDate.BOLLINGER_UPPER).toFixed(2);
-            const lower = Number(indicatorsForDate.BOLLINGER_LOWER).toFixed(2);
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px;">Bollinger</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${upper}/${lower}</span>`);
-        }
-        if (indicatorsForDate.ATR) {
-            const atrVal = Number(indicatorsForDate.ATR).toFixed(2);
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px;">ATR</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${atrVal}</span>`);
-        }
-        if (indicatorsForDate.STOCH_K && indicatorsForDate.STOCH_D) {
-            const stochK = Number(indicatorsForDate.STOCH_K).toFixed(2);
-            const stochD = Number(indicatorsForDate.STOCH_D).toFixed(2);
-            indicatorRows.push(`<span style="color:#9ca3af;font-size:11px;">Stoch K/D</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${stochK}/${stochD}</span>`);
-        }
-        
-        const indicatorHtml = indicatorRows.length ? indicatorRows.join('') : '';
-        
-        let factorHtml = indicatorHtml;
+        let scoreSection = '';
         let strategyHtml = '';
-        let strategyFactorHtml = '';
-        
-        // Show strategy scores if they are non-zero (multi-strategy computed signals)
-        const scores = [
-            { label: 'RSI Strategy', score: sig?.rsiScore },
-            { label: 'SMA Strategy', score: sig?.smaScore },
-            { label: 'Bollinger', score: sig?.bollingerScore },
-            { label: 'MACD', score: sig?.macdScore },
-            { label: 'Trend', score: sig?.trendDirectionScore },
-            { label: 'Divergence', score: sig?.divergenceScore },
-            { label: 'Weekly Confluence', score: sig?.weeklyConfluenceScore },
-            { label: 'FII/DII', score: sig?.fiidiiScore },
-        ];
-        const scoreRows = scores.filter(f => f.score != null && f.score !== 0).map(f => {
-            const sc = f.score;
-            const col = sc > 0 ? '#22c55e' : sc < 0 ? '#ef4444' : '#9ca3af';
-            return `<span style="color:#9ca3af;font-size:11px;">${f.label}</span><span style="font-weight:600;text-align:right;color:${col};font-size:11px;">${sc >= 0 ? '+' : ''}${sc}</span>`;
-        });
-        factorHtml = indicatorHtml + scoreRows.join('');
+        const miniFactors = [];
         
         if (sig) {
-            const candleStr = sig.candlestickPattern && sig.candlestickScore !== 0
-                ? `<span style="color:#9ca3af;font-size:11px;">Candle</span><span style="font-weight:600;text-align:right;color:${sig.candlestickScore > 0 ? '#22c55e' : '#ef4444'};font-size:11px;">${sig.candlestickPattern} (${sig.candlestickScore >= 0 ? '+' : ''}${sig.candlestickScore})</span>`
-                : '';
-            strategyFactorHtml = candleStr + (sig.adx != null && sig.adx !== 0 ? `<span style="color:#9ca3af;font-size:11px;">ADX</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${Number(sig.adx).toFixed(1)}</span>` : '') + (sig.rsi14 != null && sig.rsi14 !== 0 ? `<span style="color:#9ca3af;font-size:11px;">RSI(14)</span><span style="font-weight:600;text-align:right;color:#d1d5db;font-size:11px;">${Number(sig.rsi14).toFixed(1)}</span>` : '');
-            
-            if (sig.compositeScore >= 5) recColor = '#22c55e';
-            else if (sig.compositeScore <= -5) recColor = '#ef4444';
+            if (sig.compositeScore >= 5) { recColor = '#22c55e'; }
+            else if (sig.compositeScore <= -5) { recColor = '#ef4444'; }
 
             recLabel = sig.compositeScore >= 7 ? 'STRONG BUY' :
                 sig.compositeScore >= 5 ? 'BUY' :
                 sig.compositeScore <= -7 ? 'STRONG SELL' :
                 sig.compositeScore <= -5 ? 'SELL' : (sig.recommendation || 'HOLD');
 
+            // Strategy scores row
+            const scores = [
+                { label: 'RSI', score: sig.rsiScore },
+                { label: 'SMA', score: sig.smaScore },
+                { label: 'Bollinger', score: sig.bollingerScore },
+                { label: 'MACD', score: sig.macdScore },
+                { label: 'Trend', score: sig.trendDirectionScore },
+                { label: 'Divergence', score: sig.divergenceScore },
+                { label: 'Weekly', score: sig.weeklyConfluenceScore },
+                { label: 'FII/DII', score: sig.fiidiiScore },
+            ];
+            const activeScores = scores.filter(f => f.score != null && f.score !== 0);
+            if (activeScores.length) {
+                const scoreChips = activeScores.map(f => {
+                    const col = f.score > 0 ? '#22c55e' : '#ef4444';
+                    const bg = f.score > 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+                    return `<span style="display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${bg};color:${col};">${f.label} ${f.score >= 0 ? '+' : ''}${f.score}</span>`;
+                }).join('');
+                scoreSection = `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.06);">${scoreChips}</div>`;
+            }
+
+            // Candlestick pattern mini row (ADX shown in indicators below)
+            if (sig.candlestickPattern && sig.candlestickScore !== 0) {
+                const col = sig.candlestickScore > 0 ? '#22c55e' : '#ef4444';
+                miniFactors.push(`<span style="color:#8892a0;font-size:10px;">Candle</span><span style="font-weight:600;color:${col};font-size:10px;">${sig.candlestickPattern}</span>`);
+            }
+
             // Build strategy breakdown HTML
             if (sig.strategyBreakdown && sig.strategyBreakdown.length && sig.buyThreshold != null) {
-                const isExpanded = localStorage.getItem('strategyBreakdownExpanded') === 'true';
+                let isExpanded = true;
+                try { isExpanded = localStorage.getItem('strategyBreakdownExpanded') !== 'false'; } catch (e) {}
                 const rows = sig.strategyBreakdown.map(s => {
                     const sc = s.signal === 'BUY' ? '#22c55e' : s.signal === 'SELL' ? '#ef4444' : '#6b7280';
+                    const sbg = s.signal === 'BUY' ? 'rgba(34,197,94,0.1)' : s.signal === 'SELL' ? 'rgba(239,68,68,0.1)' : 'transparent';
                     return `
-                        <span style="color:#d1d5db;font-size:11px;">${s.strategyName}: <span style="color:${sc};font-weight:600;">${s.signal}</span> (${(s.confidence * 100).toFixed(0)}%)</span>
-                        <span style="color:#9ca3af;font-size:10px;text-align:right;"><span style="color:#6b7280;">priority</span> ${s.priority} <span style="color:#6b7280;">×</span> ${(s.confidence * 100).toFixed(0)}% <span style="color:#6b7280;">=</span> <span style="color:#d1d5db;font-weight:600;">${s.weightedScore.toFixed(2)}</span></span>
-                        <span style="color:#6b7280;font-size:10px;grid-column:1/-1;margin-bottom:2px;">${s.reason}</span>
-                    `;
+                        <div style="display:flex;flex-direction:column;gap:1px;padding:4px 6px;border-radius:6px;background:${sbg};">
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <span style="font-weight:600;color:#e2e8f0;font-size:10px;">${s.strategyName}</span>
+                                <span style="color:${sc};font-weight:700;font-size:10px;">${s.signal}</span>
+                            </div>
+                            <div style="display:flex;justify-content:space-between;color:#64748b;font-size:9px;">
+                                <span>${(s.confidence * 100).toFixed(0)}% confidence</span>
+                                <span>priority ${s.priority} × ${(s.confidence * 100).toFixed(0)}% = <strong style="color:#e2e8f0;">${(s.weightedScore ?? s.contribution ?? 0).toFixed(2)}</strong></span>
+                            </div>
+                            ${s.reason ? `<div style="color:#64748b;font-size:9px;margin-top:1px;line-height:1.3;">${s.reason}</div>` : ''}
+                        </div>`;
                 }).join('');
-                const thresholdColor = sig.rawScore >= sig.buyThreshold ? '#22c55e' :
-                    sig.rawScore <= sig.sellThreshold ? '#ef4444' : '#6b7280';
-                const thresholdLabel = sig.rawScore >= sig.buyThreshold ? '✓ BUY' :
-                    sig.rawScore <= sig.sellThreshold ? '✓ SELL' : '→ HOLD';
+                const thresholdColor = sig.rawScore != null
+                    ? (sig.rawScore >= sig.buyThreshold ? '#22c55e' :
+                       sig.rawScore <= sig.sellThreshold ? '#ef4444' : '#6b7280')
+                    : '#6b7280';
+                const thresholdLabel = sig.rawScore != null
+                    ? (sig.rawScore >= sig.buyThreshold ? '✓ BUY' :
+                       sig.rawScore <= sig.sellThreshold ? '✓ SELL' : '→ HOLD')
+                    : '—';
                 const thresholdDetail = sig.rawScore >= sig.buyThreshold ?
                     `${sig.rawScore.toFixed(2)} ≥ ${sig.buyThreshold}` :
                     sig.rawScore <= sig.sellThreshold ?
                     `${sig.rawScore.toFixed(2)} ≤ ${sig.sellThreshold}` :
-                    `score ${sig.rawScore.toFixed(2)} between thresholds`;
+                    `between thresholds`;
                 strategyHtml = `
-                    <div style="margin-top:6px;padding-top:6px;border-top:1px solid #374151;">
-                        <div class="breakdown-header" style="display:flex;align-items:center;gap:4px;margin-bottom:4px;cursor:pointer;user-select:none;">
-                            <span class="collapse-icon" style="font-size:9px;color:#9ca3af;">${isExpanded ? '▼' : '▶'}</span>
-                            <span style="font-weight:600;color:#9ca3af;font-size:11px;">Multi-Strategy Breakdown</span>
+                    <div style="margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.06);">
+                        <div class="breakdown-header" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;padding:2px 0;">
+                            <span class="collapse-icon" style="font-size:8px;color:#64748b;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+                            <span style="font-weight:600;color:#8892a0;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;">Strategy Breakdown</span>
+                            <span style="margin-left:auto;font-size:9px;color:${thresholdColor};font-weight:600;">${thresholdLabel}</span>
+                            <div style="color:#64748b;font-size:9px;text-align:center;margin-top:1px;">${thresholdDetail}</div>
                         </div>
-                        <div class="breakdown-body" style="display:${isExpanded ? 'grid' : 'none'};grid-template-columns:1fr auto;gap:2px 8px;">
+                        <div class="breakdown-body" style="display:${isExpanded ? 'flex' : 'none'};flex-direction:column;gap:4px;margin-top:4px;">
                             ${rows}
-                            <span style="border-top:1px solid #2d3748;grid-column:1/-1;margin:2px 0;"></span>
-                            <span style="color:#9ca3af;font-size:11px;font-weight:600;">Total Score</span>
-                            <span style="color:#d1d5db;font-size:11px;font-weight:600;text-align:right;">${sig.rawScore != null ? sig.rawScore.toFixed(2) : sig.compositeScore}</span>
-                            <span style="color:#9ca3af;font-size:10px;">Threshold</span>
-                            <span style="color:#9ca3af;font-size:10px;text-align:right;">≥${sig.buyThreshold} BUY, ≤${sig.sellThreshold} SELL</span>
-                            <span style="color:${thresholdColor};font-size:11px;font-weight:600;grid-column:1/-1;text-align:center;border-top:1px solid #2d3748;padding-top:2px;">${thresholdLabel} — ${thresholdDetail}</span>
+                            <div style="display:flex;justify-content:space-between;padding:4px 6px;border-top:1px solid rgba(255,255,255,0.04);margin-top:2px;">
+                                <span style="color:#8892a0;font-size:10px;font-weight:600;">Total</span>
+                                <span style="color:#e2e8f0;font-size:10px;font-weight:700;">${sig.rawScore != null ? sig.rawScore.toFixed(2) : sig.compositeScore}</span>
+                            </div>
                         </div>
                     </div>`;
             }
         }
-        
-        // Always render signal section, even if no signal exists
-        const signalAccuracyMarker = sig?.wasAccurate === true ? '#22c55e' : sig?.wasAccurate === false ? '#6b7280' : '#9ca3af';
-        const signalScoreText = sig?.compositeScore != null ? (sig.compositeScore >= 0 ? '+' : '') + sig.compositeScore : '--';
-        const signalAccuracyText = sig?.wasAccurate != null ? `
-            <span style="color:${sig.wasAccurate ? '#22c55e' : '#6b7280'};font-size:11px;">${sig.wasAccurate ? '✓' : '✗'} ${sig.forwardReturn != null ? (sig.forwardReturn >= 0 ? '+' : '') + Number(sig.forwardReturn).toFixed(1) + '%' : ''}</span>` : '<span style="color:#6b7280;font-size:11px;">pending</span>';
-        
-        const signalSection = `
-            <div style="margin-top:6px;padding-top:6px;border-top:1px solid #374151;">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${signalAccuracyMarker};"></span>
-                    <span style="color:${recColor};font-weight:700;font-size:12px;">${recLabel}</span>
-                    <span style="color:#9ca3af;font-size:11px;">score: ${signalScoreText}</span>
-                    ${signalAccuracyText}
-                </div>${factorHtml ? `
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 12px;border-top:1px solid #374151;padding-top:4px;margin-top:4px;">
-                    ${factorHtml}
-                </div>` : ''}
-                ${strategyHtml}
-            </div>`;
 
+        // Signal badge + accuracy
+        const signalScoreText = sig?.compositeScore != null ? (sig.compositeScore >= 0 ? '+' : '') + sig.compositeScore : '--';
+        const accIcon = sig?.wasAccurate === true ? '✓' : sig?.wasAccurate === false ? '✗' : '';
+        const accColor = sig?.wasAccurate === true ? '#22c55e' : sig?.wasAccurate === false ? '#6b7280' : '#64748b';
+        const accFwd = sig?.forwardReturn != null ? (sig.forwardReturn >= 0 ? '+' : '') + Number(sig.forwardReturn).toFixed(1) + '%' : '';
+        const accuracyTag = sig?.wasAccurate != null
+            ? `<span style="color:${accColor};font-size:10px;font-weight:600;margin-left:4px;">${accIcon} ${accFwd}</span>`
+            : '';
+
+        // Build the tooltip HTML
         tooltip.innerHTML = `
-            <div style="font-weight:700;color:${c};margin-bottom:6px;">${_symbol || 'Stock'} — ${dateStr}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;">
-                <span style="color:#9ca3af;">O</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${p(data.open)}</span>
-                <span style="color:#9ca3af;">H</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${p(data.high)}</span>
-                <span style="color:#9ca3af;">L</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${p(data.low)}</span>
-                <span style="color:#9ca3af;">C</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${p(data.close)}</span>
-                <span style="color:#9ca3af;">Chg</span><span style="font-weight:600;text-align:right;color:${c};">${chg >= 0 ? '+' : ''}${chgPct.toFixed(2)}%</span>
-                <span style="color:#9ca3af;">Vol</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${volDisplay}</span>
-                ${rsiVal ? `<span style="color:#9ca3af;">RSI(14)</span><span style="font-weight:600;text-align:right;color:${rsiCol};">${rsiVal}</span>` : ''}
-                ${indicatorsForDate.ADX ? `<span style="color:#9ca3af;">ADX</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${Number(indicatorsForDate.ADX).toFixed(1)}</span>` : ''}
-                ${indicatorsForDate.SMA_20 ? `<span style="color:#9ca3af;">SMA20</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${Number(indicatorsForDate.SMA_20).toFixed(2)}</span>` : ''}
-                ${indicatorsForDate.SMA_50 ? `<span style="color:#9ca3af;">SMA50</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${Number(indicatorsForDate.SMA_50).toFixed(2)}</span>` : ''}
-                ${indicatorsForDate.MACD_LINE ? `<span style="color:#9ca3af;">MACD</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${Number(indicatorsForDate.MACD_LINE).toFixed(2)}</span>` : ''}
-                ${indicatorsForDate.BOLLINGER_UPPER ? `<span style="color:#9ca3af;">Boll</span><span style="font-weight:600;text-align:right;color:#d1d5db;">${Number(indicatorsForDate.BOLLINGER_UPPER).toFixed(2)}/${Number(indicatorsForDate.BOLLINGER_LOWER || 0).toFixed(2)}</span>` : ''}
+            <div style="margin:-14px -16px 10px;padding:10px 16px;border-radius:12px 12px 0 0;background:${bgColor};border-bottom:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="display:inline-flex;align-items:center;gap:6px;">
+                            <span style="display:inline-flex;align-items:center;justify-content:center;width:7px;height:7px;border-radius:50%;background:${recColor};"></span>
+                            <span style="font-weight:800;color:${recColor};font-size:15px;letter-spacing:-0.02em;">${recLabel}</span>
+                            <span style="font-weight:700;color:${recColor};font-size:13px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;">${signalScoreText}</span>
+                        </span>
+                        ${accuracyTag}
+                    </div>
+                    <span style="color:#64748b;font-size:10px;font-weight:500;">${dateStr}</span>
+                </div>
+                <div style="font-size:10px;color:#64748b;margin-top:3px;font-weight:500;">${_symbol || 'Stock'}</div>
             </div>
-            ${signalSection}
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 8px;margin-bottom:6px;">
+                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
+                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">O</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;font-variant-numeric:tabular-nums;">${p(data.open)}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
+                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">H</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;font-variant-numeric:tabular-nums;">${p(data.high)}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
+                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">L</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;font-variant-numeric:tabular-nums;">${p(data.low)}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
+                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">C</div>
+                    <div style="font-weight:700;color:${c};font-size:11px;font-variant-numeric:tabular-nums;">${p(data.close)}</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
+                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Chg</div>
+                    <div style="font-weight:700;color:${c};font-size:11px;">${chg >= 0 ? '+' : ''}${chgPct.toFixed(2)}%</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
+                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Vol</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;">${volDisplay}</div>
+                </div>
+            </div>
+            ${scoreSection}
+            ${miniFactors.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 12px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">${miniFactors.join('')}</div>` : ''}
+            ${indicatorHtml ? `<div style="margin-top:5px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">${indicatorHtml}</div>` : ''}
+            ${strategyHtml}
         `;
 
         // Toggle strategy breakdown collapse (one-time listener on tooltip element)
@@ -1360,20 +1567,22 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                 const body = header.nextElementSibling;
                 if (!body || !body.classList.contains('breakdown-body')) return;
                 const isHidden = body.style.display === 'none' || body.style.display === '';
-                body.style.display = isHidden ? 'grid' : 'none';
+                body.style.display = isHidden ? 'flex' : 'none';
                 localStorage.setItem('strategyBreakdownExpanded', isHidden);
                 const icon = header.querySelector('.collapse-icon');
-                if (icon) icon.textContent = isHidden ? '▼' : '▶';
+                if (icon) icon.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
             });
         }
 
         const rect = container.getBoundingClientRect();
-        let left = param.point.x + 15, top = param.point.y - 10;
-        if (left + 220 > rect.width) left = param.point.x - 235;
-        if (top + (tooltip.offsetHeight || 250) > rect.height) top = rect.height - (tooltip.offsetHeight || 250) - 10;
+        let left = param.point.x + 16, top = param.point.y - 10;
+        const tipW = tooltip.offsetWidth || 280;
+        const tipH = tooltip.offsetHeight || 350;
+        if (left + tipW > rect.width - 8) left = param.point.x - tipW - 16;
+        if (top + tipH > rect.height - 8) top = rect.height - tipH - 10;
         tooltip.style.display = 'block';
-        tooltip.style.left = left + 'px';
-        tooltip.style.top = Math.max(10, top) + 'px';
+        tooltip.style.left = Math.max(4, left) + 'px';
+        tooltip.style.top = Math.max(4, top) + 'px';
     });
 
     chart.timeScale().fitContent();

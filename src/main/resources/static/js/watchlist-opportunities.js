@@ -51,8 +51,8 @@ async function loadOpportunities() {
 
     try {
         const url = selectedPortfolioId
-            ? `/api/watchlist/opportunities?portfolioId=${selectedPortfolioId}`
-            : '/api/watchlist/opportunities';
+            ? `/api/watchlists/opportunities?portfolioId=${selectedPortfolioId}`
+            : '/api/watchlists/opportunities';
 
         const response = await fetch(url);
         const result = await response.json();

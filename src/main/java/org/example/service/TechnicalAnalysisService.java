@@ -67,15 +67,15 @@ public class TechnicalAnalysisService {
     private final AtomicBoolean backfillInProgress = new AtomicBoolean(false);
 
     private final Map<IndicatorType, IndicatorCalculator> calculators = Map.ofEntries(
-            Map.entry(IndicatorType.RSI, new RsiCalculator(14)),
+            Map.entry(IndicatorType.RSI, new RsiCalculator(12)),
             Map.entry(IndicatorType.SMA_20, new SmaCalculator(20)),
             Map.entry(IndicatorType.SMA_50, new SmaCalculator(50)),
             Map.entry(IndicatorType.SMA_200, new SmaCalculator(200)),
             Map.entry(IndicatorType.EMA_20, new EmaCalculator(20)),
             Map.entry(IndicatorType.MACD_LINE, new MacdLineCalculator()),
             Map.entry(IndicatorType.MACD_SIGNAL, new MacdSignalCalculator()),
-            Map.entry(IndicatorType.BOLLINGER_UPPER, new BollingerUpperCalculator(20, 2.0)),
-            Map.entry(IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2.0)),
+            Map.entry(IndicatorType.BOLLINGER_UPPER, new BollingerUpperCalculator(20, 2.5)),
+            Map.entry(IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2.5)),
             Map.entry(IndicatorType.STOCH_K, new StochKCalculator(14)),
             Map.entry(IndicatorType.STOCH_D, new StochDCalculator(14, 3)),
             Map.entry(IndicatorType.WILLIAMS_R, new WilliamsRCalculator(14)),
@@ -440,6 +440,26 @@ public class TechnicalAnalysisService {
         stockService.getStockById(stockId);
         List<TechnicalIndicator> entities = indicatorRepository
                 .findByStockIdAndIndicatorTypeOrderByCalculationDateDesc(stockId, type);
+        return entities.stream()
+                .map(entity -> {
+                    IndicatorDto dto = new IndicatorDto();
+                    dto.setType(entity.getIndicatorType());
+                    dto.setValue(entity.getValue());
+                    dto.setCalculationDate(entity.getCalculationDate());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all indicator values for a stock within a date range, grouped by calculation date.
+     * Returns one IndicatorDto per indicator type per date, sorted by date ASC.
+     */
+    @Transactional(readOnly = true)
+    public List<IndicatorDto> getIndicatorHistoryForRange(Long stockId, LocalDate fromDate, LocalDate toDate) {
+        stockService.getStockById(stockId);
+        List<TechnicalIndicator> entities = indicatorRepository
+                .findByStockIdAndCalculationDateBetween(stockId, fromDate, toDate);
         return entities.stream()
                 .map(entity -> {
                     IndicatorDto dto = new IndicatorDto();

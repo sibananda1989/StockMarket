@@ -43,19 +43,26 @@ const score = signal.compositeScore ?? 0;
 const bgClass = getRecommendationBadge(rec);
 
 const tooltipRows = [
-{ label: 'RSI (14)', value: signal.rsi14 != null ? signal.rsi14.toFixed(1) : '--' },
-{ label: 'MACD Hist', value: signal.macdHistogram != null ? signal.macdHistogram.toFixed(2) : '--' },
-{ label: 'Bollinger', value: signal.bollingerScore != null ? signal.bollingerScore : '--' },
-{ label: 'Target', value: signal.targetPrice != null ? '₹' + signal.targetPrice.toFixed(1) : '--' },
-{ label: 'Stop Loss', value: signal.stopLoss != null ? '₹' + signal.stopLoss.toFixed(1) : '--' },
-{ label: 'Confidence', value: signal.confidenceScore != null ? signal.confidenceScore + '%' : '--' },
+	[
+		{ label: 'RSI (14)', value: signal.rsi14 != null ? signal.rsi14.toFixed(1) : '--' },
+		{ label: 'MACD', value: signal.macdHistogram != null ? signal.macdHistogram.toFixed(2) : '--' },
+	],
+	[
+		{ label: 'Bollinger', value: signal.bollingerScore != null ? signal.bollingerScore : '--' },
+		{ label: 'Confidence', value: signal.confidenceScore != null ? signal.confidenceScore + '%' : '--' },
+	],
+	[
+		{ label: 'Target', value: signal.targetPrice != null ? '₹' + signal.targetPrice.toFixed(1) : '--' },
+		{ label: 'Stop Loss', value: signal.stopLoss != null ? '₹' + signal.stopLoss.toFixed(1) : '--' },
+	],
 ];
 
 const tooltipHtml = `
 <div class="signal-tooltip">
-<div class="tooltip-row"><span class="tooltip-label">Score</span><span>${score}</span></div>
-<div class="tooltip-divider"></div>
-${tooltipRows.map(r => `<div class="tooltip-row"><span class="tooltip-label">${r.label}</span><span>${r.value}</span></div>`).join('')}
+<div class="tooltip-grid">
+<div class="tooltip-row tooltip-row-full"><span class="tooltip-label">Score</span><span>${score}</span></div>
+${tooltipRows.map(pair => pair.map(r => `<div class="tooltip-row"><span class="tooltip-label">${r.label}</span><span>${r.value}</span></div>`).join('')).join('')}
+</div>
 </div>
 `;
 

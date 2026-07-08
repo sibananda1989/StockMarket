@@ -2,6 +2,7 @@ package org.example.strategy.aggregator;
 
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.DailyPrice;
+import org.example.entity.IndicatorType;
 import org.example.entity.StrategyConditionGroup;
 import org.example.entity.TechnicalIndicator;
 import org.example.service.StrategyConditionService;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.stream.Collectors;
@@ -73,14 +75,25 @@ public class StrategySignalAggregator {
      * @param indicators          latest technical indicators for the stock
      * @param prices              recent daily price records
      * @param activeStrategyNames optional set of strategy names to evaluate;
-     *                            if null or empty all strategies are evaluated
+     *                            if null all strategies are evaluated;
+     *                            if empty no strategies are evaluated (returns HOLD)
      * @return enhanced aggregated signal result with full analysis
      */
     public AggregatedSignalResult aggregate(Long stockId,
                                             List<TechnicalIndicator> indicators,
                                             List<DailyPrice> prices,
                                             Set<String> activeStrategyNames) {
-        List<TradingStrategy> strategiesToEvaluate = (activeStrategyNames == null || activeStrategyNames.isEmpty())
+        // When activeStrategyNames is explicitly empty (e.g. all strategies disabled),
+        // return HOLD with no breakdown — don't fall back to evaluating all strategies.
+        if (activeStrategyNames != null && activeStrategyNames.isEmpty()) {
+            log.debug("No active strategies for stock {}, returning HOLD", stockId);
+            return new AggregatedSignalResult(
+                StrategySignal.HOLD, 0.0, List.of(), 0, 0.0,
+                List.of(), List.of(), Map.of(), Map.of()
+            );
+        }
+
+        List<TradingStrategy> strategiesToEvaluate = (activeStrategyNames == null)
                 ? this.strategies
                 : this.strategies.stream()
                         .filter(s -> activeStrategyNames.contains(s.getName()))
@@ -94,6 +107,23 @@ public class StrategySignalAggregator {
         List<String> supporting = new ArrayList<>();
         List<String> opposing = new ArrayList<>();
         int successfulStrategies = 0;
+
+        // ── Market Regime Filter: resolve ADX once for all strategies ──
+        MarketRegime regime = MarketRegime.UNKNOWN;
+        Optional<Double> adxOpt = resolveAdxFromIndicators(indicators);
+        if (adxOpt.isPresent()) {
+            double adxValue = adxOpt.get();
+            if (adxValue > 25.0) {
+                regime = MarketRegime.TRENDING;
+                log.debug("Market regime for stock {}: TRENDING (ADX={})", stockId, adxValue);
+            } else if (adxValue < 20.0) {
+                regime = MarketRegime.RANGING;
+                log.debug("Market regime for stock {}: RANGING (ADX={})", stockId, adxValue);
+            } else {
+                regime = MarketRegime.TRANSITIONAL;
+                log.debug("Market regime for stock {}: TRANSITIONAL (ADX={})", stockId, adxValue);
+            }
+        }
 
         for (TradingStrategy strategy : strategiesToEvaluate) {
             try {
@@ -138,19 +168,30 @@ public class StrategySignalAggregator {
                 };
                 double contribution = signalNumeric * priority * result.confidence();
                 
+                        // ── Apply ADX Market Regime confidence adjustment ──
+                StrategyResult adjustedResult = applyAdxRegimeFilter(result, regime, strategy.getName());
+
+                // Recalculate contribution with adjusted confidence
+                double adjustedSignalNumeric = switch (adjustedResult.signal()) {
+                    case BUY -> 1.0;
+                    case SELL -> -1.0;
+                    case HOLD -> 0.0;
+                };
+                double adjustedContribution = adjustedSignalNumeric * priority * adjustedResult.confidence();
+
                 StrategyResult resultWithContribution = new StrategyResult(
-                    result.signal(),
-                    result.confidence(),
-                    result.reason(),
-                    result.strategyName(),
+                    adjustedResult.signal(),
+                    adjustedResult.confidence(),
+                    adjustedResult.reason(),
+                    adjustedResult.strategyName(),
                     priority,
-                    contribution
+                    adjustedContribution
                 );
                 
                 breakdown.add(resultWithContribution);
                 totalPriority += priority;
-                score += contribution;
-                contributions.put(strategy.getName(), contribution);
+                score += adjustedContribution;
+                contributions.put(strategy.getName(), adjustedContribution);
                 successfulStrategies++;
 
                 // Track category summary
@@ -214,6 +255,91 @@ public class StrategySignalAggregator {
             categorySummary,
             contributions
         );
+    }
+
+    /**
+     * Resolves ADX value from the indicators list.
+     */
+    private Optional<Double> resolveAdxFromIndicators(List<TechnicalIndicator> indicators) {
+        if (indicators == null || indicators.isEmpty()) {
+            return Optional.empty();
+        }
+        return indicators.stream()
+                .filter(ti -> ti.getIndicatorType() == IndicatorType.ADX)
+                .findFirst()
+                .map(ti -> ti.getValue().doubleValue());
+    }
+
+    /**
+     * Applies ADX-based market regime confidence adjustments.
+     * This is the key insight from world championship winners:
+     * - In TRENDING markets (ADX > 25): boost trend-following, suppress mean-reversion
+     * - In RANGING markets (ADX < 20): boost mean-reversion, suppress trend-following
+     * - In TRANSITIONAL markets (ADX 20-25): mixed, slight adjustment
+     */
+    private StrategyResult applyAdxRegimeFilter(StrategyResult result, MarketRegime regime, String strategyName) {
+        if (regime == MarketRegime.UNKNOWN) {
+            return result; // No ADX data, no adjustment
+        }
+
+        double confidence = result.confidence();
+        String reason = result.reason();
+
+        switch (regime) {
+            case TRENDING:
+                if ("MA_CROSSOVER".equals(strategyName)) {
+                    // Trending: trend-following gets a boost
+                    confidence = Math.min(1.0, confidence * REGIME_TREND_FOLLOWING_BOOST);
+                    reason = reason + " | ADX trending: trend-following boosted";
+                } else if ("RSI".equals(strategyName) || "BOLLINGER".equals(strategyName)) {
+                    // Trending: mean-reversion is unreliable, reduce confidence
+                    confidence = confidence * REGIME_MEAN_REVERSION_REDUCE;
+                    reason = reason + " | ADX trending: mean-reversion reduced";
+                }
+                break;
+
+            case RANGING:
+                if ("RSI".equals(strategyName) || "BOLLINGER".equals(strategyName)) {
+                    // Ranging: mean-reversion works well, boost confidence
+                    confidence = Math.min(1.0, confidence * REGIME_MEAN_REVERSION_BOOST);
+                    reason = reason + " | ADX ranging: mean-reversion boosted";
+                } else if ("MA_CROSSOVER".equals(strategyName)) {
+                    // Ranging: trend-following generates false signals, reduce
+                    confidence = confidence * REGIME_TREND_FOLLOWING_REDUCE;
+                    reason = reason + " | ADX ranging: trend-following reduced";
+                }
+                break;
+
+            case TRANSITIONAL:
+                // Moderate adjustment: slight tilt based on ADX direction
+                if ("MA_CROSSOVER".equals(strategyName)) {
+                    confidence = Math.min(1.0, confidence * 1.1);
+                    reason = reason + " | ADX transitional: slight trend boost";
+                } else if ("RSI".equals(strategyName) || "BOLLINGER".equals(strategyName)) {
+                    confidence = Math.min(1.0, confidence * 1.05);
+                    reason = reason + " | ADX transitional: slight mean-reversion boost";
+                }
+                break;
+        }
+
+        return new StrategyResult(result.signal(), confidence, reason, result.strategyName(),
+                result.priority(), 0.0);
+    }
+
+    // ── Regime filter constants ──
+    private static final double REGIME_TREND_FOLLOWING_BOOST = 1.25;
+    private static final double REGIME_MEAN_REVERSION_REDUCE = 0.60;
+    private static final double REGIME_MEAN_REVERSION_BOOST = 1.20;
+    private static final double REGIME_TREND_FOLLOWING_REDUCE = 0.65;
+
+    /**
+     * Market regime enum for ADX-based classification.
+     */
+    private enum MarketRegime {
+        TRENDING,     // ADX > 25 — strong trend, favor trend-following
+        RANGING,      // ADX < 20 — no trend, favor mean-reversion
+        TRANSITIONAL, // ADX 20-25 — mixed, slight tilt
+        UNKNOWN       // No ADX data available
     }
 
     /**

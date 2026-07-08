@@ -628,9 +628,16 @@ function renderSortedSignals() {
     const badgeClass = getRecommendationBadge(displayRec);
     const highConvBadge = displayRec !== s.recommendation ? '<i class="fas fa-info-circle text-yellow-400 ml-1" title="High conviction criteria not met"></i>' : '';
 
-    return `<tr>
+    // Strategy breakdown tooltip HTML
+    const strategyTip = s.strategyBreakdown && s.strategyBreakdown.length
+      ? renderStrategyBreakdownTooltip(s.strategyBreakdown)
+      : '';
+
+    return `<tr class="signal-row">
       <td><a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" class="font-bold hover:text-blue-400 transition-colors">${s.symbol}</a></td>
-      <td><span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeClass}">${displayRec}${highConvBadge}</span></td>
+      <td class="strategy-tooltip-cell">
+        <span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeClass} strat-breakdown-toggle" data-strategy-tip="${strategyTip.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">${displayRec}${highConvBadge}</span>
+      </td>
       <td class="text-right">${rsiStr}</td>
       <td class="text-right ${targetClass}">${targetStr}</td>
       <td class="text-right text-red-500">${slStr}</td>
@@ -1042,5 +1049,76 @@ function showToast(msg, type) {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
+
+// ─── Strategy Breakdown Tooltip ──────────────────────────────────────────
+
+/**
+ * Renders a compact HTML table showing each strategy's contribution to the signal.
+ */
+function renderStrategyBreakdownTooltip(breakdown) {
+  if (!breakdown || !breakdown.length) return '';
+  const rows = breakdown.map(s => {
+    const signalColor = s.signal === 'BUY' || s.signal === 'STRONG BUY' ? '#22c55e'
+      : s.signal === 'SELL' || s.signal === 'STRONG SELL' ? '#ef4444'
+      : '#9ca3af';
+    const confPct = (s.confidence * 100).toFixed(0) + '%';
+    const contrib = s.weightedScore != null ? s.weightedScore.toFixed(2) : '0.00';
+    return `<div class="strat-breakdown-row">
+      <span class="strat-breakdown-name">${escHtml(s.strategyName)}</span>
+      <span class="strat-breakdown-signal" style="color:${signalColor}">${s.signal}</span>
+      <span class="strat-breakdown-conf">${confPct}</span>
+      <span class="strat-breakdown-prio">P${s.priority}</span>
+      <span class="strat-breakdown-contrib">${contrib}</span>
+    </div>`;
+  }).join('');
+  return `<div class="strat-breakdown-tooltip-inner">
+    <div class="strat-breakdown-header">
+      <span>Strategy</span><span>Signal</span><span>Conf</span><span>Pri</span><span>Contrib</span>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+// Click handler for strategy breakdown tooltips
+// Uses event delegation on the signals table body
+let strategyTooltipTimer = null;
+let activeTooltipEl = null;
+
+document.addEventListener('click', function(e) {
+  const toggle = e.target.closest('.strat-breakdown-toggle');
+  if (!toggle) {
+    // Click outside → remove all tooltips
+    document.querySelectorAll('.strat-breakdown-popup').forEach(el => el.remove());
+    activeTooltipEl = null;
+    return;
+  }
+  e.stopPropagation();
+
+  // Remove any other open tooltips
+  document.querySelectorAll('.strat-breakdown-popup').forEach(el => {
+    if (el._trigger !== toggle) el.remove();
+  });
+
+  // If clicking the already-active one, close it
+  if (activeTooltipEl === toggle) {
+    document.querySelectorAll('.strat-breakdown-popup').forEach(el => el.remove());
+    activeTooltipEl = null;
+    return;
+  }
+
+  const tipHtml = toggle.getAttribute('data-strategy-tip');
+  if (!tipHtml) return;
+
+  // Remove existing popup for this toggle
+  const existing = toggle.parentElement.querySelector('.strat-breakdown-popup');
+  if (existing) { existing.remove(); activeTooltipEl = null; return; }
+
+  const popup = document.createElement('div');
+  popup.className = 'strat-breakdown-popup';
+  popup._trigger = toggle;
+  popup.innerHTML = tipHtml;
+  toggle.parentElement.appendChild(popup);
+  activeTooltipEl = toggle;
+});
 
 

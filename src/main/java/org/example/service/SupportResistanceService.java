@@ -77,7 +77,7 @@ public class SupportResistanceService {
     }
 
     /**
-     * Gets the latest S/R levels for a stock.
+     * Gets the latest S/R levels for a stock (default 180-day lookback, cached).
      */
     @Transactional(readOnly = true)
     @Cacheable(cacheNames = "supportResistanceLevels", key = "#stockId")
@@ -90,6 +90,40 @@ public class SupportResistanceService {
         }
 
         return convertToDto(stockId, levels);
+    }
+
+    /**
+     * Gets S/R levels for a stock with a custom historical lookback.
+     * When the lookback matches the default (180), returns the cached persisted levels.
+     * For custom lookbacks, calculates on-the-fly without persisting.
+     */
+    @Transactional(readOnly = true)
+    public SupportResistanceDto getLatestLevels(Long stockId, int lookbackDays) {
+        // Use cached/persisted levels for the default lookback
+        // NOTE: must go through self proxy so @Cacheable advice is applied
+        if (lookbackDays == 180) {
+            return self.getLatestLevels(stockId);
+        }
+
+        // For custom lookbacks, calculate on-the-fly (don't persist)
+        Stock stock = stockService.getStockById(stockId);
+        // Fetch only the needed window + buffer for swing/pivot computation
+        int neededDays = Math.max(lookbackDays, 20);
+        List<DailyPrice> prices = dailyPriceRepository.findLastNDays(stockId, neededDays);
+        // Reverse from DESC to ASC order (calculator expects ascending)
+        java.util.Collections.reverse(prices);
+
+        if (prices.size() < 20) {
+            log.warn("Insufficient price data ({}) for stock {} with lookback {}.",
+                    prices.size(), stock.getSymbol(), lookbackDays);
+            return null;
+        }
+
+        SupportResistanceCalculator.Result result = calculator.calculate(stock, prices, lookbackDays);
+        log.debug("Calculated on-the-fly S/R levels for {} with lookback={} ({} major levels)",
+                stock.getSymbol(), lookbackDays,
+                result.dto.getMajorLevels() != null ? result.dto.getMajorLevels().size() : 0);
+        return result.dto;
     }
 
     /**

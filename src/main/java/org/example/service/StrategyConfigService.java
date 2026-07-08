@@ -7,6 +7,7 @@ import org.example.entity.StrategyConfig;
 import org.example.exception.ResourceNotFoundException;
 import org.example.repository.StrategyConfigRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
@@ -80,6 +81,7 @@ public class StrategyConfigService {
                 .collect(Collectors.toSet());
     }
 
+    @CacheEvict(value = "signals", allEntries = true)
     public StrategyConfig toggleStrategy(String strategyName, boolean active) {
         StrategyConfig config = repository.findByStrategyName(strategyName)
                 .orElseThrow(() -> new ResourceNotFoundException("Strategy not found: " + strategyName));
@@ -104,6 +106,7 @@ public class StrategyConfigService {
         }
     }
 
+    @CacheEvict(value = "signals", allEntries = true)
     public StrategyConfig updatePriority(String strategyName, int priority) {
         if (priority < 1 || priority > 10) {
             throw new IllegalArgumentException("Priority must be between 1 and 10");

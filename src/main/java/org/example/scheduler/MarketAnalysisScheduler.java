@@ -2,7 +2,6 @@ package org.example.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.service.DhanSyncService;
 import org.example.service.StockSyncService;
 import org.example.service.SupportResistanceService;
 import org.example.service.TechnicalAnalysisService;
@@ -17,30 +16,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class MarketAnalysisScheduler {
 
-    private final DhanSyncService dhanSyncService;
     private final StockSyncService stockSyncService;
     private final TechnicalAnalysisService technicalAnalysisService;
     private final SupportResistanceService supportResistanceService;
-
-    /**
-     * Runs daily at 4:15 PM IST (10:45 UTC) after NSE/BSE market close.
-     * Pulls latest prices from Dhan and recalculates all technical indicators for all holdings.
-     */
-    @Scheduled(cron = "0 45 10 * * MON-FRI", zone = "UTC")
-    @Retryable(
-        value = { RuntimeException.class, IllegalArgumentException.class, IllegalStateException.class },
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 5000, multiplier = 2)
-    )
-    public void syncDhanAndCalculateIndicators() {
-        log.info("Starting daily Dhan sync and technical indicator calculation");
-        // syncDailyPricesAndRsi() now internally recalculates all technical
-        // indicators for each synced stock (Gap 5 fix), so we no longer need
-        // a separate calculateForAllStocks() call here.
-        dhanSyncService.syncDailyPricesAndRsi();
-        supportResistanceService.calculateForAllStocks();
-        log.info("Daily Dhan sync and technical indicator calculation completed");
-    }
 
     /**
      * Weekly backfill: Sunday 7 AM UTC — fetches Yahoo Finance history for stocks with < 365 days of data.

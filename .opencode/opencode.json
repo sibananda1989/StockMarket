@@ -1,40 +1,44 @@
 {
-"$schema": "https://opencode.ai/config.json",
-"disabled_providers": ["aihubmix","groq"],
-"plugin": ["opencode-auto-fallback"],
-"provider": {
+  "$schema": "https://opencode.ai/config.json",
+  "disabled_providers": ["aihubmix", "groq"],
+  "plugin": ["opencode-auto-fallback", "openkilo"],
+  "default_agent": "team-lead",
+  "instructions": ["AGENTS.md"],
+  "provider": {
     "naraya": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "NaraRouter",
       "options": {
         "baseURL": "https://router.bynara.id/v1",
-        "apiKey": "sk-nry-aHQwkbmz-bsIjoeL6jmJ9Al7TgXU55M538ZInsYOAWU"
+        "apiKey": "sk-nry-LwCRwsNoFtE9CL0wJzcV-_pjmwtl1Ia1jiM6XlM3_DY"
       },
-	  "models": {
-	          "mimo-v2.5-free": {
-	            "name": "MiMo V2.5 Free"
-	          },
-	          "mimo-v2.5-pro-free": {
-	            "name": "MiMo V2.5 Pro Free"
-	          },
-	          "mistral-large": {
-	            "name": "Mistral Large"
-	          },
-	          "mistral-medium-3-5": {
-	            "name": "Mistral Medium 3.5"
-	          },
-	          "claude-sonnet-4.5": {
-	            "name": "Claude Sonnet 4.5"
-	          },
-	          "claude-haiku-4.5": {
-	            "name": "Claude Haiku 4.5"
-	          }
-	        }
-	      }
-  	},
+      "models": {
+        "tencent-hy3": {
+          "name": "Tencent hy3"
+        },
+        "mistral-large": {
+          "name": "Mistral Large"
+        },
+        "mistral-medium-3-5": {
+          "name": "Mistral Medium 3.5"
+        }
+      }
+    }
+  },
   "agent": {
     "team-lead": {
-      "model": "naraya/mimo-v2.5-pro-free"
+      "model": "openkilo/kilo-auto/free",
+      "permission": {
+        "read": "allow",
+        "task": "allow",
+        "question": "allow",
+        "edit": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "websearch": "deny",
+        "webfetch": "deny"
+      }
     }
   }
 }

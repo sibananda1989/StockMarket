@@ -1,189 +1,88 @@
 # Multi-Agent Workflow Quick Start
 
-## When to Use Multi-Agent Workflow
+## Lifecycle Phases
 
-Use the multi-agent workflow for:
-- ✅ New features
-- ✅ Major enhancements
-- ✅ Architecture changes
-- ✅ Refactoring affecting multiple modules
-- ✅ Database schema changes
-- ✅ API endpoint additions
-- ✅ Security-sensitive changes
-
-Use existing project skills for:
-- ✅ Bug fixes (simple)
-- ✅ Small changes
-- ✅ Documentation updates
-- ✅ Test-only changes
-
-## Workflow Stages
+The workflow follows six sequential phases:
 
 ```
-User Request
-    ↓
-[Team Lead] Coordinates workflow
-    ↓
-[Planning Agent] Analyzes & produces plan
-    ↓
-[Feasibility Agent] Validates plan
-    ↓
-[Implementation Agent] Writes code
-    ↓
-[Code Review Agent] Reviews code
-    ↓
-[Testing Agent] Verifies tests
-    ↓
-[Team Lead] Produces final summary
+Define → Plan → Build → Verify → Review → Ship
 ```
 
-## Agent Responsibilities
+Each phase has a dedicated coordinator agent that delegates to sub-agents.
 
-### Team Lead (Coordinator)
-- Orchestrates all agents
-- Never implements code directly
-- Validates each stage
-- Produces final summary
+## When to Use Which Route
 
-### Planning Agent
-- Analyzes requirements
-- Identifies affected modules
-- Produces implementation plan
-- Documents risks and assumptions
+| Request Type | Lifecycle Route |
+|-------------|-----------------|
+| **Simple Question** | Spawn `stock-analyzer` or `thinker` directly |
+| **Simple Bug Fix** | `build` → `verify` → Done |
+| **Small Feature** | `plan` → `build` → `verify` → `review` → `ship` |
+| **Complex Feature** | `define` → `plan` → `build` → `verify` → `review` → `ship` |
+| **Architecture Change** | `define` → `plan` → `build` → `verify` → `review` → `ship` |
+| **Stock Analysis** | `stock-analyzer` directly |
 
-### Feasibility Agent
-- Validates technical feasibility
-- Checks architecture conflicts
-- Confirms backward compatibility
-- Suggests improvements
+## Phase Coordinator Agents
 
-### Implementation Agent
-- Implements approved plan
-- Follows project conventions
-- Makes minimal changes
-- Updates all affected files
+| Phase | Agent | What It Does |
+|-------|-------|-------------|
+| **Define** | `define-agent` | Spec-driven: clarifies requirements, writes spec, validated by user |
+| **Plan** | `plan-agent` | Planning: impact analysis, feasibility, implementation plan |
+| **Build** | `build-agent` | Implementation: vertical slicing, delegate to implementation-agent |
+| **Verify** | `verify-agent` | Testing + security hardening + performance checks |
+| **Review** | `review-agent` | Code review + documentation review + plan adherence |
+| **Ship** | `ship-agent` | Changelog + release summary + deployment notes |
 
-### Code Review Agent
-- Critical code review
-- Finds defects
-- Verifies quality
-- Approves or rejects
+## Subagents
 
-### Testing Agent
-- Identifies affected tests
-- Verifies backward compatibility
-- Adds/updates tests
-- Produces test plan
+| Agent | Used By | Purpose |
+|-------|---------|---------|
+| `planning-agent` | Plan | Requirements analysis and implementation planning |
+| `impact-agent` | Plan | Impact analysis for code changes |
+| `feasibility-agent` | Plan | Technical validation and feasibility checking |
+| `implementation-agent` | Build | Code implementation following approved plans |
+| `code-review-agent` | Review | Critical code review and defect finding |
+| `testing-agent` | Verify | Comprehensive testing and coverage verification |
 
-## Quick Start Commands
+## Helper Agents
 
-### Start Multi-Agent Workflow
+| Agent | Tool Access | Use When |
+|-------|-------------|----------|
+| `basher` | bash | Run terminal commands |
+| `code-searcher` | grep, glob, read | Search for code patterns |
+| `file-picker` | glob, grep, read | Find relevant files |
+| `browser-use` | browser | Verify UI in browser |
+| `researcher-web` | websearch, webfetch | External research |
+| `researcher-docs` | websearch, webfetch | Framework/library docs |
+| `thinker` | read, grep, websearch | Deep analysis |
+| `code-reviewer` | read, grep, bash | Standalone code review |
+
+## Project-Specific Skills
+
 ```
-/skill team-lead
-```
-
-### Use Specific Agent
-```
-/skill planning-agent
-/skill feasibility-agent
-/skill implementation-agent
-/skill code-review-agent
-/skill testing-agent
-```
-
-### Use Existing Project Skills
-```
-/skill add-endpoint
-/skill add-indicator
-/skill add-strategy
-/skill add-frontend-page
-/skill run-tests
-/skill trace-signal
+/skill add-endpoint        — New REST API endpoint
+/skill add-indicator       — New technical indicator
+/skill add-strategy        — New trading strategy
+/skill add-frontend-page   — New frontend page
+/skill run-tests           — Run/debug/write tests
+/skill trace-signal        — 16-factor signal walkthrough
 ```
 
 ## Quality Gates
 
-1. **Plan Completeness** - All modules identified, risks documented
-2. **Feasibility Approval** - Technical feasibility confirmed
-3. **Implementation Fidelity** - Plan followed exactly
-4. **Code Quality** - No critical defects
-5. **Test Coverage** - All tests pass
-
-## Output Examples
-
-### Planning Agent Output
-- Implementation plan
-- Affected modules list
-- Risks and assumptions
-- Test requirements
-
-### Feasibility Agent Output
-- Feasibility assessment
-- Architecture review
-- Performance analysis
-- Security review
-
-### Implementation Agent Output
-- Code changes
-- File modifications
-- Test updates
-- Configuration changes
-
-### Code Review Agent Output
-- Defects found
-- Quality metrics
-- Approval status
-- Recommendations
-
-### Testing Agent Output
-- Test results
-- Coverage metrics
-- Defects found
-- Performance data
-
-### Team Lead Output
-- Final summary
-- Files modified
-- Tests added/updated
-- Known risks
-- Follow-up recommendations
-
-## Troubleshooting
-
-### Agent Stuck or Incomplete
-- Team Lead will reject incomplete outputs
-- Send back to responsible agent with specific feedback
-
-### Quality Not Met
-- Team Lead will reject and specify issues
-- Agent must fix issues before proceeding
-
-### Workflow Blocked
-- Team Lead identifies bottleneck
-- Coordinates resolution
-- May escalate issues
-
-## Best Practices
-
-1. **Use multi-agent for complex work** - Don't use for simple fixes
-2. **Follow agent instructions** - Each agent has specific responsibilities
-3. **Provide complete context** - Include all necessary information
-4. **Review feedback carefully** - Address all identified issues
-5. **Test thoroughly** - Ensure tests cover all cases
+1. **Define** — Spec approved by user
+2. **Plan** — Impact analyzed, feasibility validated
+3. **Build** — Code compiles, plan followed
+4. **Verify** — Tests pass, security clean, perf ok
+5. **Review** — Code reviewed, docs updated, plan adhered to
+6. **Ship** — Changelog generated, all phases complete
 
 ## Agent Files
 
-- `multi-agent-workflow.md` - Comprehensive documentation
-- `.opencode/skills/team-lead/SKILL.md` - Team Lead coordination
-- `.opencode/skills/planning-agent/SKILL.md` - Requirements analysis
-- `.opencode/skills/feasibility-agent/SKILL.md` - Technical validation
-- `.opencode/skills/implementation-agent/SKILL.md` - Code implementation
-- `.opencode/skills/code-review-agent/SKILL.md` - Code review
-- `.opencode/skills/testing-agent/SKILL.md` - Testing and verification
-
-## Support
-
-For questions or issues:
-1. Check agent skill files for detailed documentation
-2. Review multi-agent-workflow.md for workflow details
-3. Contact Team Lead for coordination issues
+- `.opencode/agent/team-lead.md` — Team Lead coordinator
+- `.opencode/agent/define-agent.md` — Define phase
+- `.opencode/agent/plan.md` — Plan phase
+- `.opencode/agent/build.md` — Build phase
+- `.opencode/agent/verify-agent.md` — Verify phase
+- `.opencode/agent/review-agent.md` — Review phase
+- `.opencode/agent/ship-agent.md` — Ship phase
+- `.opencode/agent/stock-analyzer.md` — Stock market analysis

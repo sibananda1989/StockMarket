@@ -35,15 +35,15 @@ public class CandlestickPatternStrategy extends TradingStrategy {
 
         SupportResistanceDto levels = supportResistanceService.getLatestLevels(stockId);
         
-        if (levels == null || levels.getMajorLevels() == null || levels.getMajorLevels().isEmpty()) {
+        if (levels == null) {
             return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, "No support/resistance levels available", getName(), getPriority());
         }
 
-        BigDecimal currentPrice = prices.get(0).getClosingPrice();
+        BigDecimal currentPrice = prices.get(prices.size() - 1).getClosingPrice();
 
         switch (result.pattern()) {
             case HAMMER, BULLISH_ENGULFING, MORNING_STAR, BULLISH_HARAMI, PIERCING_LINE:
-                if (isNearSupport(currentPrice, levels.getMajorLevels())) {
+                if (isNearSupport(currentPrice, levels)) {
                     return StrategyResult.withoutContribution(StrategySignal.BUY, 0.75, 
                         String.format("%s on support (score: %d)", result.label(), result.score()), 
                         getName(), getPriority());
@@ -53,7 +53,7 @@ public class CandlestickPatternStrategy extends TradingStrategy {
                         getName(), getPriority());
                 }
             case SHOOTING_STAR, BEARISH_ENGULFING, EVENING_STAR, BEARISH_HARAMI, DARK_CLOUD_COVER:
-                if (isNearResistance(currentPrice, levels.getMajorLevels())) {
+                if (isNearResistance(currentPrice, levels)) {
                     return StrategyResult.withoutContribution(StrategySignal.SELL, 0.75, 
                         String.format("%s on resistance (score: %d)", result.label(), result.score()), 
                         getName(), getPriority());
@@ -69,12 +69,25 @@ public class CandlestickPatternStrategy extends TradingStrategy {
         }
     }
 
-    private boolean isNearSupport(BigDecimal price, List<SupportResistanceDto.MajorLevel> levels) {
-        for (SupportResistanceDto.MajorLevel level : levels) {
-            if ("support".equals(level.getType())) {
-                BigDecimal distance = price.subtract(level.getPrice()).abs();
-                BigDecimal threshold = level.getPrice().multiply(new BigDecimal("0.02"));
-                if (distance.compareTo(threshold) <= 0) {
+    private boolean isNearSupport(BigDecimal price, SupportResistanceDto levels) {
+        // Check major support levels
+        if (levels.getMajorLevels() != null) {
+            for (SupportResistanceDto.MajorLevel level : levels.getMajorLevels()) {
+                if ("support".equals(level.getType()) && isWithinThreshold(price, level.getPrice())) {
+                    return true;
+                }
+            }
+        }
+        // Check pivot support levels (s1, s2, s3)
+        if (levels.getPivots() != null) {
+            if (isWithinThreshold(price, levels.getPivots().getS1())) return true;
+            if (isWithinThreshold(price, levels.getPivots().getS2())) return true;
+            if (isWithinThreshold(price, levels.getPivots().getS3())) return true;
+        }
+        // Check swing lows
+        if (levels.getSwingLows() != null) {
+            for (SupportResistanceDto.SwingLevel swing : levels.getSwingLows()) {
+                if (isWithinThreshold(price, swing.getPrice())) {
                     return true;
                 }
             }
@@ -82,16 +95,36 @@ public class CandlestickPatternStrategy extends TradingStrategy {
         return false;
     }
 
-    private boolean isNearResistance(BigDecimal price, List<SupportResistanceDto.MajorLevel> levels) {
-        for (SupportResistanceDto.MajorLevel level : levels) {
-            if ("resistance".equals(level.getType())) {
-                BigDecimal distance = price.subtract(level.getPrice()).abs();
-                BigDecimal threshold = level.getPrice().multiply(new BigDecimal("0.02"));
-                if (distance.compareTo(threshold) <= 0) {
+    private boolean isNearResistance(BigDecimal price, SupportResistanceDto levels) {
+        // Check major resistance levels
+        if (levels.getMajorLevels() != null) {
+            for (SupportResistanceDto.MajorLevel level : levels.getMajorLevels()) {
+                if ("resistance".equals(level.getType()) && isWithinThreshold(price, level.getPrice())) {
+                    return true;
+                }
+            }
+        }
+        // Check pivot resistance levels (r1, r2, r3)
+        if (levels.getPivots() != null) {
+            if (isWithinThreshold(price, levels.getPivots().getR1())) return true;
+            if (isWithinThreshold(price, levels.getPivots().getR2())) return true;
+            if (isWithinThreshold(price, levels.getPivots().getR3())) return true;
+        }
+        // Check swing highs
+        if (levels.getSwingHighs() != null) {
+            for (SupportResistanceDto.SwingLevel swing : levels.getSwingHighs()) {
+                if (isWithinThreshold(price, swing.getPrice())) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private boolean isWithinThreshold(BigDecimal price, BigDecimal levelPrice) {
+        if (price == null || levelPrice == null) return false;
+        BigDecimal distance = price.subtract(levelPrice).abs();
+        BigDecimal threshold = levelPrice.multiply(new BigDecimal("0.02"));
+        return distance.compareTo(threshold) <= 0;
     }
 }

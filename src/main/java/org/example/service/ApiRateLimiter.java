@@ -19,7 +19,7 @@ public class ApiRateLimiter {
     /**
      * Blocks the calling thread until the minimum interval for the given key has elapsed.
      *
-     * @param key            Unique key for the API being rate-limited (e.g. "yahoo", "dhan", "nse")
+     * @param key            Unique key for the API being rate-limited (e.g. "yahoo", "nse")
      * @param minIntervalMs  Minimum time in milliseconds between successive calls
      */
     public void acquire(String key, long minIntervalMs) {
