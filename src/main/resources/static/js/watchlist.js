@@ -153,15 +153,17 @@ const stock = _selectedStock;
 let localStock = allStocks.find(s => s.symbol.toUpperCase() === stock.symbol.toUpperCase());
 
 // If not local, create it first
-if (!localStock) {
-const selectedSector = document.getElementById('qcSector').value || 'Other';
-try {
-const createRes = await addStockApi({
-symbol: stock.symbol,
-name: stock.name,
-sector: selectedSector,
-yahooSymbol: stock.symbol
-});
+  if (!localStock) {
+    const selectedSector = document.getElementById('qcSector').value || 'Other';
+    const selectedIndustry = document.getElementById('qcIndustry').value.trim() || stock.industry || '';
+    try {
+    const createRes = await addStockApi({
+      symbol: stock.symbol,
+      name: stock.name,
+      sector: selectedSector,
+      yahooSymbol: stock.symbol,
+      industry: selectedIndustry
+    });
 localStock = createRes.data;
 const stocksRes = await getAllStocks();
 allStocks = stocksRes.data || [];
@@ -343,8 +345,8 @@ renderDetailStocks(stocks, signalsMap);
 renderSectorChart(stocks);
 } catch (e) {
 console.error('Error loading watchlist items:', e);
-document.getElementById('detailTableBody').innerHTML =
-'<tr><td colspan="8" class="text-center py-4 text-red-500">Failed to load stocks</td></tr>';
+  document.getElementById('detailTableBody').innerHTML =
+    '<tr><td colspan="9" class="text-center py-4 text-red-500">Failed to load stocks</td></tr>';
 }
 }
 
@@ -352,27 +354,29 @@ function closeDetail() {
 document.getElementById('watchlistDetail').classList.add('hidden');
 document.getElementById('sectorChartSection').classList.add('hidden');
 if (_sectorChart) { _sectorChart.destroy(); _sectorChart = null; }
+if (_industryChart) { _industryChart.destroy(); _industryChart = null; }
 selectedWatchlistId = null;
 }
 
 function renderDetailStocks(stocks, signalsMap = {}) {
 const tbody = document.getElementById('detailTableBody');
-if (!stocks || !stocks.length) {
-tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-secondary">No stocks in this watchlist. Add stocks to start tracking.</td></tr>';
-return;
-}
+  if (!stocks || !stocks.length) {
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-secondary">No stocks in this watchlist. Add stocks to start tracking.</td></tr>';
+  return;
+  }
 
-tbody.innerHTML = stocks.map(s => {
-const ltpStr = s.lastTradedPrice != null ? fmtPrice(s.lastTradedPrice) : '--';
-const signalHtml = renderSignalBadge(signalsMap[s.id]);
-const addedStr = s.addedAt ? formatDate(s.addedAt) : '--';
-const records = s.recordCount != null ? s.recordCount + ' days' : '0';
-const recordsCls = s.recordCount > 0 ? 'text-green-400' : 'text-secondary';
-return `<tr class="stock-row border-b border-gray-700">
-<td><a href="stock-detail.html?id=${s.id}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(s.symbol)}</a></td>
-<td>${escHtml(s.name || '--')}</td>
-<td><span class="badge badge-neutral">${escHtml(s.sector || '--')}</span></td>
-<td class="text-right">${ltpStr}</td>
+  tbody.innerHTML = stocks.map(s => {
+  const ltpStr = s.lastTradedPrice != null ? fmtPrice(s.lastTradedPrice) : '--';
+  const signalHtml = renderSignalBadge(signalsMap[s.id]);
+  const addedStr = s.addedAt ? formatDate(s.addedAt) : '--';
+  const records = s.recordCount != null ? s.recordCount + ' days' : '0';
+  const recordsCls = s.recordCount > 0 ? 'text-green-400' : 'text-secondary';
+  return `<tr class="stock-row border-b border-gray-700">
+  <td><a href="stock-detail.html?id=${s.id}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(s.symbol)}</a></td>
+  <td>${escHtml(s.name || '--')}</td>
+  <td><span class="badge badge-neutral">${escHtml(s.sector || '--')}</span></td>
+  <td>${escHtml(s.industry || '--')}</td>
+  <td class="text-right">${ltpStr}</td>
 <td class="text-center">${signalHtml}</td>
 <td class="text-center text-xs text-secondary">${addedStr}</td>
 <td class="text-center text-xs ${recordsCls}">${records}</td>
@@ -392,6 +396,8 @@ class="text-blue-400 hover:text-blue-300 transition-colors mr-2" title="Sync His
 </tr>`;
 }).join('');
 }
+
+let _industryChart = null;
 
 function renderSectorChart(stocks) {
 const section = document.getElementById('sectorChartSection');
@@ -423,6 +429,79 @@ const canvas = document.getElementById('watchlistSectorChart');
 const ctx = canvas.getContext('2d');
 
 _sectorChart = new Chart(ctx, {
+type: 'doughnut',
+data: {
+labels: labels,
+datasets: [{
+data: data,
+backgroundColor: colors,
+borderColor: 'rgba(30, 41, 59, 0.8)',
+borderWidth: 2,
+hoverOffset: 8
+}]
+},
+options: {
+responsive: true,
+maintainAspectRatio: false,
+cutout: '60%',
+plugins: {
+legend: {
+position: 'right',
+labels: {
+color: '#9ca3af',
+padding: 12,
+usePointStyle: true,
+pointStyle: 'circle',
+font: { size: 12 }
+}
+},
+tooltip: {
+callbacks: {
+label: function(ctx) {
+const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+const pct = ((ctx.raw / total) * 100).toFixed(1);
+return ctx.label + ': ' + ctx.raw + ' stock' + (ctx.raw > 1 ? 's' : '') + ' (' + pct + '%)';
+}
+}
+}
+}
+}
+});
+
+// Render Industry chart
+renderIndustryChart(stocks);
+}
+
+function renderIndustryChart(stocks) {
+const section = document.getElementById('industryChartSection');
+if (!stocks || !stocks.length) {
+if (section) section.classList.add('hidden');
+if (_industryChart) { _industryChart.destroy(); _industryChart = null; }
+return;
+}
+
+// Group stocks by industry
+const industryCounts = {};
+stocks.forEach(s => {
+const ind = s.industry || 'Other';
+industryCounts[ind] = (industryCounts[ind] || 0) + 1;
+});
+
+const industries = Object.entries(industryCounts)
+.sort((a, b) => b[1] - a[1]);
+const labels = industries.map(s => s[0]);
+const data = industries.map(s => s[1]);
+const colors = generateColors(labels.length);
+
+if (section) section.classList.remove('hidden');
+
+if (_industryChart) { _industryChart.destroy(); _industryChart = null; }
+
+const canvas = document.getElementById('watchlistIndustryChart');
+if (!canvas) return;
+const ctx = canvas.getContext('2d');
+
+_industryChart = new Chart(ctx, {
 type: 'doughnut',
 data: {
 labels: labels,
@@ -550,9 +629,9 @@ document.getElementById('addStockBtn').disabled = true;
 displaySearchResultsWatchlist(allStocks.slice(0, 20).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : '',
 sector: s.sector || '',
-industry: '',
+industry: s.industry || '',
 quoteType: 'EQUITY',
 isYahooFinance: true
 })));
@@ -730,9 +809,9 @@ s.symbol.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
 ).slice(0, 10).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : '',
 sector: s.sector || '',
-industry: '',
+industry: s.industry || '',
 quoteType: 'EQUITY',
 isYahooFinance: true
 }));
@@ -747,9 +826,9 @@ s.symbol.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
 ).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : '',
 sector: s.sector || '',
-industry: '',
+industry: s.industry || '',
 quoteType: 'EQUITY',
 isYahooFinance: true,
 isLocal: true
@@ -828,6 +907,13 @@ document.getElementById('qcSymbol').value = stock.symbol || '';
 document.getElementById('qcName').value = stock.name || '';
 document.getElementById('qcExchange').value = stock.exchange || '';
 
+if (!stock.exchange) {
+    const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
+    if (local && local.yahooSymbol) {
+        document.getElementById('qcExchange').value = local.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE';
+    }
+}
+
 // Auto-select sector — if Yahoo search didn't return sector, try local data
 let sector = stock.sector;
 if (!sector) {
@@ -855,7 +941,8 @@ const sectorMap = [
 { keywords: ['finance', 'bank', 'financial', 'insurance', 'credit', 'investment'], match: 'Finance' },
 { keywords: ['consumer discretionary', 'retail', 'auto', 'media', 'entertainment', 'leisure', 'apparel'], match: 'Consumer Discretionary' },
 { keywords: ['consumer staples', 'food', 'beverage', 'household', 'grocery', 'personal'], match: 'Consumer Staples' },
-{ keywords: ['industrial', 'manufacturing', 'aerospace', 'defense', 'transport', 'logistics', 'machinery', 'construction'], match: 'Industrial' },
+{ keywords: ['aerospace', 'defense', 'aero'], match: 'Aero & defence' },
+     { keywords: ['industrial', 'manufacturing', 'transport', 'logistics', 'machinery', 'construction'], match: 'Industrial' },
 { keywords: ['utility', 'utilities', 'electric', 'water', 'gas utility'], match: 'Utilities' },
 { keywords: ['real estate', 'property', 'reit'], match: 'Real Estate' },
 { keywords: ['material', 'mining', 'chemical', 'steel', 'cement', 'forest'], match: 'Materials' },
@@ -876,6 +963,14 @@ sectorSelect.appendChild(opt);
 sectorSelect.value = sector;
 }
 }
+
+// Auto-fill industry from Yahoo search or local data
+let industry = stock.industry;
+if (!industry) {
+const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
+if (local && local.industry) industry = local.industry;
+}
+document.getElementById('qcIndustry').value = industry || '';
 
 // Hide search results
 hideSearchResultsWatchlist();

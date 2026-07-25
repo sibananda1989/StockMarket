@@ -5,29 +5,27 @@ description: Use when adding a new REST API endpoint — creating the controller
 
 # Add a REST API Endpoint
 
+## FILES TO MODIFY (read PROJECT_MANIFEST.md first for exact paths)
+1. Controller: `src/main/java/org/example/controller/{Feature}Controller.java`
+2. DTO (if new): `src/main/java/org/example/dto/{Feature}DTO.java`
+3. Service: `src/main/java/org/example/service/{Feature}Service.java`
+4. Frontend: `src/main/resources/static/js/api.js` (add wrapper function)
+5. Optional: Repository in `src/main/java/org/example/repository/`
+
 ## Step 1: Identify the right controller (or create one)
 
-Existing controllers in `src/main/java/org/example/controller/`:
-
-| Controller | Base Path | Purpose |
-|------------|-----------|---------|
-| StockController | `/api/stocks` | Stock CRUD, search, CSV import |
-| PriceController | `/api/prices` | Daily price entry and history |
-| RsiController | `/api/rsi` | RSI-14 calculation and history |
-| TechnicalIndicatorController | `/api/indicators` | All 21 technical indicators |
-| SignalController | `/api/signals` | Buy/sell/hold signal generation |
-| PortfolioController | `/api/portfolios` | Multi-portfolio CRUD and holdings |
-| PortfolioManagementController | `/api/portfolio` | Portfolio history, backfill, screener |
-| WatchlistController | `/api/watchlists` | Watchlist CRUD and items |
-| SupportResistanceController | `/api/support-resistance` | S/R levels |
-| BacktestController | `/api/backtest` | Strategy backtesting |
-| DhanController | `/api/dhan` | Dhan broker integration |
-| FiiDiiController | `/api/fiidii` | FII/DII institutional flows |
-| CorporateEventController | `/api/events` | Corporate event calendar |
-| FundamentalDataController | `/api/fundamentals` | Stock fundamentals |
-| InstitutionalHoldingController | `/api/institutional` | Holdings, deals, scores, screeners |
-| StockHistoryController | `/api/stocks/history` | Yahoo Finance history |
-| StockSyncController | `/api/stocks` | Data sync operations |
+Quick controller lookup (full list in `docs/PROJECT_MANIFEST.md`):
+- Stock CRUD → `StockController` (`/api/stocks`)
+- Signals → `SignalController` or `MultiStrategySignalController`
+- Portfolio → `PortfolioManagementController` or `PortfolioController`
+- Watchlist → `WatchlistController`
+- Indicators → `TechnicalIndicatorController`
+- Prices → `PriceController`
+- S/R Levels → `SupportResistanceController`
+- Institutional → `InstitutionalHoldingController` (holdings, deals, scores, screeners)
+- Backtest → `BacktestController`
+- FII/DII → `FiiDiiController`
+- Corporate Events → `CorporateEventController`
 
 ## Step 2: Create DTO if needed
 

@@ -51,6 +51,9 @@ public class IndicatorComputationService {
         tryAdd(result, stock, IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2.5).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.ATR, new ATRCalculator(14).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.ADX, new AdxCalculator(14).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.VOLUME_RATIO, new VolumeRatioCalculator().calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.AMIHUD_ILLIQUIDITY, new AmihudCalculator().calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.DOLLAR_VOLUME, new DollarVolumeCalculator().calculate(prices), date);
 
         if (prices.size() >= 200) {
             tryAdd(result, stock, IndicatorType.SMA_200, new SmaCalculator(200).calculate(prices), date);

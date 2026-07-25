@@ -5,6 +5,14 @@ description: Use when adding a new technical indicator to the system — creatin
 
 # Add a New Technical Indicator
 
+## FILES TO MODIFY (read PROJECT_MANIFEST.md first for exact paths)
+1. Calculator: `src/main/java/org/example/service/calculator/{Name}Calculator.java` (new)
+2. Enum: `src/main/java/org/example/entity/IndicatorType.java` (add value)
+3. Service: `src/main/java/org/example/service/TechnicalAnalysisService.java` (wire in)
+4. Signal: `src/main/java/org/example/service/SignalService.java` (scoring logic)
+5. Test: `src/test/java/org/example/service/calculator/{Name}CalculatorTest.java` (new)
+6. Optional frontend: `stock-detail.js` (display)
+
 ## Step 1: Create the calculator class
 
 Create a new file in `src/main/java/org/example/service/calculator/YourIndicatorCalculator.java`:

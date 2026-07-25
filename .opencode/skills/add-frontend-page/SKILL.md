@@ -1,9 +1,13 @@
 ---
 name: add-frontend-page
 description: Use when adding a new frontend page or feature — creating the HTML file, the IIFE-wrapped JS module, adding API wrappers in api.js, registering in navigation.js, and cache-busting via ?v= query params. Front-load keywords: add page, new page, frontend, html, vanilla js, iife, ui, dashboard, static.
----
+---# Add a New Frontend Page
 
-# Add a New Frontend Page
+## FILES TO MODIFY
+1. HTML: `src/main/resources/static/{feature}.html` (new)
+2. JS: `src/main/resources/static/js/{feature}.js` (new, IIFE pattern)
+3. API wrappers: `src/main/resources/static/js/api.js` (add functions)
+4. Navigation: `src/main/resources/static/js/navigation.js` (register nav item)
 
 The frontend is server-rendered static HTML + vanilla JS served directly from `src/main/resources/static/` by Spring Boot — **no build step**. One HTML file per feature, one JS module per page, all wrapped in IIFEs to avoid globals.
 

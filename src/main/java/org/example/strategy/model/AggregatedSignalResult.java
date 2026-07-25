@@ -1,10 +1,7 @@
 package org.example.strategy.model;
 
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Map;
-import java.util.HashMap;
-import java.util.stream.Collectors;
 
 /**
  * Aggregated result combining all individual strategy outputs.
@@ -30,26 +27,4 @@ public record AggregatedSignalResult(
         Map<String, Integer> categorySummary,
         Map<String, Double> contributions
 ) {
-
-    /**
-     * Creates a simplified AggregatedSignalResult from existing fields.
-     * Used for backward compatibility when constructing from legacy code.
-     */
-    public static AggregatedSignalResult simple(
-            StrategySignal finalSignal,
-            double score,
-            List<StrategyResult> breakdown,
-            int totalPriority) {
-        return new AggregatedSignalResult(
-                finalSignal,
-                score,
-                breakdown,
-                totalPriority,
-                0.0,
-                new ArrayList<>(),
-                new ArrayList<>(),
-                new HashMap<>(),
-                new HashMap<>()
-        );
-    }
 }

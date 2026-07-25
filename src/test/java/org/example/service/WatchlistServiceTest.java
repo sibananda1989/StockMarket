@@ -63,7 +63,7 @@ class WatchlistServiceTest {
     }
 
     private Stock createStock(Long id, String symbol) {
-        Stock stock = new Stock(symbol, symbol + " Inc.", "Technology");
+        Stock stock = new Stock(symbol, symbol + " Inc.", "Technology", null);
         stock.setId(id);
         stock.setQuantity(0);
         return stock;
@@ -75,6 +75,7 @@ class WatchlistServiceTest {
         dto.setSymbol(symbol);
         dto.setName(symbol + " Inc.");
         dto.setSector("Technology");
+        dto.setIndustry(null);
         return dto;
     }
 

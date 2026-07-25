@@ -65,4 +65,7 @@ public interface SupportResistanceLevelRepository extends JpaRepository<SupportR
            "    WHERE sr2.stock.id = sr.stock.id" +
            ") ORDER BY sr.stock.id")
     List<SupportResistanceLevel> findLatestByStockIds(@Param("stockIds") List<Long> stockIds);
+
+    @Query("SELECT COUNT(DISTINCT sr.stock.id) FROM SupportResistanceLevel sr")
+    long countDistinctStocks();
 }

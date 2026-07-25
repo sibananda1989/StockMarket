@@ -30,7 +30,14 @@ public enum IndicatorType {
     BOLLINGER_UPPER(false),
     BOLLINGER_LOWER(false),
     ATR(false),
-    ADX(false);
+    ADX(false),
+
+    // Volume-based indicators
+    VOLUME_RATIO(false),
+
+    // Liquidity indicators
+    AMIHUD_ILLIQUIDITY(false),  // Price impact (lower = more liquid)
+    DOLLAR_VOLUME(false);       // Close × Volume (higher = more liquid)
 
     private final boolean directional;
 

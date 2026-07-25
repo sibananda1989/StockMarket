@@ -14,6 +14,7 @@ public class SaveHistoryRequest {
     private String name;
     
     private String sector;
+    private String industry;
     
     @NotEmpty(message = "History data is required")
     private List<StockHistoryDTO> history;

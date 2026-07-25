@@ -13,6 +13,11 @@ let _cachedPriceHistory = {};
 let _cachedSignalHistory = {};
 let _cachedRsiHistory = [];
 let _cachedIndicatorsByDate = {};
+let _cachedFvgEntries = [];
+let _showBuyArrows = true;
+let _showSellArrows = true;
+let _csCandlestick = null;
+let _cachedSmc = {};
 let _loadAllGen = 0;
 
 // Screener pagination state
@@ -181,6 +186,18 @@ function getCachedPriceHistory(stockId, from, to, days) {
         return res;
     }).catch(e => { console.error('Price history fetch failed:', e); return null; });
     _cachedPriceHistory[key] = p;
+    return p;
+}
+
+// Cached SMC patterns (FVG, BOS, CHoCH etc.)
+function getCachedSmc(stockId, days) {
+    const key = days + '-' + stockId;
+    if (_cachedSmc[key]) return Promise.resolve(_cachedSmc[key]);
+    const p = getSMCPatterns(stockId, days).then(res => {
+        _cachedSmc[key] = res;
+        return res;
+    }).catch(() => null);
+    _cachedSmc[key] = p;
     return p;
 }
 
@@ -394,7 +411,7 @@ async function loadCandlestickTab(days) {
 
         console.log('[Candlestick] Date range: ' + fmt(start) + ' to ' + fmt(end) + ' (' + days + ' days)');
 
-        const [priceRes, signalHistoryRes, currentSignalRes, srRes] = await Promise.all([
+        const [priceRes, signalHistoryRes, currentSignalRes, srRes, smcRes] = await Promise.all([
             getCachedPriceHistory(_stockId, fmt(start), fmt(end), days).catch(e => { console.error('[Candlestick] Price fetch failed:', e); return null; }),
             // Use multi-strategy history when active strategies are configured
             shouldUseMulti
@@ -407,7 +424,8 @@ async function loadCandlestickTab(days) {
             shouldUseMulti
                 ? getMultiStrategySignal(_stockId, activeStrategyNames).catch(e => { console.error('[Candlestick] Multi-strategy signal failed:', e); return null; })
                 : getStockSignal(_stockId).catch(e => { console.error('[Candlestick] Current signal fetch failed:', e); return null; }),
-            getSupportResistance(_stockId, days).catch(() => null)
+            getSupportResistance(_stockId, days).catch(() => null),
+            getCachedSmc(_stockId, days)
         ]);
         const prices = (priceRes?.data || []).filter(p => p.closingPrice != null);
         const signalHistory = signalHistoryRes?.status === 'success' ? signalHistoryRes.data : null;
@@ -439,6 +457,12 @@ async function loadCandlestickTab(days) {
             srData = retryRes && retryRes.status === 'success' ? retryRes.data : null;
         }
         console.log('[Candlestick] prices:', prices.length, 'signalHistory:', signalHistory?.length || 0, 'currentSignal:', currentSignal?.recommendation, 'activeStrategies:', activeStrategyNames?.length || 0, 'srData:', !!srData);
+        // Extract FVG entries from SMC patterns
+        if (smcRes && smcRes.status === 'success' && smcRes.data && smcRes.data.fairValueGaps) {
+            _cachedFvgEntries = smcRes.data.fairValueGaps;
+        } else {
+            _cachedFvgEntries = [];
+        }
         // Render active strategies badge with populated signal data
         renderActiveStrategiesBadge(activeStrategyNames, currentSignal);
         renderCandlestickChart(prices, signalHistory, currentSignal, srData);
@@ -483,7 +507,6 @@ async function loadPnlTab(days) {
         renderPnlCharts([]);
     }
     if (gen !== _loadAllGen) return;
-}
     } catch (e) {
         console.error('P&L tab error:', e);
         showChartMsg('chartPnl', 'No P&L data');
@@ -1085,6 +1108,77 @@ function renderActiveStrategiesBadge(activeStrategyNames, currentSignal) {
     container.innerHTML = chips;
 }
 
+// ─── Chart Primitives ────────────────────────────────────────────────────────
+class FvgZonePrimitive {
+    constructor(fvgEntries) {
+        this._fvgEntries = fvgEntries || [];
+        this._visible = true;
+        this._chart = null;
+        this._series = null;
+        this._requestUpdate = null;
+        this._paneView = {
+            renderer: () => ({
+                draw: (target) => {
+                    if (this._visible === false) return;
+                    if (!this._fvgEntries || this._fvgEntries.length === 0) return;
+                    if (!this._chart || !this._series) return;
+
+                    const timeScale = this._chart.timeScale();
+                    const chartWidth = timeScale.width();
+
+                    // ponytail: lightweight-charts v4 passes a CanvasRenderingTarget2D, not a 2D
+                    // context. useMediaCoordinateSpace gives the real ctx in CSS-pixel coords.
+                    target.useMediaCoordinateSpace(scope => {
+                        const ctx = scope.context;
+                        this._fvgEntries.forEach(fvg => {
+                            const topPrice = parseFloat(fvg.topPrice);
+                            const bottomPrice = parseFloat(fvg.bottomPrice);
+                            const fvgDateStr = fvg.date;
+
+                            const epoch = Math.floor(new Date(fvgDateStr + 'T00:00:00Z').getTime() / 1000);
+                            const xStart = timeScale.timeToCoordinate(epoch);
+                            const xEnd = chartWidth;
+
+                            const yTop = this._series.priceToCoordinate(topPrice);
+                            const yBottom = this._series.priceToCoordinate(bottomPrice);
+
+                            if (xStart == null || yTop == null || yBottom == null) return;
+                            if (isNaN(xStart) || isNaN(yTop) || isNaN(yBottom)) return;
+
+                            const isBullish = fvg.direction === 'BULLISH';
+                            ctx.fillStyle = isBullish ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+                            ctx.fillRect(xStart, yTop, xEnd - xStart, yBottom - yTop);
+                        });
+                    });
+                }
+            })
+        };
+    }
+
+    name() { return 'FvgZonePrimitive'; }
+
+    setVisible(visible) {
+        this._visible = visible;
+        if (this._requestUpdate) this._requestUpdate();
+    }
+
+    attached(param) {
+        this._chart = param.chart;
+        this._series = param.series;
+        this._requestUpdate = param.requestUpdate;
+    }
+
+    detached() {
+        this._chart = null;
+        this._series = null;
+        this._requestUpdate = null;
+    }
+
+    paneViews() {
+        return [this._paneView];
+    }
+}
+
 function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
     const container = document.getElementById('chartCandlestick');
     if (!container) return;
@@ -1092,7 +1186,20 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         try { _charts.candlestick.remove(); } catch (e) {}
         delete _charts.candlestick;
     }
-    for (const key in _chartOverlays) delete _chartOverlays[key];
+    for (const key in _chartOverlays) {
+        if (_chartOverlays[key] && _chartOverlays[key].forEach) {
+            _chartOverlays[key].forEach(series => {
+                try { chart.removeSeries(series); } catch (e) {}
+            });
+        } else if (_chartOverlays[key] && typeof _chartOverlays[key].detach === 'function') {
+            // Handle attached primitives (FVG)
+            try { _chartOverlays[key].detach(); } catch (e) {}
+        } else if (_chartOverlays[key]) {
+            // Handle price lines (sr, etc)
+            try { _chartOverlays[key].forEach(pl => { try { cs.removePriceLine(pl); } catch (e) {} }); } catch (e) {}
+        }
+        delete _chartOverlays[key];
+    }
 
     if (!prices.length) {
         showChartMsg('chartCandlestick', 'No price data for candlestick');
@@ -1167,6 +1274,7 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         wickDownColor: '#ef4444', wickUpColor: '#22c55e',
     });
     cs.setData(ohlc);
+    _csCandlestick = cs;
 
     // Volume histogram colored by price direction
     const cleanVolume = volume.filter(v => v.value != null && v.value > 0 && !isNaN(v.value));
@@ -1258,6 +1366,13 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
     _chartOverlays.sr = srPriceLines;
     _chartOverlays.srColors = srColorMap;
 
+    // ── FVG zones as colored fill blocks starting from formation date ──
+    if (_cachedFvgEntries && _cachedFvgEntries.length) {
+        const fvgPrimitive = new FvgZonePrimitive(_cachedFvgEntries);
+        cs.attachPrimitive(fvgPrimitive);
+        _chartOverlays.fvg = fvgPrimitive;
+    }
+
     // ── Buy/Sell markers — arrows only for strong signals, small dots for regular ──
     const markers = [];
     const validEpochs = new Set(ohlc.map(d => d.time));
@@ -1272,17 +1387,19 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                 const isBuy = s.recommendation === 'STRONG BUY' || s.recommendation === 'BUY';
                 const isSell = s.recommendation === 'STRONG SELL' || s.recommendation === 'SELL';
                 const isStrong = s.compositeScore >= 7 || s.compositeScore <= -7;
-                markers.push({
-                    time: epoch,
-                    position: isBuy ? 'belowBar' : isSell ? 'aboveBar' : 'inBar',
-                    color: isStrong && isBuy ? '#16a34a' : isBuy ? '#22c55e' :
-                           isStrong && isSell ? '#dc2626' : isSell ? '#ef4444' : '#6b7280',
-                    // All buy/sell signals use arrows, just at smaller sizes
-                    shape: isBuy ? 'arrowUp' : 'arrowDown',
-                    size: isStrong ? 2 : 1,
-                    text: isBuy ? (s.compositeScore >= 7 ? 'SB' : 'B') :
-                          isSell ? (s.compositeScore <= -7 ? 'SS' : 'S') : '',
-                });
+                if (isStrong || (isBuy && _showBuyArrows) || (isSell && _showSellArrows)) {
+                    markers.push({
+                        time: epoch,
+                        position: isBuy ? 'belowBar' : isSell ? 'aboveBar' : 'inBar',
+                        color: isStrong && isBuy ? '#16a34a' : isBuy ? '#22c55e' :
+                               isStrong && isSell ? '#dc2626' : isSell ? '#ef4444' : '#6b7280',
+                        // All buy/sell signals use arrows, just at smaller sizes
+                        shape: isBuy ? 'arrowUp' : 'arrowDown',
+                        size: isStrong ? 2 : 1,
+                        text: isBuy ? (s.compositeScore >= 7 ? 'SB' : 'B') :
+                              isSell ? (s.compositeScore <= -7 ? 'SS' : 'S') : '',
+                    });
+                }
             }
         });
     }
@@ -1320,19 +1437,22 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         }
         const isBuy = currentSignal.recommendation === 'STRONG BUY' || currentSignal.recommendation === 'BUY';
         const isStrongCur = currentSignal.compositeScore >= 7 || currentSignal.compositeScore <= -7;
-        markers.push({
-            time: lastTime,
-            position: isBuy ? 'belowBar' : 'aboveBar',
-            color: isStrongCur && isBuy ? '#16a34a' : isBuy ? '#22c55e' :
-                   isStrongCur && !isBuy ? '#dc2626' : '#ef4444',
-            shape: isBuy ? 'arrowUp' : 'arrowDown',
-            size: isStrongCur ? 2 : 1,
-            text: isStrongCur && isBuy ? 'SB' :
-                  currentSignal.compositeScore <= -7 && !isBuy ? 'SS' :
-                  isBuy ? 'B' : 'S',
-        });
+        if (isStrongCur || (isBuy && _showBuyArrows) || (!isBuy && _showSellArrows)) {
+            markers.push({
+                time: lastTime,
+                position: isBuy ? 'belowBar' : 'aboveBar',
+                color: isStrongCur && isBuy ? '#16a34a' : isBuy ? '#22c55e' :
+                       isStrongCur && !isBuy ? '#dc2626' : '#ef4444',
+                shape: isBuy ? 'arrowUp' : 'arrowDown',
+                size: isStrongCur ? 2 : 1,
+                text: isStrongCur && isBuy ? 'SB' :
+                      currentSignal.compositeScore <= -7 && !isBuy ? 'SS' :
+                      isBuy ? 'B' : 'S',
+            });
+        }
     }
 
+    window._lastMarkersFull = [...markers];
     markers.sort((a, b) => a.time - b.time);
     // Limit markers to prevent chart clutter — keep only the most recent 40
     if (markers.length > 40) {
@@ -1346,11 +1466,11 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
     const tooltip = document.createElement('div');
     tooltip.className = 'lw-tooltip';
     tooltip.style.cssText = [
-        'position:absolute;display:none;z-index:100;min-width:240px;max-width:320px',
+        'position:absolute;display:none;z-index:100;min-width:280px;max-width:500px',
         'background:rgba(30,41,59,0.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)',
-        'border:1px solid rgba(255,255,255,0.08);border-radius:12px',
-        'padding:14px 16px;font-size:12px;',
-        'box-shadow:0 8px 32px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.04) inset',
+        'border:1px solid rgba(255,255,255,0.08);border-radius:14px',
+        'padding:12px 14px;font-size:14px;',
+        'box-shadow:0 12px 40px rgba(0,0,0,0.55),0 0 0 1px rgba(255,255,255,0.06) inset',
         'color:#e2e8f0;line-height:1.5',
         'transition:opacity 0.15s ease',
     ].join(';');
@@ -1408,6 +1528,26 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         const indicatorsForDate = _cachedIndicatorsByDate[indicatorLookupDate] || {};
         const indicatorHtml = buildCompactIndicators(indicatorsForDate);
         
+        // FVG proximity check for crosshair
+        var fvgTooltip = '';
+        if (_cachedFvgEntries && _cachedFvgEntries.length > 0 && data.close) {
+            var hoverPrice = data.close;
+            for (var fi = 0; fi < _cachedFvgEntries.length; fi++) {
+                var f = _cachedFvgEntries[fi];
+                var topP = parseFloat(f.topPrice);
+                var botP = parseFloat(f.bottomPrice);
+                if (topP && botP && hoverPrice >= botP * 0.995 && hoverPrice <= topP * 1.005) {
+                    var dir = f.direction === 'BULLISH' ? '↑' : '↓';
+                    var gapStr = f.gapSize ? ' ₹' + Number(f.gapSize).toFixed(1) : '';
+                    var stateStr = f.state === 'OPEN' ? 'Open' : f.state === 'PARTIALLY_FILLED' ? 'Partial' : 'Filled';
+                     fvgTooltip = '<div style="margin-top:4px;padding:4px 8px;border-left:3px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.04);border-radius:4px;display:flex;justify-content:space-between;align-items:center;font-size:10px;">' +
+                         '<span style="color:#d1d5db;">⚠ FVG</span>' +
+                         '<span style="font-weight:600;color:#e2e8f0;">' + dir + gapStr + ' <span style="color:#9ca3af;font-size:9px;">' + stateStr + '</span></span></div>';
+                    break;
+                }
+            }
+        }
+        
         let scoreSection = '';
         let strategyHtml = '';
         const miniFactors = [];
@@ -1439,13 +1579,13 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                     const bg = f.score > 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
                     return `<span style="display:inline-flex;align-items:center;gap:2px;padding:1px 5px;border-radius:4px;font-size:9px;font-weight:600;background:${bg};color:${col};">${f.label} ${f.score >= 0 ? '+' : ''}${f.score}</span>`;
                 }).join('');
-                scoreSection = `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.06);">${scoreChips}</div>`;
+                scoreSection = `<div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">${scoreChips}</div>`;
             }
 
             // Candlestick pattern mini row (ADX shown in indicators below)
             if (sig.candlestickPattern && sig.candlestickScore !== 0) {
                 const col = sig.candlestickScore > 0 ? '#22c55e' : '#ef4444';
-                miniFactors.push(`<span style="color:#8892a0;font-size:10px;">Candle</span><span style="font-weight:600;color:${col};font-size:10px;">${sig.candlestickPattern}</span>`);
+                miniFactors.push(`<span style="color:#9ca3af;font-size:9px;">Candle</span><span style="font-weight:600;color:${col};font-size:9px;">${sig.candlestickPattern}</span>`);
             }
 
             // Build strategy breakdown HTML
@@ -1456,16 +1596,16 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                     const sc = s.signal === 'BUY' ? '#22c55e' : s.signal === 'SELL' ? '#ef4444' : '#6b7280';
                     const sbg = s.signal === 'BUY' ? 'rgba(34,197,94,0.1)' : s.signal === 'SELL' ? 'rgba(239,68,68,0.1)' : 'transparent';
                     return `
-                        <div style="display:flex;flex-direction:column;gap:1px;padding:4px 6px;border-radius:6px;background:${sbg};">
+                         <div style="display:flex;flex-direction:column;gap:1px;padding:3px 5px;border-radius:5px;background:${sbg};">
                             <div style="display:flex;justify-content:space-between;align-items:center;">
-                                <span style="font-weight:600;color:#e2e8f0;font-size:10px;">${s.strategyName}</span>
-                                <span style="color:${sc};font-weight:700;font-size:10px;">${s.signal}</span>
+                                <span style="font-weight:600;color:#e2e8f0;font-size:9px;">${s.strategyName}</span>
+                                <span style="color:${sc};font-weight:700;font-size:9px;">${s.signal}</span>
                             </div>
-                            <div style="display:flex;justify-content:space-between;color:#64748b;font-size:9px;">
+                            <div style="display:flex;justify-content:space-between;color:#9ca3af;font-size:8px;">
                                 <span>${(s.confidence * 100).toFixed(0)}% confidence</span>
-                                <span>priority ${s.priority} × ${(s.confidence * 100).toFixed(0)}% = <strong style="color:#e2e8f0;">${(s.weightedScore ?? s.contribution ?? 0).toFixed(2)}</strong></span>
+                                <span>p${s.priority} ×${(s.confidence * 100).toFixed(0)}% = <strong style="color:#e2e8f0;">${(s.weightedScore ?? s.contribution ?? 0).toFixed(2)}</strong></span>
                             </div>
-                            ${s.reason ? `<div style="color:#64748b;font-size:9px;margin-top:1px;line-height:1.3;">${s.reason}</div>` : ''}
+                            ${s.reason ? `<div style="color:#9ca3af;font-size:8px;margin-top:1px;line-height:1.3;">${s.reason}</div>` : ''}
                         </div>`;
                 }).join('');
                 const thresholdColor = sig.rawScore != null
@@ -1481,19 +1621,19 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                     sig.rawScore <= sig.sellThreshold ?
                     `${sig.rawScore.toFixed(2)} ≤ ${sig.sellThreshold}` :
                     `between thresholds`;
-                strategyHtml = `
-                    <div style="margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.06);">
-                        <div class="breakdown-header" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;padding:2px 0;">
-                            <span class="collapse-icon" style="font-size:8px;color:#64748b;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-                            <span style="font-weight:600;color:#8892a0;font-size:10px;text-transform:uppercase;letter-spacing:0.3px;">Strategy Breakdown</span>
-                            <span style="margin-left:auto;font-size:9px;color:${thresholdColor};font-weight:600;">${thresholdLabel}</span>
-                            <div style="color:#64748b;font-size:9px;text-align:center;margin-top:1px;">${thresholdDetail}</div>
+                 strategyHtml = `
+                    <div style="margin-top:5px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">
+                        <div class="breakdown-header" style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;padding:2px 0;">
+                            <span class="collapse-icon" style="font-size:8px;color:#9ca3af;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+                            <span style="font-weight:600;color:#9ca3af;font-size:9px;text-transform:uppercase;letter-spacing:0.3px;">Strategy Breakdown</span>
+                            <span style="margin-left:auto;font-size:8px;color:${thresholdColor};font-weight:600;">${thresholdLabel}</span>
+                            <div style="color:#9ca3af;font-size:8px;text-align:center;margin-top:1px;">${thresholdDetail}</div>
                         </div>
-                        <div class="breakdown-body" style="display:${isExpanded ? 'flex' : 'none'};flex-direction:column;gap:4px;margin-top:4px;">
+                        <div class="breakdown-body" style="display:${isExpanded ? 'flex' : 'none'};flex-direction:column;gap:3px;margin-top:3px;">
                             ${rows}
-                            <div style="display:flex;justify-content:space-between;padding:4px 6px;border-top:1px solid rgba(255,255,255,0.04);margin-top:2px;">
-                                <span style="color:#8892a0;font-size:10px;font-weight:600;">Total</span>
-                                <span style="color:#e2e8f0;font-size:10px;font-weight:700;">${sig.rawScore != null ? sig.rawScore.toFixed(2) : sig.compositeScore}</span>
+                            <div style="display:flex;justify-content:space-between;padding:3px 5px;border-top:1px solid rgba(255,255,255,0.04);margin-top:1px;">
+                                <span style="color:#9ca3af;font-size:9px;font-weight:600;">Total</span>
+                                <span style="color:#e2e8f0;font-size:9px;font-weight:700;">${sig.rawScore != null ? sig.rawScore.toFixed(2) : sig.compositeScore}</span>
                             </div>
                         </div>
                     </div>`;
@@ -1503,7 +1643,7 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         // Signal badge + accuracy
         const signalScoreText = sig?.compositeScore != null ? (sig.compositeScore >= 0 ? '+' : '') + sig.compositeScore : '--';
         const accIcon = sig?.wasAccurate === true ? '✓' : sig?.wasAccurate === false ? '✗' : '';
-        const accColor = sig?.wasAccurate === true ? '#22c55e' : sig?.wasAccurate === false ? '#6b7280' : '#64748b';
+        const accColor = sig?.wasAccurate === true ? '#22c55e' : sig?.wasAccurate === false ? '#9ca3af' : '#9ca3af';
         const accFwd = sig?.forwardReturn != null ? (sig.forwardReturn >= 0 ? '+' : '') + Number(sig.forwardReturn).toFixed(1) + '%' : '';
         const accuracyTag = sig?.wasAccurate != null
             ? `<span style="color:${accColor};font-size:10px;font-weight:600;margin-left:4px;">${accIcon} ${accFwd}</span>`
@@ -1511,49 +1651,50 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
 
         // Build the tooltip HTML
         tooltip.innerHTML = `
-            <div style="margin:-14px -16px 10px;padding:10px 16px;border-radius:12px 12px 0 0;background:${bgColor};border-bottom:1px solid rgba(255,255,255,0.06);">
+            <div style="margin:-12px -14px 8px;padding:8px 14px;border-radius:14px 14px 0 0;background:${bgColor};border-bottom:1px solid rgba(255,255,255,0.08);">
                 <div style="display:flex;align-items:center;justify-content:space-between;">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <span style="display:inline-flex;align-items:center;gap:6px;">
-                            <span style="display:inline-flex;align-items:center;justify-content:center;width:7px;height:7px;border-radius:50%;background:${recColor};"></span>
-                            <span style="font-weight:800;color:${recColor};font-size:15px;letter-spacing:-0.02em;">${recLabel}</span>
-                            <span style="font-weight:700;color:${recColor};font-size:13px;background:rgba(255,255,255,0.08);padding:1px 6px;border-radius:4px;">${signalScoreText}</span>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="display:inline-flex;align-items:center;gap:5px;">
+                            <span style="display:inline-flex;align-items:center;justify-content:center;width:6px;height:6px;border-radius:50%;background:${recColor};"></span>
+                            <span style="font-weight:800;color:${recColor};font-size:14px;letter-spacing:-0.02em;">${recLabel}</span>
+                            <span style="font-weight:700;color:${recColor};font-size:12px;background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;box-shadow:0 0 6px rgba(255,255,255,0.06);">${signalScoreText}</span>
                         </span>
                         ${accuracyTag}
                     </div>
-                    <span style="color:#64748b;font-size:10px;font-weight:500;">${dateStr}</span>
+                    <span style="color:#9ca3af;font-size:9px;font-weight:500;">${dateStr}</span>
                 </div>
-                <div style="font-size:10px;color:#64748b;margin-top:3px;font-weight:500;">${_symbol || 'Stock'}</div>
+                <div style="font-size:9px;color:#9ca3af;margin-top:2px;font-weight:500;">${_symbol || 'Stock'}</div>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 8px;margin-bottom:6px;">
-                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
-                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">O</div>
-                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;font-variant-numeric:tabular-nums;">${p(data.open)}</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px 6px;margin-bottom:5px;">
+                <div style="background:rgba(255,255,255,0.02);border-radius:5px;padding:3px 5px;text-align:center;">
+                    <div style="color:#9ca3af;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">O</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:10px;font-variant-numeric:tabular-nums;">${p(data.open)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
-                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">H</div>
-                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;font-variant-numeric:tabular-nums;">${p(data.high)}</div>
+                <div style="background:rgba(255,255,255,0.04);border-radius:5px;padding:3px 5px;text-align:center;">
+                    <div style="color:#9ca3af;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">H</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:10px;font-variant-numeric:tabular-nums;">${p(data.high)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
-                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">L</div>
-                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;font-variant-numeric:tabular-nums;">${p(data.low)}</div>
+                <div style="background:rgba(255,255,255,0.02);border-radius:5px;padding:3px 5px;text-align:center;">
+                    <div style="color:#9ca3af;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">L</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:10px;font-variant-numeric:tabular-nums;">${p(data.low)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
-                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">C</div>
-                    <div style="font-weight:700;color:${c};font-size:11px;font-variant-numeric:tabular-nums;">${p(data.close)}</div>
+                <div style="background:rgba(255,255,255,0.04);border-radius:5px;padding:3px 5px;text-align:center;">
+                    <div style="color:#9ca3af;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">C</div>
+                    <div style="font-weight:700;color:${c};font-size:10px;font-variant-numeric:tabular-nums;">${p(data.close)}</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
-                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Chg</div>
-                    <div style="font-weight:700;color:${c};font-size:11px;">${chg >= 0 ? '+' : ''}${chgPct.toFixed(2)}%</div>
+                <div style="background:rgba(255,255,255,0.02);border-radius:5px;padding:3px 5px;text-align:center;">
+                    <div style="color:#9ca3af;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">Chg</div>
+                    <div style="font-weight:700;color:${c};font-size:10px;">${chg >= 0 ? '+' : ''}${chgPct.toFixed(2)}%</div>
                 </div>
-                <div style="background:rgba(255,255,255,0.03);border-radius:6px;padding:4px 6px;text-align:center;">
-                    <div style="color:#64748b;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Vol</div>
-                    <div style="font-weight:700;color:#e2e8f0;font-size:11px;">${volDisplay}</div>
+                <div style="background:rgba(255,255,255,0.04);border-radius:5px;padding:3px 5px;text-align:center;">
+                    <div style="color:#9ca3af;font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;">Vol</div>
+                    <div style="font-weight:700;color:#e2e8f0;font-size:10px;">${volDisplay}</div>
                 </div>
             </div>
             ${scoreSection}
-            ${miniFactors.length ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px 12px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">${miniFactors.join('')}</div>` : ''}
-            ${indicatorHtml ? `<div style="margin-top:5px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">${indicatorHtml}</div>` : ''}
+            ${miniFactors.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;padding-top:3px;border-top:1px solid rgba(255,255,255,0.06);">${miniFactors.map(f => `<span style="padding:2px 6px;border-radius:10px;background:rgba(255,255,255,0.04);font-size:9px;">${f}</span>`).join('')}</div>` : ''}
+            ${indicatorHtml ? `<div style="margin-top:4px;padding-top:3px;border-top:1px solid rgba(255,255,255,0.06);">${indicatorHtml}</div>` : ''}
+            ${fvgTooltip}
             ${strategyHtml}
         `;
 
@@ -1624,6 +1765,23 @@ function toggleChartOverlays() {
                 pl.applyOptions({ color: showSR !== false ? (origColor || '#6b7280') : 'transparent' });
             }
         });
+    }
+    const showFvg = document.getElementById('toggleFvg')?.checked;
+    if (_chartOverlays.fvg) {
+        _chartOverlays.fvg.setVisible(showFvg !== false);
+    }
+    const showBuy = document.getElementById('toggleBuyArrows')?.checked;
+    const showSell = document.getElementById('toggleSellArrows')?.checked;
+    _showBuyArrows = showBuy !== false;
+    _showSellArrows = showSell !== false;
+    if (_csCandlestick && window._lastMarkersFull) {
+        const filtered = window._lastMarkersFull.filter(m => {
+            if (!m.text) return true; // candlestick pattern dots always show
+            if (m.text === 'B' && showBuy === false) return false;
+            if (m.text === 'S' && showSell === false) return false;
+            return true; // SB, SS always show
+        });
+        try { _csCandlestick.setMarkers(filtered); } catch(e) {}
     }
 }
 

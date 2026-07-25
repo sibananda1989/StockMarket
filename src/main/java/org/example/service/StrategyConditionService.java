@@ -19,11 +19,13 @@ import org.example.repository.StrategyConditionStatsCacheRepository;
 import org.example.repository.StockRepository;
 import org.example.repository.TechnicalIndicatorRepository;
 import org.example.service.calculator.CandlestickPatternCalculator;
+import org.example.startup.StartupTask;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -43,7 +45,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class StrategyConditionService {
+public class StrategyConditionService implements StartupTask {
 
     private final StrategyConditionGroupRepository conditionRepository;
     private final StrategyConditionStatsCacheRepository statsCacheRepository;
@@ -51,6 +53,9 @@ public class StrategyConditionService {
     private final DailyPriceRepository dailyPriceRepository;
     private final StockRepository stockRepository;
     private final StrategyConfigService strategyConfigService;
+
+    @Value("${strategy.volume.spike-factor:1.5}")
+    private double volumeSpikeFactor;
 
     private static final Set<String> VALID_SIGNALS = Set.of("BUY", "SELL", "HOLD");
     private static final Set<String> VALID_OPERATORS = Set.of(
@@ -63,125 +68,92 @@ public class StrategyConditionService {
     );
     private static final Set<String> VALID_CONFIDENCE = Set.of("high", "mid", "low");
 
+    // ponytail: auto-execute on startup to seed default conditions
     @EventListener(ApplicationReadyEvent.class)
     public void init() {
+        log.info("Strategy condition service started - running startup tasks");
+        execute();
+    }
+
+    @Override
+    public String getId() {
+        return "strategy-conditions";
+    }
+
+    @Override
+    public String getName() {
+        return "Strategy Conditions";
+    }
+
+    @Override
+    public String getDescription() {
+        return "Initialize default strategy conditions for all trading strategies";
+    }
+
+    @Override
+    public String getCategory() {
+        return "Signals";
+    }
+
+    @Override
+    public boolean defaultEnabled() {
+        return true;
+    }
+
+    @Override
+    public boolean isRequired() {
+        return false;
+    }
+
+    @Transactional
+    @Override
+    public void execute() {
+        log.info("Executing StrategyConditionStartupTask");
+        validateSpikeFactor();
+        log.info("Volume spike factor: {}", volumeSpikeFactor);
         seedDefaultConditions();
-        ensureBreakoutConditionsExist();
+        ensureCandlestickConditionsRemoved();
     }
 
     /**
-     * Ensures the breakout strategy conditions exist for existing databases where
-     * seedDefaultConditions() was skipped because the table already had data.
+     * Validates that the configured volume spike factor is positive. A non-positive
+     * factor would make every volume ratio trigger a spike and break the confidence curve.
      */
-    private void ensureBreakoutConditionsExist() {
-        boolean breakoutConditionsExist = conditionRepository.findAll().stream()
-                .anyMatch(c -> "BREAKOUT".equals(c.getStrategyName()));
-        if (!breakoutConditionsExist) {
-            List<StrategyConditionGroup> seeds = buildBreakoutConditions();
-            try {
-                conditionRepository.saveAll(seeds);
-                log.info("Seeded {} BREAKOUT strategy conditions", seeds.size());
-            } catch (DataIntegrityViolationException e) {
-                log.warn("BREAKOUT condition seed skipped (concurrent): {}", e.getMessage());
-            }
+    private void validateSpikeFactor() {
+        if (volumeSpikeFactor <= 0) {
+            throw new IllegalArgumentException(
+                    "strategy.volume.spike-factor must be > 0, but was: " + volumeSpikeFactor);
+        }
+        if (volumeSpikeFactor > 10) {
+            log.warn("Volume spike factor is unusually high: {}", volumeSpikeFactor);
         }
     }
 
     /**
-     * Seeds default conditions for all 5 strategies if the table is empty.
-     * Each strategy gets 5 conditions with varying signals and confidence levels.
+     * Removes legacy CANDLESTICK strategy conditions from existing databases where
+     * seedDefaultConditions() was skipped because the table already had data.
+     */
+    @Transactional
+    private void ensureCandlestickConditionsRemoved() {
+        conditionRepository.deleteByStrategyName("CANDLESTICK");
+        log.info("Ensured legacy CANDLESTICK strategy conditions are removed");
+    }
+
+    /**
+     * Seeds default conditions if the table is empty. Currently no default conditions.
      */
     public void seedDefaultConditions() {
         if (conditionRepository.count() > 0) {
             return;
         }
         List<StrategyConditionGroup> seeds = new ArrayList<>();
-        seeds.addAll(buildRsiConditions());
-        seeds.addAll(buildMacdConditions());
-        seeds.addAll(buildMaCrossoverConditions());
-        seeds.addAll(buildBollingerConditions());
-        seeds.addAll(buildVolumeConditions());
-        seeds.addAll(buildCandlestickConditions());
-        seeds.addAll(buildBreakoutConditions());
+        // no more default strategy conditions to seed
         try {
             conditionRepository.saveAll(seeds);
             log.info("Seeded {} strategy conditions", seeds.size());
         } catch (DataIntegrityViolationException e) {
             log.warn("Strategy condition seed skipped (concurrent): {}", e.getMessage());
         }
-    }
-
-    private List<StrategyConditionGroup> buildRsiConditions() {
-        return List.of(
-                cond("RSI", "rsi_strong_buy", "BUY", "RSI", "<", val(30), null, "high", 0),
-                cond("RSI", "rsi_buy", "BUY", "RSI", "between", val(30), val(40), "mid", 1),
-                cond("RSI", "rsi_neutral", "HOLD", "RSI", "between", val(40), val(60), "mid", 2),
-                cond("RSI", "rsi_sell", "SELL", "RSI", "between", val(60), val(70), "mid", 3),
-                cond("RSI", "rsi_strong_sell", "SELL", "RSI", ">", val(70), null, "high", 4)
-        );
-    }
-
-    private List<StrategyConditionGroup> buildMacdConditions() {
-        return List.of(
-                cond("MACD", "macd_cross_above", "BUY", "MACD vs Signal", "crossover_above", null, null, "high", 0),
-                cond("MACD", "macd_both_pos", "BUY", "MACD & Signal", "both_above", null, null, "mid", 1),
-                cond("MACD", "macd_cross_below", "SELL", "MACD vs Signal", "crossover_below", null, null, "high", 2),
-                cond("MACD", "macd_both_neg", "SELL", "MACD & Signal", "both_below", null, null, "mid", 3),
-                cond("MACD", "macd_neutral", "HOLD", "MACD gap", "within", val("0.1"), null, "low", 4)
-        );
-    }
-
-    private List<StrategyConditionGroup> buildMaCrossoverConditions() {
-        return List.of(
-                cond("MA_CROSSOVER", "ma_bull_align", "BUY", "Price>SMA20>SMA50", "alignment_bullish", null, null, "high", 0),
-                cond("MA_CROSSOVER", "ma_golden_cross", "BUY", "SMA20 vs SMA50", "golden_cross", null, null, "high", 1),
-                cond("MA_CROSSOVER", "ma_bear_align", "SELL", "Price<SMA20<SMA50", "alignment_bearish", null, null, "high", 2),
-                cond("MA_CROSSOVER", "ma_death_cross", "SELL", "SMA20 vs SMA50", "death_cross", null, null, "high", 3),
-                cond("MA_CROSSOVER", "ma_mixed", "HOLD", "Price vs SMAs", "mixed", null, null, "low", 4)
-        );
-    }
-
-    private List<StrategyConditionGroup> buildBollingerConditions() {
-        return List.of(
-                cond("BOLLINGER", "bb_strong_buy", "BUY", "Band position %", "<", val(5), null, "high", 0),
-                cond("BOLLINGER", "bb_buy", "BUY", "Band position %", "<", val(20), null, "mid", 1),
-                cond("BOLLINGER", "bb_strong_sell", "SELL", "Band position %", ">", val(95), null, "high", 2),
-                cond("BOLLINGER", "bb_sell", "SELL", "Band position %", ">", val(80), null, "mid", 3),
-                cond("BOLLINGER", "bb_neutral", "HOLD", "Band position %", "between", val(20), val(80), "low", 4)
-        );
-    }
-
-    private List<StrategyConditionGroup> buildVolumeConditions() {
-        return List.of(
-                cond("VOLUME", "vol_buy_spike", "BUY", "Volume vs avg", ">=", val("1.5"), null, "high", 0),
-                cond("VOLUME", "vol_buy_obv", "BUY", "Volume vs avg", "obv_up", null, null, "mid", 1),
-                cond("VOLUME", "vol_sell_spike", "SELL", "Volume vs avg", ">=", val("1.5"), null, "high", 2),
-                cond("VOLUME", "vol_sell_obv", "SELL", "Volume vs avg", "obv_down", null, null, "mid", 3),
-                cond("VOLUME", "vol_neutral", "HOLD", "Volume vs avg", "<", val("1.2"), null, "low", 4)
-        );
-    }
-
-    private List<StrategyConditionGroup> buildCandlestickConditions() {
-        return List.of(
-                cond("CANDLESTICK", "candle_buy_hammer", "BUY", "Hammer on support", "Hammer", null, null, "high", 0),
-                cond("CANDLESTICK", "candle_buy_bullish_engulfing", "BUY", "Bullish Engulfing on support", "Bullish Engulfing", null, null, "high", 1),
-                cond("CANDLESTICK", "candle_buy_morning_star", "BUY", "Morning Star on support", "Morning Star", null, null, "high", 2),
-                cond("CANDLESTICK", "candle_sell_shooting_star", "SELL", "Shooting Star on resistance", "Shooting Star", null, null, "high", 3),
-                cond("CANDLESTICK", "candle_sell_bearish_engulfing", "SELL", "Bearish Engulfing on resistance", "Bearish Engulfing", null, null, "high", 4),
-                cond("CANDLESTICK", "candle_sell_evening_star", "SELL", "Evening Star on resistance", "Evening Star", null, null, "high", 5),
-                cond("CANDLESTICK", "candle_hold_no_pattern", "HOLD", "No candlestick pattern", "NONE", null, null, "low", 6)
-        );
-    }
-
-    private List<StrategyConditionGroup> buildBreakoutConditions() {
-        return List.of(
-                cond("BREAKOUT", "bo_buy_volume", "BUY", "Volume breakout above resistance", "Volume Breakout", null, null, "high", 0),
-                cond("BREAKOUT", "bo_buy_gap_up", "BUY", "Gap up (low > prev high)", "Gap Up", null, null, "mid", 1),
-                cond("BREAKOUT", "bo_sell_gap_down", "SELL", "Gap down (high < prev low)", "Gap Down", null, null, "mid", 2),
-                cond("BREAKOUT", "bo_buy_range", "BUY", "Range breakout from consolidation", "Range Breakout Up", null, null, "mid", 3),
-                cond("BREAKOUT", "bo_sell_range", "SELL", "Range breakdown from consolidation", "Range Breakout Down", null, null, "mid", 4),
-                cond("BREAKOUT", "bo_hold_none", "HOLD", "No significant breakout detected", "NONE", null, null, "low", 5)
-        );
     }
 
     private static StrategyConditionGroup cond(String strategyName, String conditionId, String signal,
@@ -431,8 +403,19 @@ public class StrategyConditionService {
             case "RSI" -> indicatorMap.get(IndicatorType.RSI);
             case "Band position %" -> calculateBandPosition(indicatorMap, closingPrice);
             case "Volume vs avg" -> calculateVolumeRatio(stockId);
+            case "Amihud Score" -> calculateAmihudScore(indicatorMap);
             default -> null;
         };
+    }
+
+    private BigDecimal calculateAmihudScore(Map<IndicatorType, BigDecimal> indicatorMap) {
+        BigDecimal amihud = indicatorMap.get(IndicatorType.AMIHUD_ILLIQUIDITY);
+        if (amihud == null) return null;
+        // Invert Amihud: lower raw = more liquid. Compute score 0-100.
+        // Typical Amihud values range from 0.000001 (ultra-liquid) to ~0.001 (illiquid).
+        double raw = amihud.doubleValue();
+        double score = Math.max(0, Math.min(100, 100 - (raw * 100000)));
+        return BigDecimal.valueOf(Math.round(score));
     }
 
     private BigDecimal calculateBandPosition(Map<IndicatorType, BigDecimal> indicatorMap, BigDecimal closingPrice) {
@@ -460,7 +443,9 @@ public class StrategyConditionService {
         }
         long sum = 0;
         int count = 0;
-        for (var dp : last20) {
+        // Exclude the latest day (last element) from the average, matching VolumeRatioCalculator
+        for (int i = 0; i < last20.size() - 1; i++) {
+            var dp = last20.get(i);
             if (dp.getVolume() != null) {
                 sum += dp.getVolume();
                 count++;

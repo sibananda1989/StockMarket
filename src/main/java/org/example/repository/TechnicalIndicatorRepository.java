@@ -3,6 +3,7 @@ package org.example.repository;
 import org.example.entity.IndicatorType;
 import org.example.entity.TechnicalIndicator;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+
+import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface TechnicalIndicatorRepository extends JpaRepository<TechnicalIndicator, Long> {
@@ -26,6 +29,13 @@ public interface TechnicalIndicatorRepository extends JpaRepository<TechnicalInd
 
     long countByStockIdAndCalculationDate(Long stockId, LocalDate date);
 
+    @Query("SELECT ti.calculationDate, COUNT(ti) FROM TechnicalIndicator ti " +
+            "WHERE ti.stock.id = :stockId AND ti.calculationDate >= :fromDate " +
+            "GROUP BY ti.calculationDate")
+    List<Object[]> findIndicatorCountsByStockIdAndDateFrom(
+            @Param("fromDate") LocalDate fromDate,
+            @Param("stockId") Long stockId);
+
     @Query(value = "SELECT ti.* FROM technical_indicators ti INNER JOIN " +
             "(SELECT indicator_type, MAX(calculation_date) AS max_date FROM technical_indicators WHERE stock_id = :stockId GROUP BY indicator_type) latest " +
             "ON ti.indicator_type = latest.indicator_type AND ti.calculation_date = latest.max_date WHERE ti.stock_id = :stockId", nativeQuery = true)
@@ -34,11 +44,14 @@ public interface TechnicalIndicatorRepository extends JpaRepository<TechnicalInd
     @Query("SELECT ti FROM TechnicalIndicator ti WHERE ti.stock.id = :stockId AND ti.calculationDate = :date")
     List<TechnicalIndicator> findByStockIdAndCalculationDate(@Param("stockId") Long stockId, @Param("date") LocalDate date);
 
+    @Transactional
+    void deleteByStockIdAndCalculationDateBetween(Long stockId, LocalDate from, LocalDate to);
+
     @Query("SELECT ti FROM TechnicalIndicator ti WHERE ti.stock.id = :stockId AND ti.calculationDate BETWEEN :fromDate AND :toDate ORDER BY ti.calculationDate ASC")
     List<TechnicalIndicator> findByStockIdAndCalculationDateBetween(@Param("stockId") Long stockId, @Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
-    @Query(value = "SELECT DISTINCT ti.calculation_date FROM technical_indicators ti WHERE ti.stock_id = :stockId ORDER BY ti.calculation_date DESC LIMIT 2", nativeQuery = true)
-    List<LocalDate> findLatestTwoCalculationDates(@Param("stockId") Long stockId);
+    @Query("SELECT DISTINCT ti.calculationDate FROM TechnicalIndicator ti WHERE ti.stock.id = :stockId ORDER BY ti.calculationDate DESC")
+    List<LocalDate> findLatestTwoCalculationDates(@Param("stockId") Long stockId, Pageable pageable);
 
     @Query("SELECT ti FROM TechnicalIndicator ti WHERE ti.stock.id IN :stockIds " +
            "AND ti.indicatorType IN :types " +
@@ -49,4 +62,10 @@ public interface TechnicalIndicatorRepository extends JpaRepository<TechnicalInd
     List<TechnicalIndicator> findLatestByStockIdsAndTypes(
         @Param("stockIds") List<Long> stockIds,
         @Param("types") List<IndicatorType> types);
+
+    @Query("SELECT COUNT(DISTINCT ti.stock.id) FROM TechnicalIndicator ti")
+    long countDistinctStocks();
+
+    @Query(value = "SELECT COUNT(DISTINCT stock_id) FROM (SELECT stock_id FROM technical_indicators UNION SELECT stock_id FROM support_resistance_levels) x", nativeQuery = true)
+    long countDistinctStocksWithIndicatorOrSr();
 }

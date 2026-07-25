@@ -1,7 +1,9 @@
 package org.example.strategy.aggregator;
 
 import org.example.entity.DailyPrice;
+import org.example.entity.IndicatorType;
 import org.example.entity.TechnicalIndicator;
+import org.example.strategy.impl.VolumeStrategy;
 import org.example.service.StrategyConditionService;
 import org.example.service.StrategyConfigService;
 import org.example.strategy.base.TradingStrategy;
@@ -999,6 +1001,149 @@ class StrategySignalAggregatorTest {
         assertEquals(StrategySignal.BUY, result.finalSignal(),
             "With buyThreshold=1.0, score 1.3 should trigger BUY");
         assertEquals(1.3, result.score(), 0.001);
+    }
+
+    // ── Fix 4: ADX regime adjustment for VOLUME strategy ──
+
+    @Test
+    void testAggregate_Volume_TrendingRegime_BoostsConfidence() {
+        // ADX > 25 → TRENDING → volume confidence boosted by 1.20
+        when(strategyConfigService.getPriority("VOLUME")).thenReturn(5);
+        VolumeStrategy volume = new VolumeStrategy(5, 1.5);
+        TechnicalIndicator adx = new TechnicalIndicator(null, IndicatorType.ADX, new BigDecimal("30.0"), LocalDate.now());
+        List<TechnicalIndicator> inds = List.of(
+                adx,
+                new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now())
+        );
+        List<DailyPrice> volPrices = List.of(
+                new DailyPrice(null, new BigDecimal("105.00"), new BigDecimal("100.00"),
+                        new BigDecimal("110.00"), new BigDecimal("95.00"), 15000L, LocalDate.now()),
+                new DailyPrice(null, new BigDecimal("100.00"), new BigDecimal("95.00"),
+                        new BigDecimal("105.00"), new BigDecimal("90.00"), 10000L, LocalDate.now().minusDays(1))
+        );
+
+        StrategySignalAggregator volumeAggregator = new StrategySignalAggregator(List.of(volume), strategyConditionService, strategyConfigService, 3.0, -3.0);
+        AggregatedSignalResult result = volumeAggregator.aggregate(1L, inds, volPrices, null);
+
+        StrategyResult volResult = result.breakdown().stream()
+                .filter(r -> "VOLUME".equals(r.strategyName()))
+                .findFirst().orElseThrow();
+        // base 0.7 * 1.20 = 0.84
+        assertEquals(0.84, volResult.confidence(), 0.0001);
+        assertTrue(volResult.reason().contains("ADX trending"));
+    }
+
+    @Test
+    void testAggregate_Volume_RangingRegime_ReducesConfidence() {
+        // ADX < 20 → RANGING → volume confidence reduced by 0.85
+        when(strategyConfigService.getPriority("VOLUME")).thenReturn(5);
+        VolumeStrategy volume = new VolumeStrategy(5, 1.5);
+        TechnicalIndicator adx = new TechnicalIndicator(null, IndicatorType.ADX, new BigDecimal("15.0"), LocalDate.now());
+        List<TechnicalIndicator> inds = List.of(
+                adx,
+                new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now())
+        );
+        List<DailyPrice> volPrices = List.of(
+                new DailyPrice(null, new BigDecimal("105.00"), new BigDecimal("100.00"),
+                        new BigDecimal("110.00"), new BigDecimal("95.00"), 15000L, LocalDate.now()),
+                new DailyPrice(null, new BigDecimal("100.00"), new BigDecimal("95.00"),
+                        new BigDecimal("105.00"), new BigDecimal("90.00"), 10000L, LocalDate.now().minusDays(1))
+        );
+
+        StrategySignalAggregator volumeAggregator = new StrategySignalAggregator(List.of(volume), strategyConditionService, strategyConfigService, 3.0, -3.0);
+        AggregatedSignalResult result = volumeAggregator.aggregate(1L, inds, volPrices, null);
+
+        StrategyResult volResult = result.breakdown().stream()
+                .filter(r -> "VOLUME".equals(r.strategyName()))
+                .findFirst().orElseThrow();
+        // base 0.7 * 0.85 = 0.595
+        assertEquals(0.595, volResult.confidence(), 0.0001);
+        assertTrue(volResult.reason().contains("ADX ranging"));
+    }
+
+    @Test
+    void testAggregate_Volume_TransitionalRegime_SlightBoost() {
+        // ADX 20-25 → TRANSITIONAL → volume confidence boosted by 1.05
+        when(strategyConfigService.getPriority("VOLUME")).thenReturn(5);
+        VolumeStrategy volume = new VolumeStrategy(5, 1.5);
+        TechnicalIndicator adx = new TechnicalIndicator(null, IndicatorType.ADX, new BigDecimal("22.0"), LocalDate.now());
+        List<TechnicalIndicator> inds = List.of(
+                adx,
+                new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now())
+        );
+        List<DailyPrice> volPrices = List.of(
+                new DailyPrice(null, new BigDecimal("105.00"), new BigDecimal("100.00"),
+                        new BigDecimal("110.00"), new BigDecimal("95.00"), 15000L, LocalDate.now()),
+                new DailyPrice(null, new BigDecimal("100.00"), new BigDecimal("95.00"),
+                        new BigDecimal("105.00"), new BigDecimal("90.00"), 10000L, LocalDate.now().minusDays(1))
+        );
+
+        StrategySignalAggregator volumeAggregator = new StrategySignalAggregator(List.of(volume), strategyConditionService, strategyConfigService, 3.0, -3.0);
+        AggregatedSignalResult result = volumeAggregator.aggregate(1L, inds, volPrices, null);
+
+        StrategyResult volResult = result.breakdown().stream()
+                .filter(r -> "VOLUME".equals(r.strategyName()))
+                .findFirst().orElseThrow();
+        // base 0.7 * 1.05 = 0.735
+        assertEquals(0.735, volResult.confidence(), 0.0001);
+        assertTrue(volResult.reason().contains("ADX transitional"));
+    }
+
+    @Test
+    void testAggregate_Volume_ContributesToScore() {
+        // Volume BUY with priority 5 contributes +5 * 1 * confidence to score
+        when(strategyConfigService.getPriority("VOLUME")).thenReturn(5);
+        VolumeStrategy volume = new VolumeStrategy(5, 1.5);
+        List<TechnicalIndicator> inds = List.of(
+                new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now())
+        );
+        List<DailyPrice> volPrices = List.of(
+                new DailyPrice(null, new BigDecimal("105.00"), new BigDecimal("100.00"),
+                        new BigDecimal("110.00"), new BigDecimal("95.00"), 15000L, LocalDate.now()),
+                new DailyPrice(null, new BigDecimal("100.00"), new BigDecimal("95.00"),
+                        new BigDecimal("105.00"), new BigDecimal("90.00"), 10000L, LocalDate.now().minusDays(1))
+        );
+
+        StrategySignalAggregator volumeAggregator = new StrategySignalAggregator(List.of(volume), strategyConditionService, strategyConfigService, 3.0, -3.0);
+        AggregatedSignalResult result = volumeAggregator.aggregate(1L, inds, volPrices, null);
+
+        assertEquals(StrategySignal.BUY, result.finalSignal());
+        // contribution = 1.0 (BUY) * 5 (priority) * 0.7 (confidence) = 3.5
+        assertEquals(3.5, result.contributions().get("VOLUME"), 0.0001);
+        assertEquals(3.5, result.score(), 0.0001);
+    }
+
+    @Test
+    void testAggregate_Volume_OBVConfirmationInBreakdown() {
+        // Volume spike + OBV up → boosted BUY confidence reflected in breakdown
+        when(strategyConfigService.getPriority("VOLUME")).thenReturn(5);
+        VolumeStrategy volume = new VolumeStrategy(5, 1.5);
+        List<TechnicalIndicator> inds = List.of(
+                new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()),
+                new TechnicalIndicator(null, IndicatorType.OBV, new BigDecimal("200.0"), LocalDate.now()),
+                new TechnicalIndicator(null, IndicatorType.OBV, new BigDecimal("190.0"), LocalDate.now().minusDays(1)),
+                new TechnicalIndicator(null, IndicatorType.OBV, new BigDecimal("180.0"), LocalDate.now().minusDays(2)),
+                new TechnicalIndicator(null, IndicatorType.OBV, new BigDecimal("170.0"), LocalDate.now().minusDays(3)),
+                new TechnicalIndicator(null, IndicatorType.OBV, new BigDecimal("160.0"), LocalDate.now().minusDays(4)),
+                new TechnicalIndicator(null, IndicatorType.OBV, new BigDecimal("150.0"), LocalDate.now().minusDays(5))
+        );
+        List<DailyPrice> volPrices = List.of(
+                new DailyPrice(null, new BigDecimal("105.00"), new BigDecimal("100.00"),
+                        new BigDecimal("110.00"), new BigDecimal("95.00"), 15000L, LocalDate.now()),
+                new DailyPrice(null, new BigDecimal("100.00"), new BigDecimal("95.00"),
+                        new BigDecimal("105.00"), new BigDecimal("90.00"), 10000L, LocalDate.now().minusDays(1))
+        );
+
+        StrategySignalAggregator volumeAggregator = new StrategySignalAggregator(List.of(volume), strategyConditionService, strategyConfigService, 3.0, -3.0);
+        AggregatedSignalResult result = volumeAggregator.aggregate(1L, inds, volPrices, null);
+
+        StrategyResult volResult = result.breakdown().stream()
+                .filter(r -> "VOLUME".equals(r.strategyName()))
+                .findFirst().orElseThrow();
+        assertEquals(StrategySignal.BUY, volResult.signal());
+        // OBV up boost: 0.7 + 0.1 = 0.8
+        assertEquals(0.8, volResult.confidence(), 0.0001);
+        assertTrue(volResult.reason().contains("OBV up"));
     }
 
     @Test

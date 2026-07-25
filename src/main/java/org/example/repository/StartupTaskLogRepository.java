@@ -20,4 +20,6 @@ public interface StartupTaskLogRepository extends CrudRepository<StartupTaskLog,
 
     @Query("SELECT DISTINCT l.taskId FROM StartupTaskLog l WHERE l.runDate = :runDate AND l.status = 'success'")
     List<String> findCompletedTaskIdsByRunDate(LocalDate runDate);
+
+    StartupTaskLog findTopByTaskIdOrderByRunDateDescCompletedAtDesc(String taskId);
 }

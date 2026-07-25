@@ -39,9 +39,18 @@ async function getAllStocks() {
     return apiCall('/stocks');
 }
 
+async function getSectors() {
+    return apiCall('/stocks/sectors');
+}
+
 // Startup Tasks API
 async function getStartupTasks() {
     return apiCall('/startup-tasks');
+}
+
+// Data Availability API
+async function getDataAvailability() {
+    return apiCall('/data-availability');
 }
 
 async function runStartupTasks(taskIds) {
@@ -179,6 +188,12 @@ async function calculateIndicators(stockId) {
     });
 }
 
+async function resetIndicators(stockId, days = 365) {
+    return apiCall(`/indicators/reset/${stockId}?days=${days}`, {
+        method: 'POST',
+    });
+}
+
 /**
  * Get indicator coverage report for a stock.
  * Returns {expected, available, missing, missingIndicators: []}.
@@ -202,6 +217,7 @@ async function fillIndicatorGaps(days = 7) {
 // Expose key functions to global scope for use in inline scripts
 window.fillRsiGaps = fillRsiGaps;
 window.fillIndicatorGaps = fillIndicatorGaps;
+window.resetIndicators = resetIndicators;
 
 // Portfolio API
 async function getPortfolioHistory(days = 365, all = false, portfolioId = null) {
@@ -299,6 +315,26 @@ async function removeHoldingByStock(portfolioId, stockId) {
 async function recalculatePortfolioApi(portfolioId) {
     return apiCall(`/portfolios/${portfolioId}/recalculate`, {
         method: 'POST',
+    });
+}
+
+// ─── Portfolio Transactions (ledger) ─────────────────────────────────
+
+async function recordTransaction(portfolioId, payload) {
+    return apiCall(`/portfolios/${portfolioId}/transactions`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+async function getTransactions(portfolioId, stockId) {
+    const q = stockId != null ? `?stockId=${encodeURIComponent(stockId)}` : '';
+    return apiCall(`/portfolios/${portfolioId}/transactions${q}`);
+}
+
+async function deleteTransaction(portfolioId, txId) {
+    return apiCall(`/portfolios/${portfolioId}/transactions/${txId}`, {
+        method: 'DELETE',
     });
 }
 
@@ -621,6 +657,23 @@ async function toggleStrategyConfig(strategyName, active) {
     });
 }
 
+// ─── Score Parameters API ─────────────────────────────────────────────────
+
+async function getScoreParameters() {
+    return apiCall('/score-parameters');
+}
+
+async function updateScoreParameter(paramKey, enabled) {
+    return apiCall(`/score-parameters/${encodeURIComponent(paramKey)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: enabled })
+    });
+}
+
+async function resetScoreParameters() {
+    return apiCall('/score-parameters/reset', { method: 'POST' });
+}
+
 // ─── Strategy Condition API ────────────────────────────────────────────
 
 async function getStrategyFull() {
@@ -661,4 +714,20 @@ async function toggleCondition(strategyName, conditionId, enabled) {
         body: JSON.stringify({ enabled })
     });
     return res.data;
+}
+
+// ─── Volume Spike Factor API ──────────────────────────────────────────────
+
+async function getVolumeSpikeFactor() {
+    return apiCall('/strategy-config/volume/spike-factor');
+}
+
+async function updateVolumeSpikeFactor(factor) {
+    return apiCall(`/strategy-config/volume/spike-factor?factor=${factor}`, { method: 'PUT' });
+}
+
+// ─── SMC/ICT Pattern Detection API ──────────────────────────────────────────
+
+async function getSMCPatterns(stockId, lookbackDays = 365) {
+    return apiCall(`/smc/${stockId}?lookbackDays=${lookbackDays}`);
 }

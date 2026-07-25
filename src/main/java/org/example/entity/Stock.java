@@ -38,6 +38,10 @@ public class Stock {
     @Column(length = 100)
     private String sector;
 
+    @Size(max = 100, message = "Industry must be at most 100 characters")
+    @Column(length = 100)
+    private String industry;
+
     @Size(max = 20, message = "Yahoo symbol must be at most 20 characters")
     @Column(name = "yahoo_symbol", length = 20)
     private String yahooSymbol;
@@ -81,8 +85,13 @@ public class Stock {
     private List<TechnicalIndicator> technicalIndicators = new ArrayList<>();
 
     public Stock(String symbol, String name, String sector) {
+        this(symbol, name, sector, null);
+    }
+
+    public Stock(String symbol, String name, String sector, String industry) {
         this.symbol = symbol;
         this.name = name;
         this.sector = sector;
+        this.industry = industry;
     }
 }

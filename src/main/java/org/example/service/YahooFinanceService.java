@@ -65,7 +65,7 @@ public class YahooFinanceService {
                 return result;
             }
         }
-        return new SymbolValidationResult(false, symbol, null, null);
+        return new SymbolValidationResult(false, symbol, null, null, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -79,17 +79,17 @@ public class YahooFinanceService {
                     .block(Duration.ofSeconds(10));
 
             if (response == null) {
-                return new SymbolValidationResult(false, yahooSymbol, null, null);
+                return new SymbolValidationResult(false, yahooSymbol, null, null, null);
             }
 
             Map<?, ?> quoteResponse = (Map<?, ?>) response.get("quoteResponse");
             if (quoteResponse == null) {
-                return new SymbolValidationResult(false, yahooSymbol, null, null);
+                return new SymbolValidationResult(false, yahooSymbol, null, null, null);
             }
 
             List<?> result = (List<?>) quoteResponse.get("result");
             if (result == null || result.isEmpty()) {
-                return new SymbolValidationResult(false, yahooSymbol, null, null);
+                return new SymbolValidationResult(false, yahooSymbol, null, null, null);
             }
 
             Map<?, ?> quote = (Map<?, ?>) result.get(0);
@@ -101,16 +101,18 @@ public class YahooFinanceService {
                 longName = (String) quote.get("symbol");
             }
 
-        String sector = (String) quote.get("sector");
-        if (sector == null || sector.isBlank()) {
-            sector = (String) quote.get("industry");
-        }
+            String sector = (String) quote.get("sector");
+            if (sector == null || sector.isBlank()) {
+                sector = (String) quote.get("industry");
+            }
 
-            return new SymbolValidationResult(true, yahooSymbol, longName, sector);
+            String industry = (String) quote.get("industry");
+
+            return new SymbolValidationResult(true, yahooSymbol, longName, sector, industry);
 
         } catch (Exception e) {
             log.warn("Yahoo Finance symbol validation failed for {}: {}", yahooSymbol, e.getMessage());
-            return new SymbolValidationResult(false, yahooSymbol, null, null);
+            return new SymbolValidationResult(false, yahooSymbol, null, null, null);
         }
     }
 
@@ -145,7 +147,7 @@ public class YahooFinanceService {
 
         for (String s : symbols) {
             String upper = s.trim().toUpperCase();
-            results.putIfAbsent(upper, new SymbolValidationResult(false, upper, null, null));
+            results.putIfAbsent(upper, new SymbolValidationResult(false, upper, null, null, null));
         }
 
         return results;
@@ -184,10 +186,12 @@ public class YahooFinanceService {
                 String sector = (String) quote.get("sector");
                 if (sector == null || sector.isBlank()) sector = (String) quote.get("industry");
 
+                String industry = (String) quote.get("industry");
+
                 String rawKey = isNsFallback && symbol.endsWith(".NS")
                         ? symbol.substring(0, symbol.length() - 3)
                         : symbol;
-                results.put(rawKey, new SymbolValidationResult(true, symbol, longName, sector));
+                results.put(rawKey, new SymbolValidationResult(true, symbol, longName, sector, industry));
             }
         } catch (Exception e) {
             log.warn("Yahoo Finance batch symbol validation failed for {}: {}", yahooSymbols, e.getMessage());

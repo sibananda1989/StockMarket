@@ -8,6 +8,7 @@ public class CsvImportRequest {
     private String symbol;
     private String name;
     private String sector;
+    private String industry;
     private Integer quantity;
     private BigDecimal avgPrice;
     private BigDecimal lastTradedPrice;

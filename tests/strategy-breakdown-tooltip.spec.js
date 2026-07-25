@@ -33,7 +33,8 @@ const MOCK_PRICES = generateMockPrices(150, 30);
 const MOCK_STRATEGY_CONFIG = [
   { id: 1, strategyName: 'RSI', active: true, priority: 3 },
   { id: 2, strategyName: 'MACD', active: true, priority: 2 },
-  { id: 3, strategyName: 'CANDLESTICK', active: true, priority: 1 },
+  { id: 3, strategyName: 'CANDLESTICK_AT_SUPPORT', active: true, priority: 1 },
+  { id: 8, strategyName: 'CANDLESTICK_AT_RESISTANCE', active: true, priority: 1 },
   { id: 4, strategyName: 'BOLLINGER', active: false, priority: 5 },
   { id: 5, strategyName: 'BREAKOUT', active: false, priority: 4 },
   { id: 6, strategyName: 'MA_CROSSOVER', active: false, priority: 6 },
@@ -61,20 +62,28 @@ const MOCK_MULTI_STRATEGY_SIGNAL = {
       reason: 'MACD line crossed above signal line with positive histogram',
     },
     {
-      strategyName: 'CANDLESTICK',
+      strategyName: 'CANDLESTICK_AT_SUPPORT',
       signal: 'HOLD',
       confidence: 0.5,
       priority: 1,
       contribution: 0.0,
-      reason: 'Doji pattern detected — market indecision',
+      reason: 'Hammer but not near support',
+    },
+    {
+      strategyName: 'CANDLESTICK_AT_RESISTANCE',
+      signal: 'HOLD',
+      confidence: 0.5,
+      priority: 1,
+      contribution: 0.0,
+      reason: 'Shooting Star but not near resistance',
     },
   ],
-  totalPriority: 6,
+  totalPriority: 7,
   confidence: 0.65,
   supporting: ['RSI', 'MACD'],
   opposing: [],
-  categorySummary: { BUY: 2, HOLD: 1 },
-  contributions: { RSI: 3.0, MACD: 1.95, CANDLESTICK: 0.0 },
+  categorySummary: { BUY: 2, HOLD: 2 },
+  contributions: { RSI: 3.0, MACD: 1.95, CANDLESTICK_AT_SUPPORT: 0.0, CANDLESTICK_AT_RESISTANCE: 0.0 },
 };
 
 const MOCK_MULTI_STRATEGY_HISTORY = MOCK_PRICES.map((p, i) => ({
@@ -245,7 +254,8 @@ test.describe('Strategy Breakdown Tooltip & Badge', () => {
     // Verify badge shows strategy names
     await expect(badge).toContainText('RSI');
     await expect(badge).toContainText('MACD');
-    await expect(badge).toContainText('CANDLESTICK');
+    await expect(badge).toContainText('CANDLESTICK_AT_SUPPORT');
+    await expect(badge).toContainText('CANDLESTICK_AT_RESISTANCE');
 
     // Verify badge shows the overall signal chip (BUY)
     await expect(badge).toContainText('BUY');
@@ -332,7 +342,7 @@ test.describe('Strategy Breakdown Tooltip & Badge', () => {
       expect(tooltipText).toContain('Multi-Strategy');
 
       // Should contain at least one strategy name
-      const hasStrategyName = tooltipText.includes('RSI') || tooltipText.includes('MACD') || tooltipText.includes('CANDLESTICK');
+      const hasStrategyName = tooltipText.includes('RSI') || tooltipText.includes('MACD') || tooltipText.includes('CANDLESTICK_AT_SUPPORT') || tooltipText.includes('CANDLESTICK_AT_RESISTANCE');
       expect(hasStrategyName).toBeTruthy();
 
       // Contribution values should be numeric (not NaN or undefined)

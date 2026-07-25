@@ -137,4 +137,21 @@ public class TechnicalIndicatorController {
         log.info("Historical indicator backfill complete: {} records saved in {} ms", saved, elapsed);
         return ResponseEntity.ok(org.example.dto.ApiResponse.success("Backfill complete", saved));
     }
+
+    @Operation(summary = "Hard reset indicators for a single stock", description = "Deletes all existing indicator records for the stock and recalculates them from scratch going back the specified number of days.")
+    @PostMapping("/reset/{stockId}")
+    public ResponseEntity<org.example.dto.ApiResponse<Integer>> resetIndicators(
+            @Parameter(description = "ID of the stock", required = true) @PathVariable Long stockId,
+            @Parameter(description = "Number of days to recalculate (default: 365)") @RequestParam(defaultValue = "365") int days) {
+        int count = analysisService.resetAndRecalculateIndicatorsForStock(stockId, days);
+        return ResponseEntity.ok(org.example.dto.ApiResponse.success("Indicators reset for stock " + stockId, count));
+    }
+
+    @Operation(summary = "Hard reset indicators for all stocks", description = "Deletes all existing indicator records for every stock and recalculates them from scratch going back the specified number of days.")
+    @PostMapping("/reset-all")
+    public ResponseEntity<org.example.dto.ApiResponse<Integer>> resetAllIndicators(
+            @Parameter(description = "Number of days to recalculate (default: 365)") @RequestParam(defaultValue = "365") int days) {
+        int count = analysisService.resetAndRecalculateAllIndicators(days);
+        return ResponseEntity.ok(org.example.dto.ApiResponse.success("Indicators reset for all stocks", count));
+    }
 }

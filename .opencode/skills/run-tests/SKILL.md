@@ -5,6 +5,10 @@ description: Use when running, debugging, or writing tests — backend unit test
 
 # Run Tests
 
+## FILES TO MODIFY (when adding tests)
+1. Test class: `src/test/java/org/example/{package}/{Name}Test.java` (new or modify)
+2. Playwright: `tests/{feature}.spec.js` (new or modify)
+
 ## Quick Run
 
 ```bash

@@ -31,18 +31,15 @@ public class RsiStrategy extends TradingStrategy {
 
         double rsi = rsiOpt.get();
 
-        if (rsi < 30) {
+        if (rsi <= 30) {
             return StrategyResult.withoutContribution(StrategySignal.BUY, 0.85,
                     String.format("RSI oversold (%.1f)", rsi), getName(), getPriority());
-        } else if (rsi > 70) {
+        } else if (rsi >= 70) {
             return StrategyResult.withoutContribution(StrategySignal.SELL, 0.80,
                     String.format("RSI overbought (%.1f)", rsi), getName(), getPriority());
-        } else if (rsi <= 50) {
-            return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50,
-                    String.format("RSI neutral-low (%.1f)", rsi), getName(), getPriority());
         } else {
-            return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.40,
-                    String.format("RSI neutral-high (%.1f)", rsi), getName(), getPriority());
+            return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.45,
+                    String.format("RSI neutral (%.1f)", rsi), getName(), getPriority());
         }
     }
 }

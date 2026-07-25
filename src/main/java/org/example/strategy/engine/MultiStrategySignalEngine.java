@@ -10,6 +10,7 @@ import org.example.exception.ResourceNotFoundException;
 import org.example.repository.DailyPriceRepository;
 import org.example.repository.TechnicalIndicatorRepository;
 import org.example.service.StrategyConfigService;
+import org.example.service.StrategyDailyWeightService;
 import org.example.service.calculator.IndicatorComputationService;
 import org.example.strategy.aggregator.StrategySignalAggregator;
 import org.example.strategy.model.AggregatedSignalResult;
@@ -18,8 +19,6 @@ import org.example.strategy.model.StrategySignal;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,8 +27,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import org.springframework.data.domain.PageRequest;
 
 /**
  * Public entry point for the multi-strategy signal system.
@@ -45,6 +45,7 @@ public class MultiStrategySignalEngine {
     private final IndicatorComputationService indicatorComputationService;
     private final StrategySignalAggregator aggregator;
     private final StrategyConfigService strategyConfigService;
+    private final StrategyDailyWeightService weightService;
 
     @Value("${strategy.aggregator.buy-threshold:3.0}")
     private double buyThreshold;
@@ -75,7 +76,7 @@ public class MultiStrategySignalEngine {
     public AggregatedSignalResult evaluate(Long stockId, Set<String> activeStrategyNames) {
         log.info("Evaluating multi-strategy signal for stock {}", stockId);
 
-        List<DailyPrice> prices = dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId);
+        List<DailyPrice> prices = dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId);
         if (prices.isEmpty()) {
             throw new ResourceNotFoundException("No price data found for stock " + stockId);
         }
@@ -92,12 +93,10 @@ public class MultiStrategySignalEngine {
         try {
             List<TechnicalIndicator> prevIndicators;
             if (computedOnFly && prices.size() >= 2) {
-                List<DailyPrice> pricesAsc = new ArrayList<>(prices);
-                Collections.reverse(pricesAsc);
-                LocalDate prevDate = pricesAsc.get(pricesAsc.size() - 2).getPriceDate();
-                prevIndicators = indicatorComputationService.computeIndicators(stockId, prevDate, pricesAsc.subList(0, pricesAsc.size() - 1));
+                LocalDate prevDate = prices.get(prices.size() - 2).getPriceDate();
+                prevIndicators = indicatorComputationService.computeIndicators(stockId, prevDate, prices.subList(0, prices.size() - 1));
             } else {
-                List<LocalDate> latestDates = technicalIndicatorRepository.findLatestTwoCalculationDates(stockId);
+                List<LocalDate> latestDates = technicalIndicatorRepository.findLatestTwoCalculationDates(stockId, PageRequest.of(0, 2));
                 if (latestDates.size() >= 2) {
                     prevIndicators = technicalIndicatorRepository.findByStockIdAndCalculationDate(stockId, latestDates.get(1));
                 } else {
@@ -128,30 +127,9 @@ public class MultiStrategySignalEngine {
     private static final ForkJoinPool SIGNAL_HISTORY_POOL = new ForkJoinPool(4);
 
     /**
-     * Caffeine cache for multi-strategy signal history results.
-     * Key is stockId + "|" + days + "|" + sorted strategy names.
-     * Entries expire 5 minutes after write. Max 500 entries prevents memory leak.
-     */
-    private final Cache<String, List<SignalHistoryPoint>> historyCache = Caffeine.newBuilder()
-            .expireAfterWrite(5, TimeUnit.MINUTES)
-            .maximumSize(500)
-            .recordStats()
-            .build();
-
-    /**
-     * Builds a cache key for signal history results.
-     * Includes strategies in the key so strategy changes produce cache misses.
-     */
-    private String buildHistoryCacheKey(Long stockId, int days, Set<String> activeStrategyNames) {
-        return stockId + "|" + days + "|" + (activeStrategyNames != null
-                ? activeStrategyNames.stream().sorted().collect(Collectors.joining(","))
-                : "default");
-    }
-
-    /**
      * Evaluates multi-strategy signals across historical dates for a stock.
      * Computes the aggregated signal for EVERY price date using active strategy names.
-     * Uses parallel execution with Caffeine caching for performance.
+     * Uses parallel execution for performance.
      *
      * @param stockId             the stock identifier
      * @param days               how far back to go from today
@@ -160,19 +138,11 @@ public class MultiStrategySignalEngine {
      * @return chronologically sorted list of signal history points (oldest first)
      */
     public List<SignalHistoryPoint> evaluateHistory(Long stockId, int days, Set<String> activeStrategyNames) {
-        // Check cache first (Caffeine handles TTL and size limits automatically)
-        String cacheKey = buildHistoryCacheKey(stockId, days, activeStrategyNames);
-        List<SignalHistoryPoint> cached = historyCache.getIfPresent(cacheKey);
-        if (cached != null) {
-            log.debug("[Stock {}] Multi-strategy history cache hit for {}d (key={})", stockId, days, cacheKey);
-            return cached;
-        }
-
+        LocalDate cutoff = LocalDate.now().minusDays(days);
         long startTime = System.currentTimeMillis();
         List<DailyPrice> prices = dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId);
         if (prices.size() < 20) return List.of();
 
-        LocalDate cutoff = LocalDate.now().minusDays(days);
         List<DailyPrice> windowed = prices.stream()
                 .filter(p -> !p.getPriceDate().isBefore(cutoff))
                 .collect(Collectors.toList());
@@ -197,7 +167,6 @@ public class MultiStrategySignalEngine {
         }
 
         // Compute signal for EVERY trading date — no adaptive stepping
-        // Caffeine cache ensures subsequent loads are fast even for 1-year ranges
         List<CompletableFuture<SignalHistoryPoint>> futures = new ArrayList<>();
 
         for (int i = firstWindowedIndex; i < prices.size(); i++) {
@@ -260,12 +229,6 @@ public class MultiStrategySignalEngine {
         log.info("[Stock {}] Multi-strategy history: {} points in {} ms (all dates, days={})",
                 stockId, history.size(), totalTime, days);
 
-        // Cache the result (Caffeine handles TTL and size limits automatically).
-        // Skip caching empty results so next load retries.
-        if (!history.isEmpty()) {
-            historyCache.put(cacheKey, history);
-        }
-
         return history;
     }
 
@@ -281,7 +244,10 @@ public class MultiStrategySignalEngine {
                 sr.confidence(),
                 actualPriority,
                 signalNumeric * actualPriority * sr.confidence(),
-                sr.reason()
+                sr.reason(),
+                sr.latestVolume(),
+                sr.avgVolume(),
+                sr.spikeThreshold()
         );
     }
 }

@@ -24,6 +24,7 @@ public class PortfolioSnapshotStartupTask implements StartupTask {
     private final StockRepository stockRepository;
     private final PortfolioSnapshotService snapshotService;
 
+
     @Override
     public String getId() {
         return "portfolio-snapshot";

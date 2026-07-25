@@ -5,6 +5,12 @@ description: Use when debugging or tracing a stock's buy/sell/hold signal — un
 
 # Trace Signal
 
+## FILES TO READ
+1. SignalService.java — `computeWeightedScore()` (~line 719), 15-factor scoring
+2. SignalDTO.java — All signal data fields
+3. SignalThresholds.java — Scoring constants
+4. stock-detail.js — Frontend signal rendering
+
 ## When to use
 
 A signal for a stock looks wrong, or you want to understand why a particular recommendation was generated.

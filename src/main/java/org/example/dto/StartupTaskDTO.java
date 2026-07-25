@@ -20,4 +20,6 @@ public class StartupTaskDTO {
     private String category;
     private boolean defaultEnabled;
     private boolean required;
+    private String lastRunDate;
+    private String lastRunStatus;
 }

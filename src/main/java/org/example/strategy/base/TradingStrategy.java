@@ -58,7 +58,7 @@ public abstract class TradingStrategy {
         }
         return indicators.stream()
                 .filter(ti -> ti.getIndicatorType() == type)
-                .findFirst()
+                .max(Comparator.comparing(TechnicalIndicator::getCalculationDate))
                 .map(TechnicalIndicator::getValue)
                 .map(BigDecimal::doubleValue);
     }

@@ -9,6 +9,15 @@ To avoid waste of time, scope creep, and scanning of unwanted files, ALL agents 
 4. **Minimal Tool Calls**: Minimize reads and searches. Read only the specific section of the file needed (use targeted offsets/limits if files are large).
 5. **No Speculative Dependency Checks**: Never spend time checking dependencies, imports, or project build configurations unless a build error explicitly requires you to do so.
 
+## Token Budget Rules (MANDATORY)
+
+1. **ALWAYS read `docs/PROJECT_MANIFEST.md` FIRST** (< 1K tokens) — it contains every file path, purpose, and feature mapping you need.
+2. **NEVER spawn `file-picker` or `code-searcher` for routine tasks** — PROJECT_MANIFEST.md already maps every feature to its exact files.
+3. **ONLY scan directories or grep** if the task is genuinely novel or you cannot find the file in the manifest.
+4. **NEVER read files > 5K tokens in full** — read only the specific function/method you need (use targeted line ranges).
+5. **SKIP any file that doesn't need modification** — don't read files "for context" unless you're about to edit them.
+6. **Total context budget**: Keep per-task token consumption under 10K tokens for reading/searching. If you exceed this, you're over-searching.
+
 ## Quick Start
 
 ```bash

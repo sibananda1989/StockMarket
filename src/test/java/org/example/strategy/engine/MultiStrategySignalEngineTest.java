@@ -28,7 +28,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+
+import org.springframework.data.domain.Pageable;
 
 class MultiStrategySignalEngineTest {
 
@@ -60,7 +63,7 @@ class MultiStrategySignalEngineTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         when(strategyConfigService.getActiveStrategyNames()).thenReturn(ALL_ACTIVE);
-        when(technicalIndicatorRepository.findLatestTwoCalculationDates(anyLong())).thenReturn(List.of());
+        when(technicalIndicatorRepository.findLatestTwoCalculationDates(anyLong(), any(Pageable.class))).thenReturn(List.of());
     }
 
     @Test
@@ -69,8 +72,9 @@ class MultiStrategySignalEngineTest {
         List<DailyPrice> prices = List.of(
                 new DailyPrice(null, new BigDecimal("100.00"), LocalDate.now())
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, List.of(), 20
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, List.of(), 20,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
         when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
@@ -100,8 +104,9 @@ class MultiStrategySignalEngineTest {
         List<TechnicalIndicator> computed = List.of(
                 new TechnicalIndicator(new Stock(), IndicatorType.RSI, new BigDecimal("50.00"), LocalDate.now())
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.HOLD, 0.0, List.of(), 0
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.HOLD, 0.0, List.of(), 0,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
         when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
@@ -123,8 +128,9 @@ class MultiStrategySignalEngineTest {
                 new DailyPrice(null, new BigDecimal("100.00"), LocalDate.now())
         );
         Set<String> active = Set.of("RSI", "MACD");
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 4.0, List.of(), 14
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 4.0, List.of(), 14,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
         when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
@@ -144,8 +150,9 @@ class MultiStrategySignalEngineTest {
         List<DailyPrice> prices = List.of(
                 new DailyPrice(null, new BigDecimal("100.00"), LocalDate.now())
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.HOLD, 0.0, List.of(), 0
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.HOLD, 0.0, List.of(), 0,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
         when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
@@ -166,8 +173,9 @@ class MultiStrategySignalEngineTest {
         List<DailyPrice> prices = List.of(
                 new DailyPrice(null, new BigDecimal("100.00"), LocalDate.now())
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.HOLD, 0.0, List.of(), 0
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.HOLD, 0.0, List.of(), 0,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
         when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
@@ -200,7 +208,7 @@ class MultiStrategySignalEngineTest {
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), anyList()))
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet())).thenReturn(
-                AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 20)
+                new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 20, 0.0, List.of(), List.of(), Map.of(), Map.of())
         );
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, null);
@@ -224,7 +232,7 @@ class MultiStrategySignalEngineTest {
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), anyList()))
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), eq(active))).thenReturn(
-                AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 14)
+                new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 14, 0.0, List.of(), List.of(), Map.of(), Map.of())
         );
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, active);
@@ -246,13 +254,14 @@ class MultiStrategySignalEngineTest {
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), anyList()))
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet())).thenReturn(
-                AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 20)
+                new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 20, 0.0, List.of(), List.of(), Map.of(), Map.of())
         );
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, null);
-        // With step=10 for 365 days, should have ~37 points
-        assertTrue(result.size() > 30, "Expected at least 30 points with step=10");
-        assertTrue(result.size() < 50, "Expected less than 50 points with step=10");
+        // No adaptive stepping — all dates within the window are included
+        // 400 prices spanning 399d, cutoff at 365d → ~366 dates in window
+        assertTrue(result.size() > 300, "Expected at least 300 points (all dates within window)");
+        assertTrue(result.size() < 400, "Expected less than 400 points (all dates within window)");
     }
 
     @Test
@@ -286,7 +295,7 @@ class MultiStrategySignalEngineTest {
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet()))
                 .thenThrow(new RuntimeException("Strategy error"))
-                .thenReturn(AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 20));
+                .thenReturn(new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 20, 0.0, List.of(), List.of(), Map.of(), Map.of()));
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, null);
         // Should skip the failed evaluation and continue
@@ -308,7 +317,7 @@ class MultiStrategySignalEngineTest {
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), anyList()))
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet())).thenReturn(
-                AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 20)
+                new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 20, 0.0, List.of(), List.of(), Map.of(), Map.of())
         );
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, null);
@@ -330,13 +339,14 @@ class MultiStrategySignalEngineTest {
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), anyList()))
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet())).thenReturn(
-                AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 20)
+                new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 20, 0.0, List.of(), List.of(), Map.of(), Map.of())
         );
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, null);
-        // With step=5 for 60 days, should have ~12 points
-        assertTrue(result.size() > 8, "Expected more than 8 points with step=5 for 60 days");
-        assertTrue(result.size() < 15, "Expected less than 15 points with step=5 for 60 days");
+        // No adaptive stepping — all dates within the 60-day window are included
+        // 100 prices spanning 99d, cutoff at 60d → ~61 dates in window
+        assertTrue(result.size() > 50, "Expected more than 50 points (all dates within window)");
+        assertTrue(result.size() < 70, "Expected less than 70 points (all dates within window)");
     }
 
     @Test
@@ -353,15 +363,15 @@ class MultiStrategySignalEngineTest {
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), anyList()))
                 .thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet())).thenReturn(
-                AggregatedSignalResult.simple(StrategySignal.BUY, 5.0, List.of(), 20)
+                new AggregatedSignalResult(StrategySignal.BUY, 5.0, List.of(), 20, 0.0, List.of(), List.of(), Map.of(), Map.of())
         );
 
         List<SignalHistoryPoint> result = engine.evaluateHistory(stockId, days, null);
-        // Should be sorted oldest first
-        assertEquals(5, result.size());
+        // Should be sorted oldest first — all dates included (no adaptive stepping)
+        assertEquals(25, result.size());
         assertEquals(LocalDate.now().minusDays(24), result.get(0).getPriceDate());
-        assertEquals(LocalDate.now().minusDays(19), result.get(1).getPriceDate());
-        assertEquals(LocalDate.now().minusDays(14), result.get(2).getPriceDate());
+        assertEquals(LocalDate.now().minusDays(23), result.get(1).getPriceDate());
+        assertEquals(LocalDate.now().minusDays(22), result.get(2).getPriceDate());
     }
 
     @Test
@@ -437,7 +447,7 @@ class MultiStrategySignalEngineTest {
         when(aggregator.aggregate(anyLong(), anyList(), anyList(), anySet()))
                 .thenReturn(new AggregatedSignalResult(
                         StrategySignal.BUY, 5.0,
-                        List.of(new StrategyResult(StrategySignal.BUY, 0.85, "Buy reason", "RSI", 7, 5.95)),
+                        List.of(StrategyResult.withoutContribution(StrategySignal.BUY, 0.85, "Buy reason", "RSI", 7)),
                         20, 0.85, List.of("RSI"), List.of(),
                         Map.of("BUY", 1), Map.of("RSI", 5.95)
                 ));

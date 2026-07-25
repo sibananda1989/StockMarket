@@ -95,5 +95,20 @@ public class StrategyConfigController {
         return ResponseEntity.ok(ApiResponse.success("Condition toggled", updated));
     }
 
+    @GetMapping("/volume/spike-factor")
+    public ResponseEntity<ApiResponse<Double>> getVolumeSpikeFactor() {
+        double factor = strategyConfigService.getVolumeSpikeFactor();
+        return ResponseEntity.ok(ApiResponse.success(factor));
+    }
+
+    @PutMapping("/volume/spike-factor")
+    public ResponseEntity<ApiResponse<String>> updateVolumeSpikeFactor(@RequestParam double factor) {
+        if (factor <= 0 || factor > 10) {
+            throw new IllegalArgumentException("Spike factor must be between 0 and 10");
+        }
+        strategyConfigService.updateVolumeSpikeFactor(factor);
+        return ResponseEntity.ok(ApiResponse.success("Spike factor updated to " + factor, "Spike factor updated to " + factor));
+    }
+
     record ToggleRequest(boolean active) {}
 }

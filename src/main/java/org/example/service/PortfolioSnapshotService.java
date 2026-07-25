@@ -92,6 +92,16 @@ public class PortfolioSnapshotService {
             }
             if (historicalPrice != null) {
                 historicalCurrentValue = historicalPrice.multiply(BigDecimal.valueOf(qty));
+            } else {
+                // No price data available — use avgPrice as fallback so currentValue
+                // matches investment rather than defaulting to 0.
+                // Prevents misleading "P&L = -investment" snapshot for newly added stocks.
+                BigDecimal priceEstimate = stock.getLastTradedPrice() != null
+                        ? stock.getLastTradedPrice()
+                        : avgPrice;
+                if (priceEstimate != null) {
+                    historicalCurrentValue = priceEstimate.multiply(BigDecimal.valueOf(qty));
+                }
             }
         }
 

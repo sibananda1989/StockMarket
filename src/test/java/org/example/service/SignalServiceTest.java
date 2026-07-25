@@ -69,7 +69,7 @@ class SignalServiceTest {
     void testConfidenceScore_Score6() {
         baseDto.setCompositeScore(6);
         // 50 + (6 * 5) = 80
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(80L, score);
     }
 
@@ -77,7 +77,7 @@ class SignalServiceTest {
     void testConfidenceScore_Score3() {
         baseDto.setCompositeScore(3);
         // 50 + (3 * 5) = 65
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(65L, score);
     }
 
@@ -85,7 +85,7 @@ class SignalServiceTest {
     void testConfidenceScore_NegativeComposite() {
         baseDto.setCompositeScore(-10);
         // 50 + (-10 * 5) = 0, clamped to 0
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(0L, score);
     }
 
@@ -93,7 +93,7 @@ class SignalServiceTest {
     void testConfidenceScore_HighComposite() {
         baseDto.setCompositeScore(14);
         // 50 + (14 * 5) = 120, clamped to 100
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(100L, score);
     }
 
@@ -102,7 +102,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(6);
         baseDto.setVolumeConfirmed(true);
         // 80 + 10 = 90
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(90L, score);
     }
 
@@ -111,7 +111,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(6);
         baseDto.setEventRisk(true);
         // 80 - 20 = 60
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(60L, score);
     }
 
@@ -121,7 +121,7 @@ class SignalServiceTest {
         baseDto.setVolumeConfirmed(true);
         baseDto.setEventRisk(true);
         // 80 + 10 - 20 = 70
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(70L, score);
     }
 
@@ -130,7 +130,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(3);
         baseDto.setWeeklyConfluenceScore(3);
         // 65 + abs(3) = 68
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(68L, score);
     }
 
@@ -139,7 +139,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(3);
         baseDto.setMonthlyConfluenceScore(-1); // Negative confluence doesn't agree with positive composite → no bonus
         // 65 + 0 (confluence disagrees) = 65
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(65L, score);
     }
 
@@ -151,7 +151,7 @@ class SignalServiceTest {
         baseDto.setWeeklyConfluenceScore(3);
         baseDto.setMonthlyConfluenceScore(2);
         // 80 + 10 - 20 + 3 + 2 = 75
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(75L, score);
     }
 
@@ -160,7 +160,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(6);
         baseDto.setIndicatorCoverage(10);
         // base=80, 6 missing * 3 = 18 penalty -> 62
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(62L, score);
     }
 
@@ -169,7 +169,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(6);
         baseDto.setSignalAge(5L);
         // base=80, stale 5d * 5 = 25 penalty -> 55
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(55L, score);
     }
 
@@ -179,7 +179,7 @@ class SignalServiceTest {
         baseDto.setSignalAge(3L);
         baseDto.setIndicatorCoverage(12);
         // base=80, stale 3*5=15, missing 4*3=12 -> 80-15-12=53
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(53L, score);
     }
 
@@ -189,7 +189,7 @@ class SignalServiceTest {
         baseDto.setSignalAge(0L);
         baseDto.setIndicatorCoverage(16);
         // base=80, no penalties -> 80
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(80L, score);
     }
 
@@ -199,7 +199,7 @@ class SignalServiceTest {
         baseDto.setSignalAge(20L);
         baseDto.setIndicatorCoverage(10);
         // base=65, stale 20*5=100, missing 6*3=18 -> 65-100-18=-53 clamped to 0
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(0L, score);
     }
 
@@ -208,7 +208,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(0);
         baseDto.setIndicatorCoverage(16);
         // base=50, no penalties -> 50
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(50L, score);
     }
 
@@ -218,7 +218,7 @@ class SignalServiceTest {
         baseDto.setSignalAccuracy30d(new BigDecimal("85.0"));
         baseDto.setSignalAccuracyTotal30d(20);
         // base=80, accuracy >= 70 → +10 = 90
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(90L, score);
     }
 
@@ -228,7 +228,7 @@ class SignalServiceTest {
         baseDto.setSignalAccuracy30d(new BigDecimal("65.0"));
         baseDto.setSignalAccuracyTotal30d(10);
         // base=80, accuracy >= 60 → +5 = 85
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(85L, score);
     }
 
@@ -238,7 +238,7 @@ class SignalServiceTest {
         baseDto.setSignalAccuracy30d(new BigDecimal("45.0"));
         baseDto.setSignalAccuracyTotal30d(15);
         // base=80, accuracy < 50 → -15 = 65
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(65L, score);
     }
 
@@ -248,7 +248,7 @@ class SignalServiceTest {
         baseDto.setSignalAccuracy30d(new BigDecimal("35.0"));
         baseDto.setSignalAccuracyTotal30d(8);
         // base=80, accuracy < 40 → -20 = 60
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(60L, score);
     }
 
@@ -258,7 +258,7 @@ class SignalServiceTest {
         baseDto.setSignalAccuracy30d(new BigDecimal("100.0"));
         baseDto.setSignalAccuracyTotal30d(3); // Only 3 records, below threshold of 5
         // base=80, no accuracy adjustment → 80
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(80L, score);
     }
 
@@ -613,7 +613,7 @@ class SignalServiceTest {
         baseDto.setVolumeConfirmed(true);
         baseDto.setEventRisk(false);
         // base=50+35=85, volume +10 → 95
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(95L, score);
     }
 
@@ -623,7 +623,7 @@ class SignalServiceTest {
         baseDto.setVolumeConfirmed(false);
         baseDto.setEventRisk(true);
         // base=50+35=85, event -20 → 65
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(65L, score);
     }
 
@@ -633,7 +633,7 @@ class SignalServiceTest {
         baseDto.setWeeklyConfluenceScore(3);
         baseDto.setMonthlyConfluenceScore(1);
         // base=50+15=65, weekly +3, monthly +1 = 69
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(69L, score);
     }
 
@@ -641,7 +641,7 @@ class SignalServiceTest {
     void testConfidenceScore_BaselineZero() {
         baseDto.setCompositeScore(0);
         // base=50, no adjustments → 50
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(50L, score);
     }
 
@@ -650,7 +650,7 @@ class SignalServiceTest {
         baseDto.setCompositeScore(-3);
         baseDto.setWeeklyConfluenceScore(2); // Positive confluence doesn't agree with negative composite → no bonus
         // 35 + 0 (confluence disagrees) = 35
-        Long score = signalService.computeConfidenceScore(baseDto);
+        Long score = signalService.computeConfidenceScore(baseDto, java.util.Set.of());
         assertEquals(35L, score);
     }
 

@@ -199,8 +199,10 @@ async function loadStocks() {
     }
     renderSummary();
     renderHoldingsTable();
+    if (currentPortfolioId) loadTransactionHistory(currentPortfolioId);
     renderPerformers();
     renderSectorChart();
+    renderIndustryChart();
     renderPnlDistributionChart();
     updateRiskCards(allStocks);
   } catch (e) {
@@ -446,6 +448,50 @@ function renderSectorChart() {
   });
 }
 
+function renderIndustryChart() {
+  destroyChart('industry');
+  if (!allStocks.length) return;
+
+  const industryMap = {};
+  allStocks.forEach(s => {
+    const ind = s.industry || 'Other';
+    industryMap[ind] = (industryMap[ind] || 0) + (s.currentValue || 0);
+  });
+
+  const labels = Object.keys(industryMap);
+  const data = Object.values(industryMap);
+  const colors = generateColors(labels.length);
+
+  charts.industry = new Chart(document.getElementById('industryChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: '#1e293b'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((ctx.raw / total) * 100).toFixed(1);
+              return ctx.label + ': ' + fmtPrice(ctx.raw) + ' (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 // ─── P&L Distribution Chart (Horizontal Bar) ─────────────────────────────
 
 function renderPnlDistributionChart() {
@@ -504,9 +550,17 @@ async function loadSignals() {
     const url = currentPortfolioId
       ? `/api/signals?portfolioId=${currentPortfolioId}`
       : '/api/signals';
-    const res = await fetch(url);
-    const json = await res.json();
-    allSignals = json.data || [];
+    
+    // Fetch signals and fundamentals in parallel
+    const [signalsRes, fundRes] = await Promise.all([
+      fetch(url).then(r => r.json()),
+      screenFundamentals({ limit: 500, sortBy: 'marketCap', sortOrder: 'desc' }).catch(e => {
+        console.warn('Could not load fundamentals for signals table:', e);
+        return null;
+      })
+    ]);
+    
+    allSignals = signalsRes.data || [];
 
     if (currentPortfolioId && allStocks.length > 0) {
       // Defensive client-side filter — backend may not have applied the portfolioId
@@ -516,17 +570,11 @@ async function loadSignals() {
     }
 
     // Load fundamentals map for P/E and Market Cap columns
-    try {
-      const fundRes = await screenFundamentals({ limit: 500, sortBy: 'marketCap', sortOrder: 'desc' });
-      if (fundRes && fundRes.status === 'success' && fundRes.data) {
-        fundamentalsMap = {};
-        fundRes.data.forEach(function(f) {
-          fundamentalsMap[f.stockId] = { peRatio: f.peRatio, marketCap: f.marketCap };
-        });
-      }
-    } catch (e) {
-      console.warn('Could not load fundamentals for signals table:', e);
-      fundamentalsMap = {};
+    fundamentalsMap = {};
+    if (fundRes && fundRes.status === 'success' && fundRes.data) {
+      fundRes.data.forEach(function(f) {
+        fundamentalsMap[f.stockId] = { peRatio: f.peRatio, marketCap: f.marketCap };
+      });
     }
 
     if (allSignals.length) {
@@ -545,7 +593,7 @@ async function loadSignals() {
 function renderSortedSignals() {
   const data = filteredSignals.length ? filteredSignals : allSignals;
   if (!data || !data.length) {
-    document.getElementById('signalsTableBody').innerHTML = '<tr><td colspan="13" class="text-center py-4 text-secondary">No matching signals</td></tr>';
+    document.getElementById('signalsTableBody').innerHTML = '<tr><td colspan="16" class="text-center py-4 text-secondary">No matching signals</td></tr>';
     updateSignalStats([]);
     return;
   }
@@ -575,9 +623,8 @@ function renderSortedSignals() {
 
   const tbody = document.getElementById('signalsTableBody');
   tbody.innerHTML = sorted.map(s => {
-    const displaySignal = getDisplayRecommendation(s);
-    const displayRec = displaySignal.displayRecommendation || s.recommendation;
-    const displayScore = displaySignal.displayScore ?? s.compositeScore;
+    const displayRec = s.recommendation;
+    const displayScore = s.compositeScore;
     const pnl = s.pnlPercent;
     const pnlStr = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '--';
     const rsiStr = s.rsi14 != null ? s.rsi14.toFixed(1) : '--';
@@ -625,6 +672,14 @@ function renderSortedSignals() {
     const mcStr = fund.marketCap != null ? formatMarketCap(fund.marketCap) : '--';
 
     // Signal badge with high conviction indicator
+    // Liquidity badge
+    const liqScore = s.liquidityScore?.compositeScore;
+    let liqStr = '--';
+    if (liqScore != null) {
+      const badgeCls = getLiquidityBadge(liqScore);
+      liqStr = `<span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeCls}">${liqScore}</span>`;
+    }
+
     const badgeClass = getRecommendationBadge(displayRec);
     const highConvBadge = displayRec !== s.recommendation ? '<i class="fas fa-info-circle text-yellow-400 ml-1" title="High conviction criteria not met"></i>' : '';
 
@@ -649,6 +704,7 @@ function renderSortedSignals() {
       <td class="text-center">${macdStr}</td>
       <td class="text-right">${peStr}</td>
       <td class="text-right">${mcStr}</td>
+      <td class="text-right">${liqStr}</td>
       <td class="text-right ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}">${pnlStr}</td>
       <td class="text-right ${displayScore >= 0 ? 'text-green-500' : 'text-red-500'}">${displayScore >= 0 ? '+' : ''}${displayScore}</td>
     </tr>`;
@@ -684,6 +740,9 @@ function applyFilters() {
 
   const compMin = parseFloat(document.getElementById('filterCompositeMin')?.value);
   if (!isNaN(compMin)) result = result.filter(s => s.compositeScore != null && s.compositeScore >= compMin);
+
+  const liqMin = parseFloat(document.getElementById('filterLiquidityMin')?.value);
+  if (!isNaN(liqMin) && liqMin > 0) result = result.filter(s => s.liquidityScore?.compositeScore != null && s.liquidityScore.compositeScore >= liqMin);
 
   const checkedRecs = Array.from(document.querySelectorAll('.rec-filter:checked')).map(cb => cb.value);
   if (checkedRecs.length > 0) {
@@ -770,6 +829,15 @@ function getRecommendationBadge(rec) {
   }
 }
 
+function getLiquidityBadge(score) {
+  if (!score && score !== 0) return 'bg-gray-600';
+  if (score >= 80) return 'bg-cyan-600';
+  if (score >= 60) return 'bg-cyan-500';
+  if (score >= 40) return 'bg-yellow-600';
+  if (score >= 20) return 'bg-orange-600';
+  return 'bg-red-600';
+}
+
 function getConfidenceBadge(score) {
   if (!score && score !== 0) return 'bg-gray-600';
   if (score >= 70) return 'bg-green-600';
@@ -796,24 +864,17 @@ function updateSignalStats(data) {
   if (ssEl) ssEl.textContent = strongSell;
 }
 
-// High conviction criteria (matching stock-detail.js logic)
+// High conviction criteria (relaxed: >= 16 instead of === 19)
 function isHighConvictionBuy(signal) {
   if (!signal) return false;
-  const indicatorCoverageOk = signal.indicatorCoverage === 19;
+  const indicatorCoverageOk = signal.indicatorCoverage >= 16;
   const trendOk = signal.sma20 > signal.sma50;
   const volumeOk = signal.volumeConfirmed === true;
   return signal.recommendation === 'STRONG BUY' && indicatorCoverageOk && trendOk && volumeOk;
 }
 
 function getDisplayRecommendation(signal) {
-  if (!signal) return signal;
-  const isBuy = signal.recommendation === 'STRONG BUY' || signal.recommendation === 'BUY';
-  const isHighConviction = isBuy && isHighConvictionBuy(signal);
-  
-  if (isBuy && !isHighConviction) {
-    return { ...signal, displayRecommendation: 'HOLD', displayScore: Math.min(signal.compositeScore ?? 0, 4) };
-  }
-  return signal;
+  return signal || {};  // ponytail: show actual signal, no artificial filtering
 }
 
 function renderOpportunityCards(data) {
@@ -948,6 +1009,12 @@ function renderHoldingsTable() {
       <td class="text-right ${cls}">${fmtPrice(pnl)}</td>
       <td class="text-right"><span class="px-2 py-0.5 rounded text-xs font-medium text-white ${badgeCls}">${pnlPct != null ? (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%' : '--'}</span></td>
       <td class="text-center">
+        <button onclick="openTransactionModal(${s.id}, ${stockIdOf(s)}, '${escHtml(s.symbol)}', 'BUY')" title="Buy more" class="text-green-400 hover:text-green-300 transition-colors mr-2">
+          <i class="fas fa-plus-circle"></i>
+        </button>
+        <button onclick="openTransactionModal(${s.id}, ${stockIdOf(s)}, '${escHtml(s.symbol)}', 'SELL')" title="Sell" class="text-yellow-400 hover:text-yellow-300 transition-colors mr-2">
+          <i class="fas fa-minus-circle"></i>
+        </button>
         <button onclick="removeHoldingFromPortfolio(${s.id})" title="Remove from portfolio" class="text-red-400 hover:text-red-300 transition-colors">
           <i class="fas fa-trash-alt"></i>
         </button>
@@ -1063,12 +1130,23 @@ function renderStrategyBreakdownTooltip(breakdown) {
       : '#9ca3af';
     const confPct = (s.confidence * 100).toFixed(0) + '%';
     const contrib = s.weightedScore != null ? s.weightedScore.toFixed(2) : '0.00';
+    let volumeDetails = '';
+    if (s.strategyName === 'VOLUME' && (s.latestVolume != null || s.avgVolume != null || s.spikeThreshold != null)) {
+        const latestVol = s.latestVolume != null ? Number(s.latestVolume).toLocaleString('en-IN') : 'N/A';
+        const avgVolNum = s.avgVolume != null ? Number(s.avgVolume) : 0;
+        const avgVol = avgVolNum > 0 ? Math.round(avgVolNum).toLocaleString('en-IN') : 'N/A';
+        const spikeThresh = (s.spikeThreshold != null && avgVolNum > 0) 
+            ? (Number(s.spikeThreshold) / avgVolNum).toFixed(1) + 'x' 
+            : 'N/A';
+        volumeDetails = `<span class="strat-breakdown-vol" style="color:#8892a0;font-size:9px;margin-left:4px;">Vol: ${latestVol} | Avg: ${avgVol} | Thresh: ${spikeThresh}</span>`;
+    }
     return `<div class="strat-breakdown-row">
       <span class="strat-breakdown-name">${escHtml(s.strategyName)}</span>
       <span class="strat-breakdown-signal" style="color:${signalColor}">${s.signal}</span>
       <span class="strat-breakdown-conf">${confPct}</span>
       <span class="strat-breakdown-prio">P${s.priority}</span>
       <span class="strat-breakdown-contrib">${contrib}</span>
+      ${volumeDetails}
     </div>`;
   }).join('');
   return `<div class="strat-breakdown-tooltip-inner">
@@ -1077,6 +1155,103 @@ function renderStrategyBreakdownTooltip(breakdown) {
     </div>
     ${rows}
   </div>`;
+}
+
+// ─── Buy / Sell Transactions ───────────────────────────────────────────
+
+let txnModalStockId = null;
+let txnModalHoldingId = null;
+let txnModalSymbol = null;
+let txnModalMode = 'BUY';
+
+function openTransactionModal(holdingId, stockId, symbol, mode) {
+  txnModalHoldingId = holdingId;
+  txnModalStockId = stockId;
+  txnModalSymbol = symbol;
+  txnModalMode = mode;
+
+  const modal = document.getElementById('transactionModal');
+  const title = document.getElementById('transactionModalTitle');
+  title.textContent = (mode === 'BUY' ? 'Buy ' : 'Sell ') + (symbol || 'Stock');
+  document.getElementById('txnType').value = mode;
+  document.getElementById('txnQuantity').value = '';
+  document.getElementById('txnPrice').value = '';
+  document.getElementById('txnFees').value = '';
+  document.getElementById('txnDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('txnNotes').value = '';
+  document.getElementById('txnError').textContent = '';
+  document.getElementById('txnError').style.display = 'none';
+  modal.classList.remove('hidden');
+}
+
+function hideTransactionModal() {
+  document.getElementById('transactionModal').classList.add('hidden');
+}
+
+async function submitTransaction() {
+  if (!currentPortfolioId || !txnModalStockId) return;
+  const type = document.getElementById('txnType').value;
+  const quantity = parseInt(document.getElementById('txnQuantity').value);
+  const price = parseFloat(document.getElementById('txnPrice').value);
+  const feesRaw = document.getElementById('txnFees').value;
+  const fees = feesRaw ? parseFloat(feesRaw) : 0;
+  const date = document.getElementById('txnDate').value || new Date().toISOString().slice(0, 10);
+  const notes = document.getElementById('txnNotes').value.trim();
+
+  const errEl = document.getElementById('txnError');
+  if (!quantity || quantity <= 0) { errEl.textContent = 'Quantity must be positive'; errEl.style.display = 'block'; return; }
+  if (isNaN(price) || price < 0) { errEl.textContent = 'Price must be zero or positive'; errEl.style.display = 'block'; return; }
+
+  const payload = { stockId: txnModalStockId, type, quantity, price, fees, transactionDate: date, notes };
+  try {
+    await recordTransaction(currentPortfolioId, payload);
+    showToast((type === 'BUY' ? 'Bought ' : 'Sold ') + quantity + ' of ' + (txnModalSymbol || ''), 'success');
+    hideTransactionModal();
+    await switchPortfolio(currentPortfolioId);
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to record transaction';
+    errEl.style.display = 'block';
+  }
+}
+
+async function loadTransactionHistory(portfolioId) {
+  const panel = document.getElementById('transactionHistoryBody');
+  if (!panel) return;
+  try {
+    const res = await getTransactions(portfolioId);
+    const txns = (res && res.data) || [];
+    if (!txns.length) {
+      panel.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">No transactions yet. Use the Buy/Sell buttons to record trades.</td></tr>';
+      return;
+    }
+    panel.innerHTML = txns.slice().reverse().map(t => {
+      const cls = t.type === 'BUY' ? 'text-green-500' : 'text-yellow-400';
+      const rpnl = t.realizedPnl != null ? fmtPrice(t.realizedPnl) : '--';
+      const del = `<button onclick="deleteTransactionRow(${t.id})" title="Delete" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>`;
+      return `<tr>
+        <td>${t.transactionDate || '--'}</td>
+        <td class="${cls} font-bold">${t.type || '--'}</td>
+        <td class="text-right">${t.quantity ?? '--'}</td>
+        <td class="text-right">${fmtPrice(t.price)}</td>
+        <td class="text-right">${rpnl}</td>
+        <td class="text-center">${del}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    panel.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Failed to load transactions</td></tr>';
+  }
+}
+
+async function deleteTransactionRow(txId) {
+  if (!currentPortfolioId) return;
+  if (!confirm('Delete this transaction? The holding will be recomputed from the remaining ledger.')) return;
+  try {
+    await deleteTransaction(currentPortfolioId, txId);
+    showToast('Transaction deleted', 'success');
+    await switchPortfolio(currentPortfolioId);
+  } catch (e) {
+    showToast(e.message || 'Failed to delete transaction', 'error');
+  }
 }
 
 // Click handler for strategy breakdown tooltips

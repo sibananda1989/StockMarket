@@ -1,26 +1,48 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "disabled_providers": ["aihubmix", "groq"],
+  "disabled_providers": ["aihubmix", "groq","openAI","OpenRouter","GitHub Models"],
   "plugin": ["opencode-auto-fallback", "openkilo"],
   "default_agent": "team-lead",
-  "instructions": ["AGENTS.md"],
+  "instructions": ["AGENTS.md", "docs/PROJECT_MANIFEST.md"],
   "provider": {
     "naraya": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "NaraRouter",
       "options": {
         "baseURL": "https://router.bynara.id/v1",
-        "apiKey": "sk-nry-LwCRwsNoFtE9CL0wJzcV-_pjmwtl1Ia1jiM6XlM3_DY"
+        "apiKey": "sk-nry-kO9TT4DdO9SQbRuyrrtYM482CajIjcU26KdnZPeG_6U"
       },
       "models": {
-        "tencent-hy3": {
-          "name": "Tencent hy3"
+        "laguna-s-2.1": {
+          "name": "Laguna s 2.1"
         },
-        "mistral-large": {
-          "name": "Mistral Large"
+        "agnes-2.0-flash": {
+          "name": "Agnes 2.0 flash free"
         },
-        "mistral-medium-3-5": {
-          "name": "Mistral Medium 3.5"
+        "nemotron-3-ultra": {
+          "name": "Nemotron 3 ultra free"
+        },
+		"ling-3.0-flash-free": {
+			"name": "Ling 3.0 flash free"
+		},
+ 		"mistral-large": {
+			"name": "Mistral large"
+		},
+		"mistral-medium-3-5": {
+			"name": "Mistral medium 3.5"
+		}
+      }
+    },
+    "tokenrouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "TokenRouter",
+      "options": {
+        "baseURL": "https://api.tokenrouter.com/v1",
+        "apiKey": "sk-av61UlX5zUCvmKMv5W1O1pA94tfFMZbtd79F6eRDV6vBw5pw"
+      },
+      "models": {
+        "z-ai/glm-5.2-free": {
+          "name": "GLM-5.2-free"
         }
       }
     }

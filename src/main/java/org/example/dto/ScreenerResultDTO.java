@@ -17,6 +17,7 @@ public class ScreenerResultDTO {
     private String symbol;
     private String name;
     private String sector;
+    private String industry;
 
     // Screeners it matches
     private boolean fiiAccumulation;

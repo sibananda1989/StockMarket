@@ -46,6 +46,17 @@ code { background: #1e293b; padding: 1px 4px; border-radius: 3px; font-size: 0.7
         <div id="strategyList" class="divide-y divide-gray-700"></div>
     </div>
 
+    <div class="card rounded-xl shadow-lg overflow-hidden mt-6">
+        <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold"><i class="fas fa-sliders-h text-purple-400 mr-2"></i>Score Parameters</h2>
+            <span id="scoreParamCount" class="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-700 text-gray-200"></span>
+        </div>
+        <div id="scoreParamSections" class="divide-y divide-gray-700"></div>
+        <div class="flex justify-end px-4 py-3">
+            <button id="resetScoreParams" class="text-sm text-red-400 hover:text-red-300 cursor-pointer"><i class="fas fa-rotate-left mr-1"></i>Reset score parameters</button>
+        </div>
+    </div>
+
     <div class="flex items-center justify-between mt-6 px-1">
         <div class="flex items-start gap-2 text-sm text-gray-400">
             <i class="fas fa-info-circle mt-0.5"></i>

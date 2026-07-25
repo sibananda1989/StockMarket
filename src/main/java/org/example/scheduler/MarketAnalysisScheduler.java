@@ -43,6 +43,13 @@ public class MarketAnalysisScheduler {
         log.info("Starting technical indicator recalculation");
         technicalAnalysisService.calculateForAllStocks();
         log.info("Technical indicator recalculation completed");
+        int filled;
+        try {
+            filled = technicalAnalysisService.fillIndicatorGaps(7);
+            log.info("Indicator gap fill completed. {} records filled", filled);
+        } catch (Exception e) {
+            log.warn("Indicator gap fill failed: {}", e.getMessage());
+        }
     }
 
     @Recover

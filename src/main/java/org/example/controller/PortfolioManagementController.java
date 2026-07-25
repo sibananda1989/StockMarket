@@ -2,6 +2,8 @@ package org.example.controller;
 
 import jakarta.validation.Valid;
 import org.example.dto.*;
+import org.example.dto.CreateTransactionRequest;
+import org.example.dto.TransactionDTO;
 import org.example.service.PortfolioService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,9 +16,12 @@ import java.util.List;
 public class PortfolioManagementController {
 
     private final PortfolioService portfolioService;
+    private final org.example.service.PortfolioTransactionService transactionService;
 
-    public PortfolioManagementController(PortfolioService portfolioService) {
+    public PortfolioManagementController(PortfolioService portfolioService,
+            org.example.service.PortfolioTransactionService transactionService) {
         this.portfolioService = portfolioService;
+        this.transactionService = transactionService;
     }
 
     @GetMapping("/all/holdings/stock/{stockId}")
@@ -128,5 +133,43 @@ public class PortfolioManagementController {
     public ResponseEntity<ApiResponse<String>> recalculate(@PathVariable Long id) {
         int count = portfolioService.recalculatePortfolio(id);
         return ResponseEntity.ok(ApiResponse.success("Recalculated " + count + " holdings"));
+    }
+
+    @PostMapping("/{id}/transactions")
+    public ResponseEntity<ApiResponse<TransactionDTO>> recordTransaction(
+            @PathVariable Long id,
+            @Valid @RequestBody CreateTransactionRequest request) {
+        TransactionDTO dto;
+        Long stockId = request.getStockId();
+        Integer quantity = request.getQuantity();
+        java.math.BigDecimal price = request.getPrice();
+        java.math.BigDecimal fees = request.getFees();
+        java.time.LocalDate date = request.getTransactionDate();
+        String notes = request.getNotes();
+        if (request.getType() == org.example.entity.TransactionType.BUY) {
+            dto = transactionService.recordBuy(id, stockId, quantity, price, fees, date, notes);
+        } else {
+            dto = transactionService.recordSell(id, stockId, quantity, price, fees, date, notes);
+        }
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Transaction recorded", dto));
+    }
+
+    @GetMapping("/{id}/transactions")
+    public ResponseEntity<ApiResponse<List<TransactionDTO>>> getTransactions(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long stockId) {
+        List<TransactionDTO> txns = (stockId != null)
+                ? transactionService.getTransactions(id, stockId)
+                : transactionService.getTransactions(id);
+        return ResponseEntity.ok(ApiResponse.success("Transactions", txns));
+    }
+
+    @DeleteMapping("/{id}/transactions/{txId}")
+    public ResponseEntity<ApiResponse<String>> deleteTransaction(
+            @PathVariable Long id,
+            @PathVariable Long txId) {
+        transactionService.deleteTransaction(txId);
+        return ResponseEntity.ok(ApiResponse.success("Transaction deleted"));
     }
 }

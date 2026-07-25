@@ -147,14 +147,17 @@ public class StrategySignalAggregator {
                                 case "mid" -> 0.60;
                                 default -> 0.40;
                             };
-                            result = new StrategyResult(
+result = new StrategyResult(
                                 StrategySignal.valueOf(condition.getSignalType()),
                                 conf,
                                 condition.getConditionId(),
                                 strategy.getName(),
                                 strategyConfigService.getPriority(strategy.getName()),
-                                0.0
-                            );
+                                0.0,
+                                result.latestVolume(),
+                                result.avgVolume(),
+                                result.spikeThreshold()
+                        );
                             break;
                         }
                     }
@@ -185,7 +188,10 @@ public class StrategySignalAggregator {
                     adjustedResult.reason(),
                     adjustedResult.strategyName(),
                     priority,
-                    adjustedContribution
+                    adjustedContribution,
+                    adjustedResult.latestVolume(),
+                    adjustedResult.avgVolume(),
+                    adjustedResult.spikeThreshold()
                 );
                 
                 breakdown.add(resultWithContribution);
@@ -197,16 +203,6 @@ public class StrategySignalAggregator {
                 // Track category summary
                 String signalName = result.signal().name();
                 categorySummary.put(signalName, categorySummary.getOrDefault(signalName, 0) + 1);
-
-                // Categorize supporting/opposing
-                if (result.signal() != StrategySignal.HOLD) {
-                    String strategyName = strategy.getName();
-                    if (result.signal() == StrategySignal.BUY) {
-                        supporting.add(strategyName);
-                    } else {
-                        opposing.add(strategyName);
-                    }
-                }
 
             } catch (Exception e) {
                 log.warn("Strategy {} failed for stock {}: {}", strategy.getName(), stockId, e.getMessage());
@@ -287,14 +283,18 @@ public class StrategySignalAggregator {
 
         switch (regime) {
             case TRENDING:
-                if ("MA_CROSSOVER".equals(strategyName)) {
-                    // Trending: trend-following gets a boost
+                if ("MA_CROSSOVER".equals(strategyName) || "BOLLINGER".equals(strategyName)) {
+                    // Trending: MA crossover & Bollinger continuation signals get boost
                     confidence = Math.min(1.0, confidence * REGIME_TREND_FOLLOWING_BOOST);
                     reason = reason + " | ADX trending: trend-following boosted";
-                } else if ("RSI".equals(strategyName) || "BOLLINGER".equals(strategyName)) {
+                } else if ("RSI".equals(strategyName)) {
                     // Trending: mean-reversion is unreliable, reduce confidence
                     confidence = confidence * REGIME_MEAN_REVERSION_REDUCE;
                     reason = reason + " | ADX trending: mean-reversion reduced";
+                } else if ("VOLUME".equals(strategyName)) {
+                    // Trending: volume confirms the trend → boost confidence
+                    confidence = Math.min(1.0, confidence * REGIME_VOLUME_TRENDING_BOOST);
+                    reason = reason + " | ADX trending: volume confirmation boosted";
                 }
                 break;
 
@@ -307,6 +307,10 @@ public class StrategySignalAggregator {
                     // Ranging: trend-following generates false signals, reduce
                     confidence = confidence * REGIME_TREND_FOLLOWING_REDUCE;
                     reason = reason + " | ADX ranging: trend-following reduced";
+                } else if ("VOLUME".equals(strategyName)) {
+                    // Ranging: volume spikes are often noise → reduce confidence
+                    confidence = confidence * REGIME_VOLUME_RANGING_REDUCE;
+                    reason = reason + " | ADX ranging: volume noise reduced";
                 }
                 break;
 
@@ -318,12 +322,16 @@ public class StrategySignalAggregator {
                 } else if ("RSI".equals(strategyName) || "BOLLINGER".equals(strategyName)) {
                     confidence = Math.min(1.0, confidence * 1.05);
                     reason = reason + " | ADX transitional: slight mean-reversion boost";
+                } else if ("VOLUME".equals(strategyName)) {
+                    // Transitional: benefit of the doubt for volume signals
+                    confidence = Math.min(1.0, confidence * REGIME_VOLUME_TRANSITIONAL_BOOST);
+                    reason = reason + " | ADX transitional: volume slight boost";
                 }
                 break;
         }
 
         return new StrategyResult(result.signal(), confidence, reason, result.strategyName(),
-                result.priority(), 0.0);
+                result.priority(), 0.0, result.latestVolume(), result.avgVolume(), result.spikeThreshold());
     }
 
     // ── Regime filter constants ──
@@ -331,6 +339,9 @@ public class StrategySignalAggregator {
     private static final double REGIME_MEAN_REVERSION_REDUCE = 0.60;
     private static final double REGIME_MEAN_REVERSION_BOOST = 1.20;
     private static final double REGIME_TREND_FOLLOWING_REDUCE = 0.65;
+    private static final double REGIME_VOLUME_TRENDING_BOOST = 1.20;
+    private static final double REGIME_VOLUME_RANGING_REDUCE = 0.85;
+    private static final double REGIME_VOLUME_TRANSITIONAL_BOOST = 1.05;
 
     /**
      * Market regime enum for ADX-based classification.

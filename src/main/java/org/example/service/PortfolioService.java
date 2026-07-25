@@ -121,7 +121,6 @@ public class PortfolioService {
         holding.setAvgPrice(avgPrice);
         holding = holdingRepository.save(holding);
 
-        syncStockFromHolding(stock, quantity, avgPrice);
         snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
         return computeHoldingDTO(holding);
     }
@@ -139,7 +138,6 @@ public class PortfolioService {
         holding = holdingRepository.save(holding);
 
         Stock stock = holding.getStock();
-        syncStockFromHolding(stock, holding.getQuantity(), holding.getAvgPrice());
         snapshotService.saveOrUpdate(stock, LocalDate.now(), holding.getPortfolio());
         return computeHoldingDTO(holding);
     }
@@ -151,16 +149,29 @@ public class PortfolioService {
             throw new IllegalArgumentException("Holding does not belong to this portfolio");
         }
         Long stockId = holding.getStock().getId();
+        Stock stock = holding.getStock();
+        Portfolio portfolio = holding.getPortfolio();
+
+        // Capture a final snapshot with the current position BEFORE deletion.
+        // This preserves the stock's historical contribution in the portfolio trend chart.
+        // Previously we deleted ALL snapshots here, which made the chart "go to the bottom"
+        // by removing all historical value from the sold stock.
+        snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
+
         holdingRepository.delete(holding);
-        snapshotService.deleteSnapshot(portfolioId, stockId);
     }
 
     public void removeHoldingByStockId(Long portfolioId, Long stockId) {
         PortfolioHolding holding = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Holding not found for portfolio " + portfolioId + " and stock " + stockId));
+        Stock stock = holding.getStock();
+        Portfolio portfolio = holding.getPortfolio();
+
+        // Capture a final snapshot before deletion (preserves chart history)
+        snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
+
         holdingRepository.delete(holding);
-        snapshotService.deleteSnapshot(portfolioId, stockId);
     }
 
     @Transactional(readOnly = true)
@@ -216,6 +227,7 @@ public class PortfolioService {
                 .symbol(stock.getSymbol())
                 .name(stock.getName())
                 .sector(stock.getSector())
+                .industry(stock.getIndustry())
                 .yahooSymbol(stock.getYahooSymbol())
                 .quantity(totalQty > 0 ? totalQty : null)
                 .avgPrice(weightedAvg.compareTo(BigDecimal.ZERO) > 0 ? weightedAvg : null)
@@ -312,6 +324,7 @@ public class PortfolioService {
                 .symbol(stock.getSymbol())
                 .name(stock.getName())
                 .sector(stock.getSector())
+                .industry(stock.getIndustry())
                 .yahooSymbol(stock.getYahooSymbol())
                 .quantity(holding.getQuantity())
                 .avgPrice(holding.getAvgPrice())
@@ -323,15 +336,6 @@ public class PortfolioService {
                 .build();
     }
 
-    /**
-     * Syncs PortfolioHolding quantity/avgPrice back to the Stock entity.
-     * Keeps the stocks table in sync when holdings are added/updated via portfolio management.
-     */
-    private void syncStockFromHolding(Stock stock, Integer quantity, BigDecimal avgPrice) {
-        stock.setQuantity(quantity);
-        stock.setAvgPrice(avgPrice);
-        stockRepository.save(stock);
-    }
 
     private PortfolioDTO toPortfolioDTO(Portfolio portfolio) {
         long count = holdingRepository.countByPortfolioId(portfolio.getId());

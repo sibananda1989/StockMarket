@@ -61,18 +61,18 @@ class StrategyConditionServiceTest {
     }
 
     @Test
-    void testSeedDefaultConditions_Inserts38Conditions() {
+    void testSeedDefaultConditions_Inserts31Conditions() {
         when(conditionRepository.count()).thenReturn(0L);
 
         service.seedDefaultConditions();
 
         verify(conditionRepository).saveAll(conditionCaptor.capture());
-        assertEquals(38, conditionCaptor.getValue().size());
+        assertEquals(31, conditionCaptor.getValue().size());
     }
 
     @Test
     void testSeedDefaultConditions_Idempotent() {
-        when(conditionRepository.count()).thenReturn(38L);
+        when(conditionRepository.count()).thenReturn(31L);
 
         service.seedDefaultConditions();
 

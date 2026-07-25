@@ -5,6 +5,13 @@ description: Use when adding a new trading strategy to the multi-strategy signal
 
 # Add a New Trading Strategy
 
+## FILES TO MODIFY (read PROJECT_MANIFEST.md first for exact paths)
+1. Strategy impl: `src/main/java/org/example/strategy/impl/{Name}Strategy.java` (new)
+2. Spring config: `src/main/java/org/example/strategy/config/StrategyConfig.java` (bean registration)
+3. Config (optional): `src/main/resources/application.properties` (priority)
+4. Frontend: `src/main/resources/static/strategy-manager.js` (add strategy card)
+5. Test: `src/test/java/org/example/strategy/impl/{Name}StrategyTest.java` (new)
+
 The multi-strategy signal system lives under `src/main/java/org/example/strategy/`. Each strategy extends the abstract `TradingStrategy` base class, emits a `StrategyResult` (BUY/SELL/HOLD + confidence + reason), and is aggregated by `StrategySignalAggregator` into one weighted score per stock.
 
 ## Architecture (read these files first)

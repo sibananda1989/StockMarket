@@ -15,57 +15,32 @@ StockTracker is a portfolio tracking and technical analysis platform for the Ind
 | Testing | JUnit, Playwright |
 | Docs | Springdoc OpenAPI at `/swagger-ui.html` |
 
-## Directory Structure
+## Quick Reference
+
+**For AI agents**: Read `docs/PROJECT_MANIFEST.md` first — it contains the complete file index, feature mappings, and key constants (~2.5K tokens).
+
+**Directory layout**:
 ```
 stockmarket/
-├── docs/                          # Project documentation
-├── src/
-│   ├── main/
-│   │   ├── java/org/example/
-│   │   │   ├── StockTrackerApplication.java
-│   │   │   ├── CacheConfig.java
-│   │   │   ├── config/            # CORS, filters
-│   │   │   ├── controller/        # 15 REST controllers
-│   │   │   ├── dto/               # 36 DTO classes
-│   │   │   ├── entity/            # 16 JPA entities
-│   │   │   ├── exception/         # 7 exceptions + GlobalExceptionHandler
-│   │   │   ├── metrics/           # Micrometer metrics
-│   │   │   ├── repository/        # 18 Spring Data JPA repos
-│   │   │   ├── scheduler/         # 5 scheduled tasks
-│   │   │   ├── service/
-│   │   │   │   ├── calculator/    # 20 indicator calculators
-│   │   │   │   └── institutional/ # 7 institutional services
-│   │   │   └── startup/           # 2 startup tasks
-│   │   ├── resources/
-│   │   │   ├── static/
-│   │   │   │   ├── index.html     # Dashboard
-│   │   │   │   ├── stock-detail.html
-│   │   │   │   ├── stocks.html, watchlist.html, etc.
-│   │   │   │   ├── js/
-│   │   │   │   │   ├── api.js           # Shared API client
-│   │   │   │   │   ├── portfolio.js     # Dashboard logic
-│   │   │   │   │   ├── stock-detail.js  # Stock detail charts
-│   │   │   │   │   ├── stock-management.js
-│   │   │   │   │   └── ...
-│   │   │   │   └── css/
-│   │   │   └── application.properties
-│   │   └── test/
-│   └── test/
-├── .opencode/
-│   └── opencode.json              # AI agent configuration
-└── pom.xml
+├── docs/                          # Project documentation (start with PROJECT_MANIFEST.md)
+├── src/main/java/org/example/     # Backend Java source
+│   ├── controller/                # 15+ REST controllers
+│   ├── service/calculator/        # 22 indicator calculators
+│   ├── service/institutional/     # 8 institutional activity services
+│   ├── strategy/                  # Multi-strategy signal engine (9 strategies)
+│   ├── entity/                    # 22+ JPA entities
+│   ├── repository/                # 18+ Spring Data repos
+│   ├── dto/                       # 36+ DTO classes
+│   ├── scheduler/                 # 5 scheduled tasks
+│   ├── startup/                   # 2 startup tasks
+│   └── exception/                 # 7 exceptions + GlobalExceptionHandler
+├── src/main/resources/static/     # Frontend (9 HTML + 9 JS + shared)
+│   ├── js/api.js                  # All API wrappers (~200 functions)
+│   └── js/*.js                    # One IIFE module per page
+├── tests/                         # Playwright E2E specs
+├── .opencode/                     # AI agent configuration
+└── pom.xml                        # Maven build
 ```
-
-## Key Packages
-
-### `controller/` — 15 REST Controllers
-`StockController`, `SignalController`, `PriceController`, `RsiController`, `IndicatorController`, `SupportResistanceController`, `PortfolioController`, `PortfolioHistoryController`, `BacktestController`, `FiiDiiController`, `EventsController`, `FundamentalController`, `InstitutionalController`, `WatchlistController`, `DhanController`
-
-### `service/calculator/` — 20 Indicator Calculators
-Each implements `TechnicalIndicatorCalculator` interface. Include: RSI, SMA (20/50/200), EMA, MACD (line + signal), Bollinger (upper + lower), Stochastic (K + D), Williams %R, ATR, CCI, StochRSI, ADX (+DI, −DI), Ultimate Oscillator, ROC, OBV.
-
-### `service/institutional/` — 7 Services
-`InstitutionalHoldingService`, `NseXbrlShareholdingService`, `BulkDealService`, `BlockDealService`, `ClientClassifier`, `InstitutionalScoreService`, `InstitutionalScreenerService`, `NseSessionManager`
 
 ## Key Flows
 
