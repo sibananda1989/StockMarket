@@ -55,3 +55,12 @@ coverage/
 # Log files
 *.log
 logs/
+
+# App artifacts
+app.jar
+
+# Runtime logs
+nohup.out
+
+# Screenshots
+fvg_*.png
