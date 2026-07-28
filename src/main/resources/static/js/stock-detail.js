@@ -17,6 +17,7 @@ let _cachedFvgEntries = [];
 let _showBuyArrows = true;
 let _showSellArrows = true;
 let _csCandlestick = null;
+let _lastMarkersFull = [];
 let _cachedSmc = {};
 let _loadAllGen = 0;
 
@@ -117,20 +118,29 @@ async function loadStockData() {
             _latestRsiValue = latestRsi.data.rsi14;
         }
         updateKpis(latestPrice, latestRsi, _stockData);
+        // Fetch price records for Records KPI + populate day range dropdown
+        getPriceHistory(_stockId).then(res => {
+            if (gen !== _loadAllGen) return;
+            const prices = res?.data;
+            if (!prices || !prices.length) return;
+            const el = document.getElementById('heroKpiRecords');
+            if (el) el.textContent = prices.length + ' days';
+            populateDayRange(prices);
+        }).catch(() => {});
         updateFiidiiBar(fiidiiData);
         updateEventsWarning(eventsData);
         // Load all charts (no tabs - stacked vertically)
         if (gen !== _loadAllGen) return;
         loadAllCharts();
         // Pre-fetch RSI history for candlestick tooltip
-        getRsiHistory(_stockId, parseInt(document.getElementById('dayRange').value) || 180)
+        getRsiHistory(_stockId, parseInt(document.getElementById('dayRange').value) || 365)
             .then(res => {
                 if (gen !== _loadAllGen) return;
                 _cachedRsiHistory = (res?.data || []).filter(r => r.rsi14 != null);
             })
             .catch(() => {});
         // Pre-fetch all technical indicators for candlestick tooltip (per-date data)
-        const days = parseInt(document.getElementById('dayRange').value) || 180;
+        const days = parseInt(document.getElementById('dayRange').value) || 365;
         const toDateStr = new Date().toISOString().slice(0, 10);
         const fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - days);
@@ -174,7 +184,10 @@ async function loadAll() {
     _cachedPriceHistory = {};
         _cachedSignalHistory = {};
         _cachedIndicatorsByDate = {};
-        await loadStockData();
+_cachedFvgEntries = [];
+    _cachedRsiHistory = [];
+    _cachedSmc = {};
+    await loadStockData();
     }
 
 // ─── Cached API Wrappers ─────────────────────────────────────────────────
@@ -212,9 +225,34 @@ function getCachedSignalHistory(stockId, days) {
     return p;
 }
 
+function populateDayRange(prices) {
+    const select = document.getElementById('dayRange');
+    if (!select || !prices || !prices.length) return;
+    const current = parseInt(select.value) || 365;
+    // Calculate max calendar days from first to last price date
+    const last = new Date(prices[0].priceDate + 'T00:00:00');
+    const first = new Date(prices[prices.length - 1].priceDate + 'T00:00:00');
+    const maxDays = Math.max(30, Math.ceil((last - first) / (1000 * 60 * 60 * 24)));
+    // Generate option values at common intervals
+    const values = [];
+    for (const v of [30, 60, 90, 180, 365]) {
+        if (v <= maxDays) values.push(v);
+    }
+    if (!values.includes(maxDays) && maxDays > 0) values.push(maxDays);
+    // Rebuild options preserving current selection
+    select.innerHTML = '';
+    for (const v of values) {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v >= 365 ? (v === 365 ? '1 year' : `${v/365} years`) : `${v} days`;
+        select.appendChild(opt);
+    }
+    select.value = current <= maxDays ? current : maxDays;
+}
+
 async function loadAllCharts() {
     const gen = _loadAllGen;
-    const days = parseInt(document.getElementById('dayRange').value) || 180;
+    const days = parseInt(document.getElementById('dayRange').value) || 365;
 
     // Load charts in parallel with error isolation
     const chartLoaders = [
@@ -412,20 +450,20 @@ async function loadCandlestickTab(days) {
         console.log('[Candlestick] Date range: ' + fmt(start) + ' to ' + fmt(end) + ' (' + days + ' days)');
 
         const [priceRes, signalHistoryRes, currentSignalRes, srRes, smcRes] = await Promise.all([
-            getCachedPriceHistory(_stockId, fmt(start), fmt(end), days).catch(e => { console.error('[Candlestick] Price fetch failed:', e); return null; }),
+            getPriceHistory(_stockId, fmt(start), fmt(end)).catch(e => { console.error('[Candlestick] Price fetch failed:', e); return null; }),
             // Use multi-strategy history when active strategies are configured
             shouldUseMulti
                 ? getMultiStrategySignalHistory(_stockId, days, activeStrategyNames).catch(e => {
                     console.warn('[Candlestick] Multi-strategy history failed, falling back to legacy:', e);
-                    return getCachedSignalHistory(_stockId, days).catch(e2 => { console.error('[Candlestick] Signal history fallback failed:', e2); return null; });
+                    return getSignalHistory(_stockId, days).catch(e2 => { console.error('[Candlestick] Signal history fallback failed:', e2); return null; });
                   })
-                : getCachedSignalHistory(_stockId, days).catch(e => { console.error('[Candlestick] Signal history fetch failed:', e); return null; }),
+                : getSignalHistory(_stockId, days).catch(e => { console.error('[Candlestick] Signal history fetch failed:', e); return null; }),
             // Use multi-strategy signal with active strategies for current signal
             shouldUseMulti
                 ? getMultiStrategySignal(_stockId, activeStrategyNames).catch(e => { console.error('[Candlestick] Multi-strategy signal failed:', e); return null; })
                 : getStockSignal(_stockId).catch(e => { console.error('[Candlestick] Current signal fetch failed:', e); return null; }),
             getSupportResistance(_stockId, days).catch(() => null),
-            getCachedSmc(_stockId, days)
+            getSMCPatterns(_stockId, days).catch(() => null)
         ]);
         const prices = (priceRes?.data || []).filter(p => p.closingPrice != null);
         const signalHistory = signalHistoryRes?.status === 'success' ? signalHistoryRes.data : null;
@@ -604,7 +642,7 @@ async function refreshSupportResistance() {
     try {
         await calculateSupportResistance(_stockId);
         // Reload after calculation
-        await loadSupportResistanceTab(parseInt(document.getElementById('dayRange').value) || 180);
+        await loadSupportResistanceTab(parseInt(document.getElementById('dayRange').value) || 365);
     } catch (e) {
         console.error('S/R refresh error:', e);
         const content = document.getElementById('srLevelContent');
@@ -863,7 +901,7 @@ function renderSrLevelTable(srData) {
 
 async function loadInsightsTab() {
     try {
-        const days = parseInt(document.getElementById('dayRange').value) || 180;
+        const days = parseInt(document.getElementById('dayRange').value) || 365;
         const signal = await getStockSignal(_stockId).catch(() => null);
         const signalData = signal && signal.status === 'success' ? signal.data : null;
         _cachedSignal = signalData;
@@ -1191,13 +1229,9 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
             _chartOverlays[key].forEach(series => {
                 try { chart.removeSeries(series); } catch (e) {}
             });
-        } else if (_chartOverlays[key] && typeof _chartOverlays[key].detach === 'function') {
-            // Handle attached primitives (FVG)
-            try { _chartOverlays[key].detach(); } catch (e) {}
-        } else if (_chartOverlays[key]) {
-            // Handle price lines (sr, etc)
-            try { _chartOverlays[key].forEach(pl => { try { cs.removePriceLine(pl); } catch (e) {} }); } catch (e) {}
-        }
+         } else if (_chartOverlays[key]) {
+             _chartOverlays[key].detach();
+         }
         delete _chartOverlays[key];
     }
 
@@ -1452,14 +1486,12 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         }
     }
 
-    window._lastMarkersFull = [...markers];
+    _lastMarkersFull = [...markers];
     markers.sort((a, b) => a.time - b.time);
     // Limit markers to prevent chart clutter — keep only the most recent 40
     if (markers.length > 40) {
         markers.splice(0, markers.length - 40);
     }
-    window._lastMarkers = markers;
-    window._lastSignalHistory = signalHistory;
 
     // ── Enhanced tooltip with modern design ──
     container.querySelectorAll('.lw-tooltip').forEach(el => el.remove());
@@ -1589,10 +1621,8 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
             }
 
             // Build strategy breakdown HTML
-            if (sig.strategyBreakdown && sig.strategyBreakdown.length && sig.buyThreshold != null) {
-                let isExpanded = true;
-                try { isExpanded = localStorage.getItem('strategyBreakdownExpanded') !== 'false'; } catch (e) {}
-                const rows = sig.strategyBreakdown.map(s => {
+             if (sig.strategyBreakdown && sig.strategyBreakdown.length && sig.buyThreshold != null) {
+                 const rows = sig.strategyBreakdown.map(s => {
                     const sc = s.signal === 'BUY' ? '#22c55e' : s.signal === 'SELL' ? '#ef4444' : '#6b7280';
                     const sbg = s.signal === 'BUY' ? 'rgba(34,197,94,0.1)' : s.signal === 'SELL' ? 'rgba(239,68,68,0.1)' : 'transparent';
                     return `
@@ -1623,13 +1653,12 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
                     `between thresholds`;
                  strategyHtml = `
                     <div style="margin-top:5px;padding-top:4px;border-top:1px solid rgba(255,255,255,0.06);">
-                        <div class="breakdown-header" style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none;padding:2px 0;">
-                            <span class="collapse-icon" style="font-size:8px;color:#9ca3af;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-                            <span style="font-weight:600;color:#9ca3af;font-size:9px;text-transform:uppercase;letter-spacing:0.3px;">Strategy Breakdown</span>
+                         <div class="breakdown-header" style="display:flex;align-items:center;gap:4px;padding:2px 0;">
+                             <span style="font-weight:600;color:#9ca3af;font-size:9px;text-transform:uppercase;letter-spacing:0.3px;">Strategy Breakdown</span>
                             <span style="margin-left:auto;font-size:8px;color:${thresholdColor};font-weight:600;">${thresholdLabel}</span>
                             <div style="color:#9ca3af;font-size:8px;text-align:center;margin-top:1px;">${thresholdDetail}</div>
                         </div>
-                        <div class="breakdown-body" style="display:${isExpanded ? 'flex' : 'none'};flex-direction:column;gap:3px;margin-top:3px;">
+                        <div class="breakdown-body" style="display:flex;flex-direction:column;gap:3px;margin-top:3px;">
                             ${rows}
                             <div style="display:flex;justify-content:space-between;padding:3px 5px;border-top:1px solid rgba(255,255,255,0.04);margin-top:1px;">
                                 <span style="color:#9ca3af;font-size:9px;font-weight:600;">Total</span>
@@ -1698,23 +1727,6 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
             ${strategyHtml}
         `;
 
-        // Toggle strategy breakdown collapse (one-time listener on tooltip element)
-        if (!tooltip._breakdownListener) {
-            tooltip._breakdownListener = true;
-            tooltip.addEventListener('click', function(e) {
-                const header = e.target.closest('.breakdown-header');
-                if (!header) return;
-                e.stopPropagation();
-                const body = header.nextElementSibling;
-                if (!body || !body.classList.contains('breakdown-body')) return;
-                const isHidden = body.style.display === 'none' || body.style.display === '';
-                body.style.display = isHidden ? 'flex' : 'none';
-                localStorage.setItem('strategyBreakdownExpanded', isHidden);
-                const icon = header.querySelector('.collapse-icon');
-                if (icon) icon.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
-            });
-        }
-
         const rect = container.getBoundingClientRect();
         let left = param.point.x + 16, top = param.point.y - 10;
         const tipW = tooltip.offsetWidth || 280;
@@ -1774,8 +1786,8 @@ function toggleChartOverlays() {
     const showSell = document.getElementById('toggleSellArrows')?.checked;
     _showBuyArrows = showBuy !== false;
     _showSellArrows = showSell !== false;
-    if (_csCandlestick && window._lastMarkersFull) {
-        const filtered = window._lastMarkersFull.filter(m => {
+    if (_csCandlestick && _lastMarkersFull) {
+        const filtered = _lastMarkersFull.filter(m => {
             if (!m.text) return true; // candlestick pattern dots always show
             if (m.text === 'B' && showBuy === false) return false;
             if (m.text === 'S' && showSell === false) return false;

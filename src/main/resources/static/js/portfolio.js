@@ -199,7 +199,6 @@ async function loadStocks() {
     }
     renderSummary();
     renderHoldingsTable();
-    if (currentPortfolioId) loadTransactionHistory(currentPortfolioId);
     renderPerformers();
     renderSectorChart();
     renderIndustryChart();
@@ -497,9 +496,6 @@ function renderIndustryChart() {
 function renderPnlDistributionChart() {
   destroyChart('pnlDist');
   if (!allStocks.length) return;
-
-  const container = document.getElementById('pnlDistributionChart').parentElement;
-  container.style.height = Math.max(300, allStocks.length * 32) + 'px';
 
   const sorted = [...allStocks].sort((a, b) => (a.pnlPercent || 0) - (b.pnlPercent || 0));
   const labels = sorted.map(s => s.symbol);
@@ -885,16 +881,37 @@ function renderOpportunityCards(data) {
   
   if (!buyCard || !sellCard) return;
 
-  const buySignals = data
-    .filter(s => s.recommendation === 'STRONG BUY' || s.recommendation === 'BUY')
-    .map(s => getDisplayRecommendation(s))
+  // Prioritize STRONG BUY, fill remaining slots with BUY
+  const strongBuySignals = data
+    .filter(s => s.recommendation === 'STRONG BUY')
     .sort((a, b) => ((b.displayScore ?? b.compositeScore) || 0) - ((a.displayScore ?? a.compositeScore) || 0))
-    .slice(0, 10);
+    .slice(0, 5);
+  const buyFillCount = 5 - strongBuySignals.length;
+  const buySignals = buyFillCount > 0
+    ? strongBuySignals.concat(
+        data
+          .filter(s => s.recommendation === 'BUY')
+          .filter(s => !strongBuySignals.find(sb => sb.stockId === s.stockId))
+          .sort((a, b) => ((b.displayScore ?? b.compositeScore) || 0) - ((a.displayScore ?? a.compositeScore) || 0))
+          .slice(0, buyFillCount)
+      )
+    : strongBuySignals;
 
-  const sellSignals = data
-    .filter(s => s.recommendation === 'STRONG SELL' || s.recommendation === 'SELL')
+  // Prioritize STRONG SELL, fill remaining slots with SELL
+  const strongSellSignals = data
+    .filter(s => s.recommendation === 'STRONG SELL')
     .sort((a, b) => (b.confidenceScore || 0) - (a.confidenceScore || 0))
     .slice(0, 5);
+  const sellFillCount = 5 - strongSellSignals.length;
+  const sellSignals = sellFillCount > 0
+    ? strongSellSignals.concat(
+        data
+          .filter(s => s.recommendation === 'SELL')
+          .filter(s => !strongSellSignals.find(ss => ss.stockId === s.stockId))
+          .sort((a, b) => (b.confidenceScore || 0) - (a.confidenceScore || 0))
+          .slice(0, sellFillCount)
+      )
+    : strongSellSignals;
   
   if (buyCountEl) buyCountEl.textContent = buySignals.length;
   if (sellCountEl) sellCountEl.textContent = sellSignals.length;
@@ -981,7 +998,7 @@ function renderPerformerList(stocks, isTop) {
 function renderHoldingsTable() {
   const tbody = document.getElementById('holdingsTableBody');
   if (!allStocks.length) {
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8">No holdings found. Import stocks with portfolio data.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8">No holdings found. Import stocks with portfolio data.</td></tr>';
     document.getElementById('tableSummary').textContent = '';
     return;
   }
@@ -998,8 +1015,7 @@ function renderHoldingsTable() {
     const badgeCls = pnl >= 0 ? 'bg-green-600' : 'bg-red-600';
     const linkUrl = `stock-detail.html?id=${s.stockId || s.id}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}`;
     return `<tr>
-      <td><a href="${linkUrl}" class="font-bold hover:text-blue-400 transition-colors">${s.symbol}</a></td>
-      <td>${s.name || '--'}</td>
+      <td><a href="${linkUrl}" class="font-bold hover:text-blue-400 transition-colors">${s.name || '--'}</a></td>
       <td>${s.sector || '--'}</td>
       <td class="text-right">${s.quantity ?? '--'}</td>
       <td class="text-right">${fmtPrice(s.avgPrice)}</td>
@@ -1214,45 +1230,6 @@ async function submitTransaction() {
   }
 }
 
-async function loadTransactionHistory(portfolioId) {
-  const panel = document.getElementById('transactionHistoryBody');
-  if (!panel) return;
-  try {
-    const res = await getTransactions(portfolioId);
-    const txns = (res && res.data) || [];
-    if (!txns.length) {
-      panel.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">No transactions yet. Use the Buy/Sell buttons to record trades.</td></tr>';
-      return;
-    }
-    panel.innerHTML = txns.slice().reverse().map(t => {
-      const cls = t.type === 'BUY' ? 'text-green-500' : 'text-yellow-400';
-      const rpnl = t.realizedPnl != null ? fmtPrice(t.realizedPnl) : '--';
-      const del = `<button onclick="deleteTransactionRow(${t.id})" title="Delete" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>`;
-      return `<tr>
-        <td>${t.transactionDate || '--'}</td>
-        <td class="${cls} font-bold">${t.type || '--'}</td>
-        <td class="text-right">${t.quantity ?? '--'}</td>
-        <td class="text-right">${fmtPrice(t.price)}</td>
-        <td class="text-right">${rpnl}</td>
-        <td class="text-center">${del}</td>
-      </tr>`;
-    }).join('');
-  } catch (e) {
-    panel.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Failed to load transactions</td></tr>';
-  }
-}
-
-async function deleteTransactionRow(txId) {
-  if (!currentPortfolioId) return;
-  if (!confirm('Delete this transaction? The holding will be recomputed from the remaining ledger.')) return;
-  try {
-    await deleteTransaction(currentPortfolioId, txId);
-    showToast('Transaction deleted', 'success');
-    await switchPortfolio(currentPortfolioId);
-  } catch (e) {
-    showToast(e.message || 'Failed to delete transaction', 'error');
-  }
-}
 
 // Click handler for strategy breakdown tooltips
 // Uses event delegation on the signals table body

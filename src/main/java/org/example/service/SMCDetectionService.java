@@ -647,14 +647,14 @@ public class SMCDetectionService {
 
         // Bullish FVG: candle3 low > candle1 high AND candle3 close > candle1 high
         if (c3l.compareTo(c1h) > 0
-                && prices.get(i).getClosingPrice().compareTo(c1h) > 0) {
+                && prices.get(i - 1).getClosingPrice().compareTo(c1h) > 0) {
             bottom = c1h;
             top = c3l;
             direction = "BULLISH";
         }
         // Bearish FVG: candle3 high < candle1 low AND candle3 close < candle1 low
         else if (c3h.compareTo(c1l) < 0
-                && prices.get(i).getClosingPrice().compareTo(c1l) < 0) {
+                && prices.get(i - 1).getClosingPrice().compareTo(c1l) < 0) {
             bottom = c3h;
             top = c1l;
             direction = "BEARISH";
