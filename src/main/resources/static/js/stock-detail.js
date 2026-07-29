@@ -501,9 +501,29 @@ async function loadCandlestickTab(days) {
         } else {
             _cachedFvgEntries = [];
         }
-        // Render active strategies badge with populated signal data
-        renderActiveStrategiesBadge(activeStrategyNames, currentSignal);
-        renderCandlestickChart(prices, signalHistory, currentSignal, srData);
+    // Render active strategies badge with populated signal data
+    renderActiveStrategiesBadge(activeStrategyNames, currentSignal);
+    
+    // Fetch transaction markers overlay (portfolio context preferred)
+    let txRecords = null;
+    if (_portfolioId) {
+        try {
+            const txRes = await getTransactions(_portfolioId, _stockId);
+            txRecords = txRes?.status === 'success' ? txRes.data : null;
+        } catch (e) {
+            console.warn('[Candlestick] Portfolio tx fetch failed:', e);
+        }
+    }
+    // Fallback to all-portfolio aggregate when no specific portfolio
+    if (!txRecords && !_portfolioId) {
+        try {
+            const txRes = await getAllTransactionsByStock(_stockId);
+            txRecords = txRes?.status === 'success' ? txRes.data : null;
+        } catch (e) {
+            console.warn('[Candlestick] Aggregate tx fetch failed:', e);
+        }
+    }
+    renderCandlestickChart(prices, signalHistory, currentSignal, srData, txRecords);
     } catch (e) {
         console.error('Candlestick tab error:', e);
         showChartMsg('chartCandlestick', 'Failed to load candlestick data');
@@ -1217,7 +1237,7 @@ class FvgZonePrimitive {
     }
 }
 
-function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
+function renderCandlestickChart(prices, signalHistory, currentSignal, srData, txRecords = null) {
     const container = document.getElementById('chartCandlestick');
     if (!container) return;
     if (_charts.candlestick) {
@@ -1407,10 +1427,44 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData) {
         _chartOverlays.fvg = fvgPrimitive;
     }
 
-    // ── Buy/Sell markers — arrows only for strong signals, small dots for regular ──
+    // ── Shared initialization for marker processing ──
     const markers = [];
     const validEpochs = new Set(ohlc.map(d => d.time));
 
+    // ── Transaction markers — buy/sell arrows with quantities ──
+    if (txRecords && txRecords.length) {
+        console.log('[Candlestick] Loading', txRecords.length, 'transaction records');
+        const txMap = {};
+        txRecords.forEach(tx => {
+            const epoch = Math.floor(new Date(tx.transactionDate + 'T00:00:00Z').getTime() / 1000);
+            if (!validEpochs.has(epoch)) return; // skip weekends/holidays (no candle)
+            const type = tx.type;
+            const qty = tx.quantity;
+            const key = `${epoch}_${type}`;
+            if (!txMap[key]) {
+                txMap[key] = { time: epoch, type, qty: 0 };
+            }
+            txMap[key].qty += qty;
+        });
+        Object.values(txMap).forEach(item => {
+            const isBuy = item.type === 'BUY';
+            const marker = {
+                time: item.time,
+                position: isBuy ? 'belowBar' : 'aboveBar',
+                color: isBuy ? '#22c55e' : '#ef4444',
+                shape: isBuy ? 'arrowUp' : 'arrowDown',
+                size: 1.5,
+                text: `${isBuy ? 'B' : 'S'} ${item.qty}`,
+            };
+            console.log('[Candlestick] Adding transaction marker:', marker);
+            markers.push(marker);
+        });
+        console.log('[Candlestick] Total markers before signal processing:', markers.length);
+    } else {
+        console.warn('[Candlestick] No transaction records available - txRecords:', txRecords);
+    }
+
+    // ── Buy/Sell markers — arrows only for strong signals, small dots for regular ──
     if (signalHistory && signalHistory.length) {
         signalHistory.forEach(s => {
             const epoch = Math.floor(new Date(s.priceDate + 'T00:00:00Z').getTime() / 1000);
@@ -1789,9 +1843,12 @@ function toggleChartOverlays() {
     if (_csCandlestick && _lastMarkersFull) {
         const filtered = _lastMarkersFull.filter(m => {
             if (!m.text) return true; // candlestick pattern dots always show
-            if (m.text === 'B' && showBuy === false) return false;
-            if (m.text === 'S' && showSell === false) return false;
-            return true; // SB, SS always show
+            const firstChar = m.text.charAt(0);
+            if ((firstChar === 'B') && !showBuy) return false;
+            if ((firstChar === 'S') && !showSell) return false;
+            // STRONG BUY ('SB') and STRONG SELL ('SS') ALWAYS show regardless of toggles
+            if (m.text === 'SB' || m.text === 'SS') return true;
+            return true;
         });
         try { _csCandlestick.setMarkers(filtered); } catch(e) {}
     }

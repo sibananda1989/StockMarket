@@ -135,6 +135,10 @@ public class PortfolioManagementController {
         return ResponseEntity.ok(ApiResponse.success("Recalculated " + count + " holdings"));
     }
 
+    // ──────────────────────────────────────────────────────────────
+    // Transactions (ledger)
+    // ──────────────────────────────────────────────────────────────
+
     @PostMapping("/{id}/transactions")
     public ResponseEntity<ApiResponse<TransactionDTO>> recordTransaction(
             @PathVariable Long id,
@@ -171,5 +175,12 @@ public class PortfolioManagementController {
             @PathVariable Long txId) {
         transactionService.deleteTransaction(txId);
         return ResponseEntity.ok(ApiResponse.success("Transaction deleted"));
+    }
+
+    @GetMapping("/all/transactions-by-stock")
+    public ResponseEntity<ApiResponse<List<TransactionDTO>>> getAllTransactionsByStock(
+            @RequestParam Long stockId) {
+        List<TransactionDTO> txns = transactionService.getAllTransactionsByStock(stockId);
+        return ResponseEntity.ok(ApiResponse.success("All transactions across all portfolios", txns));
     }
 }

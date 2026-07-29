@@ -332,6 +332,10 @@ async function getTransactions(portfolioId, stockId) {
     return apiCall(`/portfolios/${portfolioId}/transactions${q}`);
 }
 
+async function getAllTransactionsByStock(stockId) {
+    return apiCall(`/portfolios/all/transactions-by-stock?stockId=${encodeURIComponent(stockId)}`);
+}
+
 async function deleteTransaction(portfolioId, txId) {
     return apiCall(`/portfolios/${portfolioId}/transactions/${txId}`, {
         method: 'DELETE',

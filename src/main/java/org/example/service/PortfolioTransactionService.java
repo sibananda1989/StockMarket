@@ -277,6 +277,12 @@ public class PortfolioTransactionService {
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<TransactionDTO> getAllTransactionsByStock(Long stockId) {
+        return transactionRepository.findByStockIdOrderByTransactionDateAscIdAsc(stockId)
+                .stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════════

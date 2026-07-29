@@ -12,6 +12,8 @@ public interface PortfolioTransactionRepository extends JpaRepository<PortfolioT
 
     List<PortfolioTransaction> findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(Long portfolioId, Long stockId);
 
+    List<PortfolioTransaction> findByStockIdOrderByTransactionDateAscIdAsc(Long stockId);
+
     long countByPortfolioId(Long portfolioId);
 
     @Transactional
