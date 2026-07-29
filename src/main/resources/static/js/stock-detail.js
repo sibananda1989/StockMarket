@@ -1433,7 +1433,6 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
 
     // ── Transaction markers — buy/sell arrows with quantities ──
     if (txRecords && txRecords.length) {
-        console.log('[Candlestick] Loading', txRecords.length, 'transaction records');
         const txMap = {};
         txRecords.forEach(tx => {
             const epoch = Math.floor(new Date(tx.transactionDate + 'T00:00:00Z').getTime() / 1000);
@@ -1456,12 +1455,10 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
                 size: 1.5,
                 text: `${isBuy ? 'B' : 'S'} ${item.qty}`,
             };
-            console.log('[Candlestick] Adding transaction marker:', marker);
             markers.push(marker);
         });
-        console.log('[Candlestick] Total markers before signal processing:', markers.length);
     } else {
-        console.warn('[Candlestick] No transaction records available - txRecords:', txRecords);
+        // No transactions to show - not an error if user has no recorded trades
     }
 
     // ── Buy/Sell markers — arrows only for strong signals, small dots for regular ──

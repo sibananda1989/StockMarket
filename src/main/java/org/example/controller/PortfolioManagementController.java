@@ -1,14 +1,20 @@
 package org.example.controller;
 
 import jakarta.validation.Valid;
+import org.example.exception.ResourceNotFoundException;
 import org.example.dto.*;
 import org.example.dto.CreateTransactionRequest;
 import org.example.dto.TransactionDTO;
+import org.example.entity.PortfolioHolding;
+import org.example.repository.PortfolioHoldingRepository;
 import org.example.service.PortfolioService;
+import org.example.service.PortfolioTransactionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -16,12 +22,15 @@ import java.util.List;
 public class PortfolioManagementController {
 
     private final PortfolioService portfolioService;
-    private final org.example.service.PortfolioTransactionService transactionService;
+    private final PortfolioTransactionService transactionService;
+    private final PortfolioHoldingRepository holdingRepository;
 
     public PortfolioManagementController(PortfolioService portfolioService,
-            org.example.service.PortfolioTransactionService transactionService) {
+            PortfolioTransactionService transactionService,
+            PortfolioHoldingRepository holdingRepository) {
         this.portfolioService = portfolioService;
         this.transactionService = transactionService;
+        this.holdingRepository = holdingRepository;
     }
 
     @GetMapping("/all/holdings/stock/{stockId}")
@@ -91,6 +100,9 @@ public class PortfolioManagementController {
             @Valid @RequestBody AddHoldingRequest request) {
         HoldingDTO dto = portfolioService.addHolding(id, request.getStockId(),
                 request.getQuantity(), request.getAvgPrice());
+        // Record as a buy transaction in the ledger
+        transactionService.recordBuy(id, request.getStockId(), request.getQuantity(),
+                request.getAvgPrice(), BigDecimal.ZERO, LocalDate.now(), null);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Holding added", dto));
     }
@@ -100,16 +112,67 @@ public class PortfolioManagementController {
             @PathVariable Long portfolioId,
             @PathVariable Long holdingId,
             @RequestBody AddHoldingRequest request) {
-        HoldingDTO dto = portfolioService.updateHolding(portfolioId, holdingId,
+        // First, get the current holding via repository to know old values
+        PortfolioHolding holding = holdingRepository.findById(holdingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Holding not found: " + holdingId));
+        if (!holding.getPortfolio().getId().equals(portfolioId)) {
+            throw new IllegalArgumentException("Holding does not belong to this portfolio");
+        }
+        
+        Integer oldQty = holding.getQuantity();
+        BigDecimal oldAvg = holding.getAvgPrice();
+        Long stockId = holding.getStock().getId();
+
+        HoldingDTO updated = portfolioService.updateHolding(portfolioId, holdingId,
                 request.getQuantity(), request.getAvgPrice());
-        return ResponseEntity.ok(ApiResponse.success("Holding updated", dto));
+
+        // Record transaction for quantity changes if oldQty exists
+        if (oldQty != null && request.getQuantity() != null) {
+            int qtyDiff = request.getQuantity() - oldQty;
+            if (qtyDiff > 0) {
+                // Buy increase
+                BigDecimal priceToUse = request.getAvgPrice() != null ? request.getAvgPrice() : oldAvg;
+                if (priceToUse != null) {
+                    transactionService.recordBuy(portfolioId, stockId, qtyDiff, priceToUse,
+                            BigDecimal.ZERO, LocalDate.now(), "Auto - quantity increase");
+                }
+            } else if (qtyDiff < 0) {
+                // Sell reduction
+                int sellQty = Math.abs(qtyDiff);
+                if (oldAvg != null) {
+                    transactionService.recordSell(portfolioId, stockId, sellQty, oldAvg,
+                            BigDecimal.ZERO, LocalDate.now(), "Auto - quantity reduction");
+                }
+            }
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Holding updated", updated));
     }
 
     @DeleteMapping("/{portfolioId}/holdings/{holdingId}")
     public ResponseEntity<ApiResponse<String>> removeHolding(
             @PathVariable Long portfolioId,
             @PathVariable Long holdingId) {
+        // Fetch holding details before deletion to record sell transaction
+        PortfolioHolding holding = holdingRepository.findById(holdingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Holding not found: " + holdingId));
+        if (!holding.getPortfolio().getId().equals(portfolioId)) {
+            throw new IllegalArgumentException("Holding does not belong to this portfolio");
+        }
+
+        Long stockId = holding.getStock().getId();
+        Integer quantity = holding.getQuantity();
+        BigDecimal avgPrice = holding.getAvgPrice();
+
+        // Record sell transaction before removal
+        if (quantity != null && quantity > 0 && avgPrice != null) {
+            transactionService.recordSell(portfolioId, stockId, quantity, avgPrice,
+                    BigDecimal.ZERO, LocalDate.now(), "Auto - position removed");
+        }
+
+        // Now let Service handle deletion (including snapshot before delete)
         portfolioService.removeHolding(portfolioId, holdingId);
+
         return ResponseEntity.ok(ApiResponse.success("Holding removed"));
     }
 
@@ -125,7 +188,23 @@ public class PortfolioManagementController {
     public ResponseEntity<ApiResponse<String>> removeHoldingByStockId(
             @PathVariable Long portfolioId,
             @PathVariable Long stockId) {
+        // Fetch holding details before deletion to record sell transaction
+        PortfolioHolding holding = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Holding not found for portfolio " + portfolioId + " and stock " + stockId));
+
+        Integer quantity = holding.getQuantity();
+        BigDecimal avgPrice = holding.getAvgPrice();
+
+        // Record sell transaction before removal
+        if (quantity != null && quantity > 0 && avgPrice != null) {
+            transactionService.recordSell(portfolioId, stockId, quantity, avgPrice,
+                    BigDecimal.ZERO, LocalDate.now(), "Auto - position removed");
+        }
+
+        // Now let Service handle deletion (including snapshot before delete)
         portfolioService.removeHoldingByStockId(portfolioId, stockId);
+
         return ResponseEntity.ok(ApiResponse.success("Holding removed"));
     }
 
