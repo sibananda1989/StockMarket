@@ -484,7 +484,6 @@ public class InstitutionalScoreService {
      * Safely computes the signal for a stock, returning null on any exception.
      * Used by computeScoreInternal to avoid duplicate signal computation.
      */
-    @Transactional
     private SignalDTO computeSignalSafely(Long stockId) {
         try {
             return signalService.computeSignal(stockId);

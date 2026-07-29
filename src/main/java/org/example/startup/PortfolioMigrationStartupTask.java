@@ -132,12 +132,19 @@ public class PortfolioMigrationStartupTask implements StartupTask {
         }
 
         // Step 3: Update portfolio_snapshots with null portfolio_id to default portfolio
+        // Use conditional update to avoid unique constraint violations from pre-existing
+        // (portfolio_id, stock_id, snapshot_date) duplicates caused by prior partial migrations.
         Query updateSnapshots = entityManager.createNativeQuery(
-                "UPDATE portfolio_snapshots SET portfolio_id = :portfolioId WHERE portfolio_id IS NULL");
+                "UPDATE portfolio_snapshots ps SET portfolio_id = :portfolioId " +
+                "WHERE ps.portfolio_id IS NULL " +
+                "AND NOT EXISTS (SELECT 1 FROM portfolio_snapshots ps2 " +
+                "WHERE ps2.portfolio_id = :portfolioId AND ps2.stock_id = ps.stock_id AND ps2.snapshot_date = ps.snapshot_date)");
         updateSnapshots.setParameter("portfolioId", defaultPort.getId());
         int snapshotsUpdated = updateSnapshots.executeUpdate();
         if (snapshotsUpdated > 0) {
             log.info("Updated {} portfolio_snapshots with portfolio_id={}", snapshotsUpdated, defaultPort.getId());
+        } else {
+            log.debug("No portfolio_snapshots required update for default portfolio (id={})", defaultPort.getId());
         }
 
         log.info("Portfolio migration complete. Default portfolio id={}", defaultPort.getId());

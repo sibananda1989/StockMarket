@@ -79,4 +79,8 @@ public final class SignalThresholds {
     public static final double OVERBOUGHT_CCI = 150.0;
     public static final double OVERBOUGHT_STOCH_K = 80.0;
     public static final double OVERBOUGHT_WILLIAMS_R = -20.0;
+
+    // ── Minimum data thresholds ──
+    public static final int MIN_HISTORY_FOR_SIGNALS = 20;
+
 }

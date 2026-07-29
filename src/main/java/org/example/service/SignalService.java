@@ -187,7 +187,7 @@ public class SignalService {
                 try {
                     List<DailyPrice> prices = dailyPriceRepository
                         .findAllByStockIdOrderByPriceDateAsc(stock.getId());
-                    if (prices.size() < 20) return null;
+                    if (prices.size() < SignalThresholds.MIN_HISTORY_FOR_SIGNALS) return null;
                     
                     SignalDTO dto = computeBaseSignalDto(
                         stock, prices, false,
@@ -447,9 +447,9 @@ public class SignalService {
                                             Map<IndicatorType, BigDecimal> allIndicators,
                                             SupportResistanceDto allSR,
                                             List<SupportResistanceLevel> preFetchedBreakoutLevels,
-                                            Integer preFetchedFiiAdj,
-                                            boolean skipRollingAccuracy) {
-        if (prices == null || prices.size() < 20) return null;
+                                             Integer preFetchedFiiAdj,
+                                             boolean skipRollingAccuracy) {
+        if (prices == null || prices.size() < SignalThresholds.MIN_HISTORY_FOR_SIGNALS) return null;
 
         // Disabled legacy scoring factors (toggleable via ScoreParameterService)
         Set<String> disabled = disabledFactors();
@@ -940,14 +940,14 @@ public class SignalService {
         long startTime = System.currentTimeMillis();
         try {
             Stock stock = stockService.getStockById(stockId);
-            if (stock == null) return List.of();
+             if (stock == null) return List.of();
 
-            List<DailyPrice> prices = dailyPriceRepository
-                    .findAllByStockIdOrderByPriceDateAsc(stock.getId());
+             List<DailyPrice> prices = dailyPriceRepository
+                     .findAllByStockIdOrderByPriceDateAsc(stock.getId());
 
-            if (prices.size() < 20) return List.of();
+             if (prices.size() < SignalThresholds.MIN_HISTORY_FOR_SIGNALS) return List.of();
 
-            // Trim to the requested window
+             // Trim to the requested window
             LocalDate cutoff = LocalDate.now().minusDays(days);
             List<DailyPrice> windowed = prices.stream()
                     .filter(p -> !p.getPriceDate().isBefore(cutoff))
@@ -1460,14 +1460,14 @@ public class SignalService {
      * Numerically identical to the original per-row implementation — only fetch/persist
      * mechanics changed (pre-fetched S/R + FII/DII, batched INSERT, skipped rolling accuracy).
      */
-    @Transactional
-    public int backfillStock(Stock stock) {
-        List<DailyPrice> prices = dailyPriceRepository
-                .findAllByStockIdOrderByPriceDateAsc(stock.getId());
+     @Transactional
+     public int backfillStock(Stock stock) {
+         List<DailyPrice> prices = dailyPriceRepository
+                 .findAllByStockIdOrderByPriceDateAsc(stock.getId());
 
-        if (prices.size() < 20) return 0;
+         if (prices.size() < SignalThresholds.MIN_HISTORY_FOR_SIGNALS) return 0;
 
-        List<SignalRecord> existing = signalRecordRepository
+         List<SignalRecord> existing = signalRecordRepository
                 .findByStockIdOrderByRecordedAtDesc(stock.getId());
         Set<LocalDate> existingDates = new HashSet<>();
         for (SignalRecord r : existing) {
@@ -2458,7 +2458,7 @@ public class SignalService {
         List<BigDecimal> tpHistory = new ArrayList<>(20);
         
         // RSI history for divergence detection
-        List<BigDecimal> rsiHistory = new ArrayList<>();
+        List<BigDecimal> rsiHistory = new ArrayList<>(Collections.nCopies(prices.size(), BigDecimal.ZERO));
         
         // ADX accumulators
         BigDecimal trSum = BigDecimal.ZERO;
@@ -2571,9 +2571,7 @@ public class SignalService {
                         .subtract(BigDecimal.valueOf(100)
                             .divide(BigDecimal.ONE.add(rs), 2, RoundingMode.HALF_UP));
                 }
-                rsiHistory.add(set.rsi14);
-            } else if (i == 14) {
-                rsiHistory.add(BigDecimal.ZERO);
+                rsiHistory.set(i, set.rsi14);
             }
             
             // MACD calculation (incremental)
@@ -2763,14 +2761,14 @@ public class SignalService {
      * This avoids recalculating indicators for each historical date.
      */
     private SignalDTO computeBaseSignalDtoWithPrecomputedIndicators(
-            Stock stock, 
-            List<DailyPrice> prices, 
-            HistoricalIndicatorSet indicators,
-            List<org.example.entity.CorporateEvent> allEvents) {
-        
-        if (prices == null || prices.size() < 20) return null;
+             Stock stock, 
+             List<DailyPrice> prices, 
+             HistoricalIndicatorSet indicators,
+             List<org.example.entity.CorporateEvent> allEvents) {
+         
+         if (prices == null || prices.size() < SignalThresholds.MIN_HISTORY_FOR_SIGNALS) return null;
 
-        List<BigDecimal> closes = prices.stream()
+         List<BigDecimal> closes = prices.stream()
                 .map(DailyPrice::getClosingPrice)
                 .collect(Collectors.toList());
 
