@@ -33,6 +33,7 @@ public class IndicatorComputationService {
         tryAdd(result, stock, IndicatorType.RSI, new RsiCalculator(12).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.SMA_20, new SmaCalculator(20).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.SMA_50, new SmaCalculator(50).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.SMA_44, new SmaCalculator(44).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.EMA_20, new EmaCalculator(20).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.MACD_LINE, new MacdLineCalculator().calculate(prices), date);
         tryAdd(result, stock, IndicatorType.MACD_SIGNAL, new MacdSignalCalculator().calculate(prices), date);

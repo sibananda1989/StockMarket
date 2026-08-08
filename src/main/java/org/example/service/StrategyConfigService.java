@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Set;
@@ -64,16 +63,27 @@ public class StrategyConfigService {
     @Value("${strategy.volume.spike-factor:1.5}")
     private double volumeSpikeFactor;
 
+    @Value("${strategy.sma44-pullback.priority:8}")
+    private int sma44PullbackPriority;
+
     @PostConstruct
     public void init() {
-        seedIfEmpty();
-        ensureCandlestickStrategiesExist();
+        reconcileSeeds();
     }
 
-    private void seedIfEmpty() {
-        if (repository.count() > 0) {
-            return;
-        }
+    /**
+     * Idempotent per-strategy reconciliation: inserts a DB row for each canonical
+     * strategy that is missing, leaving existing rows untouched (no priority
+     * overwrite, no re-enabling of deliberately disabled strategies).
+     * Safe to call on every startup.
+     */
+    private void reconcileSeeds() {
+        // Legacy one-time cleanup: CANDLESTICK was split into AT_SUPPORT/AT_RESISTANCE.
+        repository.findByStrategyName("CANDLESTICK").ifPresent(config -> {
+            log.info("Removing legacy CANDLESTICK strategy config");
+            repository.delete(config);
+        });
+
         List<StrategyConfig> seeds = List.of(
                 new StrategyConfig("RSI", true, "RSI Strategy", rsiPriority),
                 new StrategyConfig("MACD", true, "MACD Strategy", macdPriority),
@@ -84,11 +94,23 @@ public class StrategyConfigService {
                 new StrategyConfig("CANDLESTICK_AT_RESISTANCE", true, "Candlestick at Resistance", atResistancePriority),
                 new StrategyConfig("BREAKOUT", true, "Breakout Strategy", breakoutPriority),
                 new StrategyConfig("CANDLESTICK_PATTERN", true, "Candlestick Patterns", candlestickPatternPriority),
-                new StrategyConfig("LIQUIDITY", true, "Liquidity Assessment", liquidityPriority)
+                new StrategyConfig("LIQUIDITY", true, "Liquidity Assessment", liquidityPriority),
+                new StrategyConfig("SMA44_PULLBACK", true, "SMA44 Pullback Bounce", sma44PullbackPriority)
         );
+
+        Set<String> existing = repository.findAll().stream()
+                .map(StrategyConfig::getStrategyName)
+                .collect(Collectors.toSet());
+
+        List<StrategyConfig> toInsert = seeds.stream()
+                .filter(s -> !existing.contains(s.getStrategyName()))
+                .toList();
+        if (toInsert.isEmpty()) {
+            return;
+        }
         try {
-            repository.saveAll(seeds);
-            log.info("Seeded {} strategy configs", seeds.size());
+            repository.saveAll(toInsert);
+            log.info("Seeded {} missing strategy configs", toInsert.size());
         } catch (DataIntegrityViolationException e) {
             log.warn("Strategy config seed skipped (concurrent initialization): {}", e.getMessage());
         }
@@ -97,7 +119,7 @@ public class StrategyConfigService {
     public Set<String> getActiveStrategyNames() {
         List<StrategyConfig> configs = repository.findAll();
         if (configs.isEmpty()) {
-            seedIfEmpty();
+            reconcileSeeds();
             configs = repository.findAll();
         }
         return configs.stream()
@@ -139,22 +161,6 @@ public class StrategyConfigService {
         long newVersion = configVersion.incrementAndGet();
         log.info("Strategy config version bumped to {}", newVersion);
         return newVersion;
-    }
-
-    @Transactional
-    private void ensureCandlestickStrategiesExist() {
-        repository.findByStrategyName("CANDLESTICK").ifPresent(config -> {
-            log.info("Removing legacy CANDLESTICK strategy config");
-            repository.delete(config);
-        });
-        if (repository.findByStrategyName("CANDLESTICK_AT_SUPPORT").isEmpty()) {
-            log.info("Seeding CANDLESTICK_AT_SUPPORT strategy config");
-            repository.save(new StrategyConfig("CANDLESTICK_AT_SUPPORT", true, "Candlestick at Support", atSupportPriority));
-        }
-        if (repository.findByStrategyName("CANDLESTICK_AT_RESISTANCE").isEmpty()) {
-            log.info("Seeding CANDLESTICK_AT_RESISTANCE strategy config");
-            repository.save(new StrategyConfig("CANDLESTICK_AT_RESISTANCE", true, "Candlestick at Resistance", atResistancePriority));
-        }
     }
 
     @CacheEvict(value = "signals", allEntries = true)

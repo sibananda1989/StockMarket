@@ -648,6 +648,12 @@ async function getMultiStrategySignalHistory(stockId, days = 365, activeStrategi
     return apiCall(`/signals/multi-strategy/${stockId}/history?days=${days}${qs ? '&' + qs.substring(1) : ''}`);
 }
 
+// ─── Strategy Results API ────────────────────────────────────────────────────
+
+function getStrategyResults() { return apiCall('/strategy-results'); }
+function getStrategyResultsFor(strategyName) { return apiCall(`/strategy-results/${encodeURIComponent(strategyName)}`); }
+function refreshStrategyResults() { return apiCall('/strategy-results/refresh', { method: 'POST' }); }
+
 // ─── Strategy Config API ────────────────────────────────────────────────────
 
 async function getStrategyConfigs() {

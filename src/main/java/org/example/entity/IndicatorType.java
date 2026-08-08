@@ -6,6 +6,7 @@ public enum IndicatorType {
     SMA_20(true),
     SMA_50(true),
     SMA_200(true),
+    SMA_44(true),
     EMA_20(true),
     MACD_LINE(true),
     MACD_SIGNAL(true),
