@@ -21,10 +21,24 @@ let _lastMarkersFull = [];
 let _cachedSmc = {};
 let _loadAllGen = 0;
 
-// Screener pagination state
-let _screenerSnapshots = [];
-let _screenerPage = 1;
-const _screenerRowsPerPage = 10;
+// ─── Formatters (module scope) ────────────────────────────────────────────────
+const _inrFormatter = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const _pctFormatter = new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+function fmtPrice(val) {
+    if (val == null || isNaN(val)) return '--';
+    return '₹' + _inrFormatter.format(val);
+}
+
+function fmtPct(val) {
+    if (val == null || isNaN(val)) return '--';
+    const sign = val >= 0 ? '+' : '';
+    return sign + _pctFormatter.format(val) + '%';
+}
+
+function pnlColor(val) {
+    return val != null && val >= 0 ? 'text-green-400' : 'text-red-400';
+}
 
 // ─── DOM Ready ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,10 +60,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // when the function wasn't in global scope)
     const srRefreshBtn = document.getElementById('srRefreshBtn');
     if (srRefreshBtn) srRefreshBtn.addEventListener('click', refreshSupportResistance);
-
-    // Wire the Institutional Refresh button
-    const instRefreshBtn = document.getElementById('instRefreshBtn');
-    if (instRefreshBtn) instRefreshBtn.addEventListener('click', () => loadInstitutionalTab(true));
 
     // Wire the Fundamentals Refresh button
     const fundRefreshBtn = document.getElementById('fundRefreshBtn');
@@ -129,10 +139,10 @@ async function loadStockData() {
         }).catch(() => {});
         updateFiidiiBar(fiidiiData);
         updateEventsWarning(eventsData);
+        updateHoldingDetails();
         // Load all charts (no tabs - stacked vertically)
         if (gen !== _loadAllGen) return;
         loadAllCharts();
-        // Pre-fetch RSI history for candlestick tooltip
         getRsiHistory(_stockId, parseInt(document.getElementById('dayRange').value) || 365)
             .then(res => {
                 if (gen !== _loadAllGen) return;
@@ -263,9 +273,7 @@ async function loadAllCharts() {
         { fn: () => gen !== _loadAllGen ? null : loadRsiTab(days), name: 'RSI' },
         { fn: () => gen !== _loadAllGen ? null : loadSupportResistanceTab(days), name: 'Support & Resistance' },
         { fn: () => gen !== _loadAllGen ? null : loadInsightsTab(), name: 'Research Insights' },
-        { fn: () => gen !== _loadAllGen ? null : loadInstitutionalTab(), name: 'Institutional Activity' },
-        { fn: () => gen !== _loadAllGen ? null : loadFundamentalsTab(), name: 'Fundamentals' },
-        { fn: () => gen !== _loadAllGen ? null : loadScreenerTab(days), name: 'Screener' }
+        { fn: () => gen !== _loadAllGen ? null : loadFundamentalsTab(), name: 'Fundamentals' }
     ];
 
     const results = await Promise.allSettled(chartLoaders.map(l => l.fn()));
@@ -405,13 +413,12 @@ function setPnlKpi(elId, stock, field, fmt) {
 // ─── Charts ────────────────────────────────────────────────────────────────
 async function loadMovementTab(days) {
     const spinner = document.getElementById('ltpSpinner');
-    if (spinner) spinner.classList.remove('hidden');
     try {
+        if (spinner) spinner.classList.remove('hidden');
         const end = new Date();
         const start = new Date();
         start.setDate(start.getDate() - days);
-        const fmt = d => d.toISOString().split('T')[0];
-        const res = await getCachedPriceHistory(_stockId, fmt(start), fmt(end), days);
+        const res = await getCachedPriceHistory(_stockId, start.toISOString().split('T')[0], end.toISOString().split('T')[0], days);
         const prices = (res?.data || []).filter(p => p.closingPrice != null);
         renderLtpChart(prices);
     } catch (e) {
@@ -510,15 +517,17 @@ async function loadCandlestickTab(days) {
         try {
             const txRes = await getTransactions(_portfolioId, _stockId);
             txRecords = txRes?.status === 'success' ? txRes.data : null;
+            console.log('[Candlestick] Portfolio tx fetch result:', txRecords?.length || 0, 'transactions for portfolio', _portfolioId);
         } catch (e) {
             console.warn('[Candlestick] Portfolio tx fetch failed:', e);
         }
     }
-    // Fallback to all-portfolio aggregate when no specific portfolio
-    if (!txRecords && !_portfolioId) {
+    // Fallback to all-portfolio aggregate if no transactions found (regardless of portfolioId)
+    if (!txRecords || txRecords.length === 0) {
         try {
             const txRes = await getAllTransactionsByStock(_stockId);
             txRecords = txRes?.status === 'success' ? txRes.data : null;
+            console.log('[Candlestick] Aggregate tx fetch result:', txRecords?.length || 0, 'transactions (fallback)');
         } catch (e) {
             console.warn('[Candlestick] Aggregate tx fetch failed:', e);
         }
@@ -988,43 +997,6 @@ async function loadRiskAssessment(signalData) {
     }
 }
 
-async function loadScreenerTab(days) {
-    try {
-        // Check if active strategies are configured for multi-strategy
-        let activeStrategyNames = null;
-        try {
-            const strategyRes = await getStrategyConfigs();
-            if (strategyRes && strategyRes.status === 'success' && strategyRes.data) {
-                activeStrategyNames = strategyRes.data
-                    .filter(s => s.active)
-                    .map(s => s.strategyName);
-            }
-        } catch (e) {
-            console.warn('[Screener] Failed to fetch active strategies:', e);
-        }
-        
-        const shouldUseMulti = activeStrategyNames && activeStrategyNames.length > 0;
-        
-        const [signal, snapshotsRes] = await Promise.all([
-            shouldUseMulti
-                ? getMultiStrategySignal(_stockId, activeStrategyNames).catch(() => null)
-                : (_cachedSignal ? Promise.resolve({ status: 'success', data: _cachedSignal }) : getStockSignal(_stockId).catch(() => null)),
-            getSnapshotHistory(_stockId, days).catch(() => null)
-        ]);
-        const signalData = signal && signal.status === 'success' ? signal.data : null;
-        renderSignalSummary(signalData);
-        _screenerSnapshots = (snapshotsRes?.data || []).filter(s => s.pnl != null);
-        _screenerPage = 1;
-        renderSnapshotTable();
-    } catch (e) {
-        console.error('Screener tab error:', e);
-        const signalEl = document.getElementById('signalContent');
-        if (signalEl) signalEl.innerHTML = '<p class="text-danger text-center py-4">⚠ Failed to load screener data</p>';
-        const tbody = document.getElementById('snapshotTable');
-        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-danger">⚠ Failed to load snapshot data</td></tr>';
-    }
-}
-
 // ─── Chart Rendering ────────────────────────────────────────────────────────
 function showChartMsg(canvasId, msg) {
     const el = document.getElementById(canvasId);
@@ -1359,6 +1331,7 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
 
     // ── SMA overlays ──
     const sma20Data = computeSMA(ohlc, 20);
+    const sma44Data = ohlc.length >= 44 ? computeSMA(ohlc, 44) : [];
     const sma50Data = ohlc.length >= 50 ? computeSMA(ohlc, 50) : [];
     const sma200Data = ohlc.length >= 200 ? computeSMA(ohlc, 200) : [];
 
@@ -1367,6 +1340,12 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
     });
     sma20Series.setData(sma20Data);
     _chartOverlays.sma20 = sma20Series;
+
+    const sma44Series = chart.addLineSeries({
+        color: '#eab308', lineWidth: 1.5, lastValueVisible: false, priceLineVisible: false,
+    });
+    sma44Series.setData(sma44Data);
+    _chartOverlays.sma44 = sma44Series;
 
     const sma50Series = chart.addLineSeries({
         color: '#f97316', lineWidth: 1.5, lastValueVisible: false, priceLineVisible: false,
@@ -1419,6 +1398,17 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
     }
     _chartOverlays.sr = srPriceLines;
     _chartOverlays.srColors = srColorMap;
+    // Avg Cost price line — holding average buy price (shown only when stock is held)
+    if (_stockData?.quantity > 0 && _stockData?.avgPrice != null) {
+        cs.createPriceLine({
+            price: parseFloat(_stockData.avgPrice),
+            color: 'rgba(59,130,246,0.9)',
+            lineWidth: 2,
+            lineStyle: Lw.LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: 'Avg Cost',
+        });
+    }
 
     // ── FVG zones as colored fill blocks starting from formation date ──
     if (_cachedFvgEntries && _cachedFvgEntries.length) {
@@ -1429,14 +1419,22 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
 
     // ── Shared initialization for marker processing ──
     const markers = [];
-    const validEpochs = new Set(ohlc.map(d => d.time));
+    // Use date strings (YYYY-MM-DD) for matching instead of exact epoch seconds
+    // to handle timezone differences between transaction dates and OHLC data
+    const validDates = new Set(ohlc.map(d => new Date(d.time * 1000).toISOString().slice(0, 10)));
+    console.log('[Markers] Valid OHLC dates:', Array.from(validDates).slice(0, 10), '... total:', validDates.size);
 
     // ── Transaction markers — buy/sell arrows with quantities ──
     if (txRecords && txRecords.length) {
+        console.log('[Markers] Processing', txRecords.length, 'transaction records');
         const txMap = {};
         txRecords.forEach(tx => {
+            const txDateStr = new Date(tx.transactionDate + 'T00:00:00Z').toISOString().slice(0, 10);
             const epoch = Math.floor(new Date(tx.transactionDate + 'T00:00:00Z').getTime() / 1000);
-            if (!validEpochs.has(epoch)) return; // skip weekends/holidays (no candle)
+            if (!validDates.has(txDateStr)) {
+                console.log('[Markers] Skipping tx - no matching OHLC date:', tx.transactionDate, '→', txDateStr);
+                return; // skip weekends/holidays (no candle)
+            }
             const type = tx.type;
             const qty = tx.quantity;
             const key = `${epoch}_${type}`;
@@ -1450,25 +1448,28 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
             const marker = {
                 time: item.time,
                 position: isBuy ? 'belowBar' : 'aboveBar',
-                color: isBuy ? '#22c55e' : '#ef4444',
+                color: isBuy ? '#2962FF' : '#FF9800',
                 shape: isBuy ? 'arrowUp' : 'arrowDown',
                 size: 1.5,
-                text: `${isBuy ? 'B' : 'S'} ${item.qty}`,
+                text: String(item.qty),
+                isTransaction: true,
             };
             markers.push(marker);
+            console.log('[Markers] Added transaction marker:', marker);
         });
     } else {
-        // No transactions to show - not an error if user has no recorded trades
+        console.log('[Markers] No transaction records to process');
     }
 
     // ── Buy/Sell markers — arrows only for strong signals, small dots for regular ──
     if (signalHistory && signalHistory.length) {
         signalHistory.forEach(s => {
             const epoch = Math.floor(new Date(s.priceDate + 'T00:00:00Z').getTime() / 1000);
+            const sigDateStr = new Date(s.priceDate + 'T00:00:00Z').toISOString().slice(0, 10);
             if (s.priceDate && s.recommendation
                 && s.recommendation !== 'NEUTRAL'
                 && s.recommendation !== 'HOLD'
-                && validEpochs.has(epoch)) {
+                && validDates.has(sigDateStr)) {
                 const isBuy = s.recommendation === 'STRONG BUY' || s.recommendation === 'BUY';
                 const isSell = s.recommendation === 'STRONG SELL' || s.recommendation === 'SELL';
                 const isStrong = s.compositeScore >= 7 || s.compositeScore <= -7;
@@ -1494,7 +1495,8 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
         signalHistory.forEach(s => {
             if (!s.priceDate || !s.candlestickPattern || s.candlestickPattern === 'NONE') return;
             const epoch = Math.floor(new Date(s.priceDate + 'T00:00:00Z').getTime() / 1000);
-            if (!validEpochs.has(epoch)) return;
+            const patDateStr = new Date(s.priceDate + 'T00:00:00Z').toISOString().slice(0, 10);
+            if (!validDates.has(patDateStr)) return;
             // Don't add pattern markers where we already have a BUY/SELL marker
             const hasSignal = markers.some(m => m.time === epoch);
             if (hasSignal) return;
@@ -1804,47 +1806,70 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
         console.log('[Markers] No markers to display');
     }
     _charts.candlestick = chart;
+
+    // Re-apply markers on zoom/pan to prevent them from disappearing (lightweight-charts v4.2.0)
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+        if (_csCandlestick && _lastMarkersFull) {
+            const showBuy = document.getElementById('toggleBuyArrows')?.checked;
+            const showSell = document.getElementById('toggleSellArrows')?.checked;
+            const filtered = _lastMarkersFull.filter(m => {
+                if (!m.text) return true;
+                // Transaction markers (e.g., "B 100", "S 50") - always show
+                if (m.text.includes(' ') && /\d/.test(m.text.split(' ')[1])) {
+                    return true;
+                }
+                // STRONG BUY ('SB') and STRONG SELL ('SS') ALWAYS show
+                if (m.text === 'SB' || m.text === 'SS') return true;
+                const firstChar = m.text.charAt(0);
+                if ((firstChar === 'B') && !showBuy) return false;
+                if ((firstChar === 'S') && !showSell) return false;
+                return true;
+            });
+            try { _csCandlestick.setMarkers(filtered); } catch(e) {}
+        }
+    });
+
     toggleChartOverlays();
 }
 
 function toggleChartOverlays() {
-    const showSma20 = document.getElementById('toggleSma20')?.checked;
-    const showSma50 = document.getElementById('toggleSma50')?.checked;
-    const showSma200 = document.getElementById('toggleSma200')?.checked;
-    const showSR = document.getElementById('toggleSR')?.checked;
-    if (_chartOverlays.sma20) {
-        _chartOverlays.sma20.applyOptions({ visible: showSma20 !== false });
-    }
-    if (_chartOverlays.sma50) {
-        _chartOverlays.sma50.applyOptions({ visible: showSma50 !== false });
-    }
-    if (_chartOverlays.sma200) {
-        _chartOverlays.sma200.applyOptions({ visible: showSma200 !== false });
-    }
-    if (_chartOverlays.sr) {
+    // Toggle SMA overlays
+    if (_chartOverlays.sma20) _chartOverlays.sma20.applyOptions({ visible: document.getElementById('toggleSma20')?.checked !== false });
+    if (_chartOverlays.sma44) _chartOverlays.sma44.applyOptions({ visible: document.getElementById('toggleSma44')?.checked !== false });
+    if (_chartOverlays.sma50) _chartOverlays.sma50.applyOptions({ visible: document.getElementById('toggleSma50')?.checked !== false });
+    if (_chartOverlays.sma200) _chartOverlays.sma200.applyOptions({ visible: document.getElementById('toggleSma200')?.checked !== false });
+    
+    // Toggle S/R lines
+    if (_chartOverlays.sr && _chartOverlays.srColors) {
         _chartOverlays.sr.forEach((pl, i) => {
             if (pl && typeof pl.applyOptions === 'function') {
-                const origColor = _chartOverlays.srColors && _chartOverlays.srColors[i];
-                pl.applyOptions({ color: showSR !== false ? (origColor || '#6b7280') : 'transparent' });
+                pl.applyOptions({ color: document.getElementById('toggleSR')?.checked !== false ? (_chartOverlays.srColors[i] || '#6b7280') : 'transparent' });
             }
         });
     }
+    
+    // Toggle FVG primitive
     const showFvg = document.getElementById('toggleFvg')?.checked;
     if (_chartOverlays.fvg) {
         _chartOverlays.fvg.setVisible(showFvg !== false);
     }
+    
+    // Update arrow toggles and markers
     const showBuy = document.getElementById('toggleBuyArrows')?.checked;
     const showSell = document.getElementById('toggleSellArrows')?.checked;
     _showBuyArrows = showBuy !== false;
     _showSellArrows = showSell !== false;
+    
     if (_csCandlestick && _lastMarkersFull) {
         const filtered = _lastMarkersFull.filter(m => {
-            if (!m.text) return true; // candlestick pattern dots always show
+            // Always show: pattern dots, transaction markers, strong signals
+            if (!m.text) return true;
+            if (m.isTransaction) return true;
+            if (m.text === 'SB' || m.text === 'SS') return true;
+            
             const firstChar = m.text.charAt(0);
             if ((firstChar === 'B') && !showBuy) return false;
             if ((firstChar === 'S') && !showSell) return false;
-            // STRONG BUY ('SB') and STRONG SELL ('SS') ALWAYS show regardless of toggles
-            if (m.text === 'SB' || m.text === 'SS') return true;
             return true;
         });
         try { _csCandlestick.setMarkers(filtered); } catch(e) {}
@@ -3228,98 +3253,6 @@ function renderRiskAssessment(signal, backtestData) {
         </div>` : ''}`;
 }
 
-// ─── Screener Sub-Renderers ────────────────────────────────────────────────
-function renderSignalSummary(signal) {
-    const el = document.getElementById('signalContent');
-    if (!el) return;
-    if (!signal) {
-        el.innerHTML = '<p class="text-secondary text-center py-4">No signal data</p>';
-        return;
-    }
-    const rec = signal.recommendation || 'NEUTRAL';
-    const score = signal.compositeScore != null ? (signal.compositeScore >= 0 ? '+' : '') + signal.compositeScore : '--';
-    const badgeCls = rec === 'STRONG BUY' || rec === 'BUY' ? 'bg-green-600' :
-                     rec === 'STRONG SELL' || rec === 'SELL' ? 'bg-red-600' : 'bg-gray-500';
-    el.innerHTML = `
-        <div class="text-center mb-3">
-            <span class="px-3 py-1 rounded text-sm font-bold text-white ${badgeCls}">${rec}</span>
-        </div>
-        <div class="space-y-2 text-sm">
-            <div class="flex justify-between"><span class="text-secondary">Score:</span><strong>${score}</strong></div>
-            <div class="flex justify-between"><span class="text-secondary">RSI 14:</span><strong>${signal.rsi14 != null ? signal.rsi14.toFixed(2) : '--'}</strong></div>
-            <div class="flex justify-between"><span class="text-secondary">P&L %:</span><strong>${signal.pnlPercent != null ? (signal.pnlPercent >= 0 ? '+' : '') + signal.pnlPercent.toFixed(2) + '%' : '--'}</strong></div>
-        </div>`;
-}
-
-function renderSnapshotTable() {
-    const tbody = document.getElementById('snapshotTable');
-    const pageInfo = document.getElementById('screenerPageInfo');
-    const prevBtn = document.getElementById('screenerPrevPage');
-    const nextBtn = document.getElementById('screenerNextPage');
-    if (!tbody) return;
-    if (!_screenerSnapshots.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-secondary">No snapshot data</td></tr>';
-        if (pageInfo) pageInfo.textContent = '';
-        if (prevBtn) prevBtn.style.display = 'none';
-        if (nextBtn) nextBtn.style.display = 'none';
-        return;
-    }
-
-    const totalPages = Math.ceil(_screenerSnapshots.length / _screenerRowsPerPage);
-    const startIndex = (_screenerPage - 1) * _screenerRowsPerPage;
-    const endIndex = Math.min(startIndex + _screenerRowsPerPage, _screenerSnapshots.length);
-    const pageData = _screenerSnapshots.slice(startIndex, endIndex);
-
-    tbody.innerHTML = pageData.map(s => {
-        const pnl = parseFloat(s.pnl);
-        const cls = pnl >= 0 ? 'text-green-500' : 'text-red-500';
-        return `<tr class="border-b border-gray-700">
-            <td class="px-4 py-2">${s.snapshotDate || '--'}</td>
-            <td class="px-4 py-2 text-right">${s.lastTradedPrice != null ? fmtPrice(s.lastTradedPrice) : '--'}</td>
-            <td class="px-4 py-2 text-right ${cls}">${fmtPrice(pnl)}</td>
-            <td class="px-4 py-2 text-right ${cls}">${s.pnlPercent != null ? (s.pnlPercent >= 0 ? '+' : '') + s.pnlPercent.toFixed(2) + '%' : '--'}</td>
-            <td class="px-4 py-2 text-right">${s.currentValue != null ? fmtPrice(s.currentValue) : '--'}</td>
-        </tr>`;
-    }).join('');
-
-    if (pageInfo) {
-        pageInfo.textContent = `Showing ${startIndex + 1} to ${endIndex} of ${_screenerSnapshots.length} entries`;
-    }
-    if (prevBtn) {
-        prevBtn.style.display = 'inline-flex';
-        prevBtn.disabled = _screenerPage <= 1;
-        prevBtn.className = `px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-            _screenerPage <= 1
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-gray-600 hover:bg-gray-700 text-white cursor-pointer'
-        }`;
-    }
-    if (nextBtn) {
-        nextBtn.style.display = 'inline-flex';
-        nextBtn.disabled = _screenerPage >= totalPages;
-        nextBtn.className = `px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-            _screenerPage >= totalPages
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-gray-600 hover:bg-gray-700 text-white cursor-pointer'
-        }`;
-    }
-}
-
-function previousScreenerPage() {
-    if (_screenerPage > 1) {
-        _screenerPage--;
-        renderSnapshotTable();
-    }
-}
-
-function nextScreenerPage() {
-    const totalPages = Math.ceil(_screenerSnapshots.length / _screenerRowsPerPage);
-    if (_screenerPage < totalPages) {
-        _screenerPage++;
-        renderSnapshotTable();
-    }
-}
-
 // ─── FII / DII ──────────────────────────────────────────────────────────────
 function updateFiidiiBar(data) {
     const fiiEl = document.getElementById('fiidiiFii');
@@ -3397,6 +3330,58 @@ function updateEventsWarning(data) {
     list.textContent = upcoming.map(e => (e.purpose || '') + ' on ' + (e.eventDate || '')).join(' · ');
 }
 
+// ─── Holding Details ─────────────────────────────────────────────────────────────
+async function updateHoldingDetails() {
+    const container = document.getElementById('holdingDetails');
+    const content = document.getElementById('holdingDetailsContent');
+    if (!container || !content) return;
+    
+    const qty = _stockData?.quantity;
+    if (!qty || parseFloat(qty) <= 0) {
+        container.hidden = true;
+        return;
+    }
+
+    container.hidden = false;
+    
+    let txns = [];
+    try {
+        const res = await getAllTransactionsByStock(parseInt(_stockId));
+        if (res && res.status === 'success' && Array.isArray(res.data)) txns = res.data;
+    } catch (e) {
+        console.error('[HoldingDetails] Failed to load transactions:', e);
+    }
+    
+    if (!txns.length) {
+        content.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-secondary">No transactions recorded for this stock yet.</td></tr>';
+        return;
+    }
+    
+    content.innerHTML = txns.map(tx => {
+        const isBuy = tx.type === 'BUY';
+        const value = (tx.quantity || 0) * (tx.price || 0);
+        const badgeCls = isBuy
+            ? 'bg-green-900/30 border border-green-700/50 text-green-400'
+            : 'bg-red-900/30 border border-red-700/50 text-red-400';
+        const badgeIcon = isBuy ? 'fa-arrow-down' : 'fa-arrow-up';
+        return `
+            <tr class="border-b border-gray-700 hover:bg-gray-800 transition-colors">
+                <td class="px-4 py-3 whitespace-nowrap">${tx.transactionDate || '--'}</td>
+                <td class="px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${badgeCls}">
+                        <i class="fas ${badgeIcon}"></i>${isBuy ? 'BUY' : 'SELL'}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-right">${Number(tx.quantity || 0).toLocaleString('en-IN')}</td>
+                <td class="px-4 py-3 text-right">${fmtPrice(tx.price)}</td>
+                <td class="px-4 py-3 text-right">${fmtPrice(tx.fees)}</td>
+                <td class="px-4 py-3 text-right font-medium">${fmtPrice(value)}</td>
+                <td class="px-4 py-3 text-right ${tx.realizedPnl != null ? pnlColor(tx.realizedPnl) : 'text-secondary'}">${tx.realizedPnl != null ? fmtPrice(tx.realizedPnl) : '--'}</td>
+                <td class="px-4 py-3 text-secondary max-w-[200px] truncate" title="${escHtml(tx.notes || '')}">${escHtml(tx.notes || '')}</td>
+            </tr>`;
+    }).join('');
+}
+
 // ─── Actions ────────────────────────────────────────────────────────────────
 async function fillRsiGaps() {
     const btn = document.getElementById('fillRsiGapsBtn');
@@ -3472,6 +3457,10 @@ function showErrorState() {
 
 function destroyChart(key) {
     if (_charts[key]) {
+        // Cleanup: unsubscribe from visibleLogicalRangeChange for candlestick chart to prevent memory leaks
+        if (key === 'candlestick' && _charts[key].timeScale && typeof _charts[key].timeScale === 'function') {
+            try { _charts[key].timeScale().unsubscribeVisibleLogicalRangeChange(); } catch(e) {}
+        }
         if (typeof _charts[key].destroy === 'function') _charts[key].destroy();
         else if (typeof _charts[key].remove === 'function') _charts[key].remove();
         delete _charts[key];
@@ -3577,330 +3566,4 @@ function showWatchlistToast(msg, type) {
     toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle') + ' mr-2"></i>' + msg;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
-}
-
-// ─── Institutional Activity ────────────────────────────────────────────
-async function loadInstitutionalTab(forceRefresh) {
-    const container = document.getElementById('institutionalContent');
-    if (!container) return;
-    container.innerHTML = '<p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading institutional data...</p>';
-
-    try {
-        const [scoreRes, holdingRes, bulkRes, blockRes, historyRes] = await Promise.all([
-            getInstitutionalScore(_stockId).catch(() => null),
-            getInstitutionalHolding(_stockId).catch(() => null),
-            getBulkDeals(_stockId).catch(() => null),
-            getBlockDeals(_stockId).catch(() => null),
-            getInstitutionalHoldingHistory(_stockId).catch(() => null)
-        ]);
-
-        if (forceRefresh && scoreRes && scoreRes.data && scoreRes.data.totalScore === 0) {
-            // Minimal score — try recalculating if nothing useful
-        }
-
-        const scoreData = scoreRes && scoreRes.status === 'success' ? scoreRes.data : null;
-        const holdingData = holdingRes && holdingRes.status === 'success' ? holdingRes.data : null;
-        const bulkData = bulkRes && bulkRes.status === 'success' ? bulkRes.data : null;
-        const blockData = blockRes && blockRes.status === 'success' ? blockRes.data : null;
-        var historyData = historyRes && historyRes.status === 'success' ? historyRes.data : null;
-        if (historyData && historyData.length < 2) historyData = null;
-
-        renderInstitutionalContent(container, scoreData, holdingData, bulkData, blockData, historyData);
-    } catch (e) {
-        console.error('Institutional tab error:', e);
-        container.innerHTML = '<p class="text-danger text-center py-4">⚠ Failed to load institutional data</p>';
-    }
-}
-
-function renderInstitutionalContent(container, score, holding, bulkDeals, blockDeals, history) {
-    if (!score && !holding && (!bulkDeals || !bulkDeals.length) && (!blockDeals || !blockDeals.length) && (!history || !history.length)) {
-        container.innerHTML = '<p class="text-secondary text-center py-4">No institutional data available for this stock. <button onclick="loadInstitutionalTab(true)" class="text-blue-400 hover:underline">Refresh</button></p>';
-        return;
-    }
-
-    var html = '<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">';
-
-    // ── Left: Score Card ──
-    html += '<div class="card rounded-xl p-4 shadow-lg">';
-    html += '<div class="flex items-center justify-between mb-3">';
-    html += '<h4 class="font-semibold"><i class="fas fa-star text-yellow-400 mr-1"></i>Institutional Score</h4>';
-    if (score) {
-        var grade = score.institutionalGrade || 'NEUTRAL';
-        var gradeClass = grade === 'STRONG_BUY' ? 'badge badge-success' :
-                         grade === 'BUY' ? 'badge badge-info' :
-                         grade === 'NEUTRAL_POSITIVE' ? 'badge badge-warning' :
-                         grade === 'NEUTRAL_NEGATIVE' ? 'badge badge-neutral' :
-                         'badge badge-danger';
-        html += '<span class="' + gradeClass + '">' + grade.replace(/_/g, ' ') + '</span>';
-    }
-    html += '</div>';
-
-    if (score) {
-        var total = score.totalScore || 0;
-        html += '<div class="text-center mb-4">';
-        html += '<div class="text-4xl font-bold ' + (total >= 60 ? 'text-green-400' : total >= 40 ? 'text-yellow-400' : total >= 20 ? 'text-orange-400' : 'text-red-400') + '">' + total + '</div>';
-        html += '<div class="text-xs text-secondary">out of 100</div>';
-        html += '</div>';
-
-        // Score bar
-        var barColor = total >= 80 ? '#22c55e' : total >= 60 ? '#3b82f6' : total >= 40 ? '#eab308' : total >= 20 ? '#f97316' : '#ef4444';
-        html += '<div class="score-bar mb-4" style="height:10px;border-radius:5px;background:#334155;">';
-        html += '<div class="score-fill" style="width:' + Math.min(total, 100) + '%;height:100%;border-radius:5px;background:' + barColor + ';"></div>';
-        html += '</div>';
-
-        // Component scores
-        var components = [
-            { label: 'FII', value: score.fiiScore || 0, max: 20 },
-            { label: 'DII', value: score.diiScore || 0, max: 15 },
-            { label: 'MF', value: score.mutualFundScore || 0, max: 15 },
-            { label: 'Bulk', value: score.bulkDealScore || 0, max: 15 },
-            { label: 'Block', value: score.blockDealScore || 0, max: 10 },
-            { label: 'Delivery', value: score.deliveryScore || 0, max: 10 },
-            { label: 'Volume', value: score.volumeScore || 0, max: 10 },
-            { label: 'Price Act.', value: score.priceActionScore || 0, max: 5 }
-        ];
-        html += '<div class="space-y-1.5">';
-        components.forEach(function(c) {
-            var pct = Math.min((c.value / c.max) * 100, 100);
-            var compColor = pct >= 80 ? '#22c55e' : pct >= 50 ? '#3b82f6' : pct >= 25 ? '#eab308' : '#ef4444';
-            html += '<div class="flex items-center gap-2">';
-            html += '<span class="text-xs text-secondary w-16">' + c.label + '</span>';
-            html += '<div class="flex-1 score-bar" style="height:6px;background:#334155;"><div class="score-fill" style="width:' + pct + '%;height:100%;background:' + compColor + ';"></div></div>';
-            html += '<span class="text-xs font-medium w-8 text-right">' + c.value + '</span>';
-            html += '</div>';
-        });
-        html += '</div>';
-
-        // Signal
-        if (score.signalRecommendation) {
-            html += '<div class="mt-3 pt-3 border-t border-gray-700 flex items-center justify-between">';
-            html += '<span class="text-xs text-secondary">Signal</span>';
-            var sig = score.signalRecommendation;
-            var sigClass = sig.includes('STRONG BUY') ? 'badge-success' : sig.includes('BUY') ? 'badge-info' : sig.includes('SELL') ? 'badge-danger' : 'badge-neutral';
-            html += '<span class="badge ' + sigClass + '">' + sig + '</span>';
-            html += '</div>';
-        }
-    } else {
-        html += '<p class="text-secondary text-center py-4">Score not computed</p>';
-    }
-    html += '</div>'; // end score card
-
-    // ── Right: Holdings Card ──
-    html += '<div class="card rounded-xl p-4 shadow-lg">';
-    html += '<h4 class="font-semibold mb-3"><i class="fas fa-chart-pie text-blue-400 mr-1"></i>Shareholding Pattern</h4>';
-    if (holding) {
-        html += '<div class="space-y-3">';
-        var fields = [
-            { label: 'Promoter', pct: holding.promoterHoldingPct, chg: holding.promoterChangeQoq },
-            { label: 'FII', pct: holding.fiiHoldingPct, chg: holding.fiiChangeQoq },
-            { label: 'DII', pct: holding.diiHoldingPct, chg: holding.diiChangeQoq },
-            { label: 'MF', pct: holding.mutualFundHoldingPct, chg: holding.mutualFundChangeQoq },
-            { label: 'Public', pct: holding.publicHoldingPct, chg: null }
-        ];
-        fields.forEach(function(f) {
-            html += '<div class="flex items-center justify-between">';
-            html += '<span class="text-sm text-secondary">' + f.label + '</span>';
-            html += '<span class="text-sm font-medium">' + (f.pct != null ? Number(f.pct).toFixed(2) + '%' : 'N/A');
-            if (f.chg != null) {
-                var cls = f.chg >= 0 ? 'text-green-400' : 'text-red-400';
-                html += ' <span class="text-xs ' + cls + '">(' + (f.chg >= 0 ? '+' : '') + Number(f.chg).toFixed(2) + '%)</span>';
-            }
-            html += '</span></div>';
-        });
-        html += '<div class="pt-2 mt-2 border-t border-gray-700 text-xs text-secondary flex items-center justify-between">';
-        html += '<span>Quarter: ' + (holding.quarterEndDate || '-') + '</span>';
-        html += '<span>Source: ' + (holding.dataSource || '-') + '</span>';
-        html += '</div></div>';
-    } else {
-        html += '<p class="text-secondary text-center py-4">No shareholding data</p>';
-    }
-    html += '</div>'; // end holdings card
-
-    // ── Bulk Deals (full width) ──
-    html += '<div class="lg:col-span-2 card rounded-xl p-4 shadow-lg">';
-    html += '<h4 class="font-semibold mb-3"><i class="fas fa-cubes text-green-400 mr-1"></i>Recent Bulk Deals</h4>';
-    if (bulkDeals && bulkDeals.length) {
-        var displayDeals = bulkDeals.slice(0, 10);
-        html += '<div class="table-container text-xs">';
-        html += '<table class="w-full"><thead><tr class="text-secondary border-b border-gray-700">';
-        html += '<th class="text-left p-1.5">Date</th><th class="text-left p-1.5">Client</th><th class="text-center p-1.5">B/S</th>';
-        html += '<th class="text-center p-1.5">Qty</th><th class="text-center p-1.5">Price</th><th class="text-center p-1.5">Value</th><th class="text-center p-1.5">Category</th>';
-        html += '</tr></thead><tbody>';
-        displayDeals.forEach(function(d) {
-            var bsClass = d.buySell === 'BUY' ? 'text-green-400' : 'text-red-400';
-            var catBadge = d.clientCategory === 'FII' ? 'badge badge-info' :
-                           d.clientCategory === 'MF' ? 'badge badge-success' :
-                           d.clientCategory === 'DII' ? 'badge badge-warning' :
-                           'badge badge-neutral';
-            html += '<tr class="border-b border-gray-700 hover:bg-gray-800/50">';
-            html += '<td class="p-1.5 text-secondary">' + (d.dealDate || '-') + '</td>';
-            html += '<td class="p-1.5 max-w-[150px] truncate" title="' + (d.clientName || '') + '">' + (d.clientName || '-') + '</td>';
-            html += '<td class="p-1.5 text-center font-medium ' + bsClass + '">' + (d.buySell || '-') + '</td>';
-            html += '<td class="p-1.5 text-center">' + (d.quantity ? Number(d.quantity).toLocaleString('en-IN') : '-') + '</td>';
-            html += '<td class="p-1.5 text-center">' + (d.tradePrice != null ? '₹' + Number(d.tradePrice).toFixed(2) : '-') + '</td>';
-            html += '<td class="p-1.5 text-center">' + (d.dealValue != null ? '₹' + Number(d.dealValue).toLocaleString('en-IN', {minimumFractionDigits:2}) : '-') + '</td>';
-            html += '<td class="p-1.5 text-center"><span class="' + catBadge + '">' + (d.clientCategory || 'N/A') + '</span></td>';
-            html += '</tr>';
-        });
-        html += '</tbody></table>';
-        if (bulkDeals.length > 10) {
-            html += '<p class="text-right text-xs text-secondary mt-2">+ ' + (bulkDeals.length - 10) + ' more</p>';
-        }
-        html += '</div>';
-    } else {
-        html += '<p class="text-secondary text-center py-3">No bulk deals</p>';
-    }
-    html += '</div>'; // end bulk deals
-
-    // ── Block Deals (full width) ──
-    html += '<div class="lg:col-span-2 card rounded-xl p-4 shadow-lg">';
-    html += '<h4 class="font-semibold mb-3"><i class="fas fa-cubes text-purple-400 mr-1"></i>Recent Block Deals</h4>';
-    if (blockDeals && blockDeals.length) {
-        var displayBlocks = blockDeals.slice(0, 10);
-        html += '<div class="table-container text-xs">';
-        html += '<table class="w-full"><thead><tr class="text-secondary border-b border-gray-700">';
-        html += '<th class="text-left p-1.5">Date</th><th class="text-left p-1.5">Client</th><th class="text-center p-1.5">B/S</th>';
-        html += '<th class="text-center p-1.5">Qty</th><th class="text-center p-1.5">Price</th><th class="text-center p-1.5">Value</th><th class="text-center p-1.5">Category</th>';
-        html += '</tr></thead><tbody>';
-        displayBlocks.forEach(function(d) {
-            var bsClass = d.buySell === 'BUY' ? 'text-green-400' : 'text-red-400';
-            var catBadge = d.clientCategory === 'FII' ? 'badge badge-info' :
-                           d.clientCategory === 'MF' ? 'badge badge-success' :
-                           d.clientCategory === 'DII' ? 'badge badge-warning' :
-                           'badge badge-neutral';
-            html += '<tr class="border-b border-gray-700 hover:bg-gray-800/50">';
-            html += '<td class="p-1.5 text-secondary">' + (d.dealDate || '-') + '</td>';
-            html += '<td class="p-1.5 max-w-[150px] truncate" title="' + (d.clientName || '') + '">' + (d.clientName || '-') + '</td>';
-            html += '<td class="p-1.5 text-center font-medium ' + bsClass + '">' + (d.buySell || '-') + '</td>';
-            html += '<td class="p-1.5 text-center">' + (d.quantity ? Number(d.quantity).toLocaleString('en-IN') : '-') + '</td>';
-            html += '<td class="p-1.5 text-center">' + (d.tradePrice != null ? '₹' + Number(d.tradePrice).toFixed(2) : '-') + '</td>';
-            html += '<td class="p-1.5 text-center">' + (d.dealValue != null ? '₹' + Number(d.dealValue).toLocaleString('en-IN', {minimumFractionDigits:2}) : '-') + '</td>';
-            html += '<td class="p-1.5 text-center"><span class="' + catBadge + '">' + (d.clientCategory || 'N/A') + '</span></td>';
-            html += '</tr>';
-        });
-        html += '</tbody></table>';
-        if (blockDeals.length > 10) {
-            html += '<p class="text-right text-xs text-secondary mt-2">+ ' + (blockDeals.length - 10) + ' more</p>';
-        }
-        html += '</div>';
-    } else {
-        html += '<p class="text-secondary text-center py-3">No block deals</p>';
-    }
-    html += '</div>'; // end block deals
-
-    // ── Trend Chart (full width) ──
-    if (history && history.length >= 2) {
-        html += '<div class="lg:col-span-2 card rounded-xl p-4 shadow-lg">';
-        html += '<h4 class="font-semibold mb-3"><i class="fas fa-chart-line text-blue-400 mr-1"></i>Institutional Holding Trend</h4>';
-        html += '<div style="position:relative;height:280px;"><canvas id="instTrendChart"></canvas></div>';
-        html += '</div>';
-    }
-
-    html += '</div>'; // end grid
-    container.innerHTML = html;
-
-    // ── Render Trend Chart ──
-    if (history && history.length >= 2) {
-        renderScoreTrendChart(history);
-    }
-}
-
-/**
- * Renders a Chart.js multi-line chart showing FII%, DII%, MF% over quarters.
- */
-function renderScoreTrendChart(history) {
-    var canvas = document.getElementById('instTrendChart');
-    if (!canvas) return;
-
-    // Destroy any previous chart on this canvas
-    destroyChart('instTrend');
-
-    // Sort ascending by quarter end date
-    var sorted = history.slice().sort(function(a, b) {
-        return new Date(a.quarterEndDate) - new Date(b.quarterEndDate);
-    });
-
-    var labels = sorted.map(function(h) { return h.quarterEndDate; });
-    var fiiData = sorted.map(function(h) { return h.fiiHoldingPct != null ? Number(h.fiiHoldingPct) : null; });
-    var diiData = sorted.map(function(h) { return h.diiHoldingPct != null ? Number(h.diiHoldingPct) : null; });
-    var mfData = sorted.map(function(h) { return h.mutualFundHoldingPct != null ? Number(h.mutualFundHoldingPct) : null; });
-    var promoterData = sorted.map(function(h) { return h.promoterHoldingPct != null ? Number(h.promoterHoldingPct) : null; });
-
-    _charts.instTrend = new Chart(canvas, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Promoter %',
-                    data: promoterData,
-                    borderColor: '#94a3b8',
-                    backgroundColor: 'rgba(148,163,184,0.1)',
-                    tension: 0.3,
-                    borderWidth: 1.5,
-                    pointRadius: 3,
-                    spanGaps: true
-                },
-                {
-                    label: 'FII %',
-                    data: fiiData,
-                    borderColor: '#22c55e',
-                    backgroundColor: 'rgba(34,197,94,0.1)',
-                    tension: 0.3,
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    spanGaps: true
-                },
-                {
-                    label: 'DII %',
-                    data: diiData,
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59,130,246,0.1)',
-                    tension: 0.3,
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    spanGaps: true
-                },
-                {
-                    label: 'MF %',
-                    data: mfData,
-                    borderColor: '#a855f7',
-                    backgroundColor: 'rgba(168,85,247,0.1)',
-                    tension: 0.3,
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    spanGaps: true
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: 'index', intersect: false },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: { color: '#94a3b8', boxWidth: 12, padding: 12, font: { size: 11 } }
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(ctx) {
-                            return ctx.dataset.label + ': ' + (ctx.parsed.y != null ? ctx.parsed.y.toFixed(2) + '%' : 'N/A');
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    ticks: { color: '#64748b', font: { size: 10 } },
-                    grid: { color: 'rgba(51,65,85,0.5)' }
-                },
-                y: {
-                    beginAtZero: true,
-                    ticks: { color: '#64748b', font: { size: 10 }, callback: function(v) { return v.toFixed(1) + '%'; } },
-                    grid: { color: 'rgba(51,65,85,0.5)' }
-                }
-            }
-        }
-    });
 }
