@@ -76,7 +76,7 @@ table tbody tr {
     border-bottom: 1px solid var(--border-color);
     transition: background-color 0.15s ease;
 }
-table tbody tr:hover {
+table tbody tr:not(.strategy-expand):hover {
     background-color: var(--hover-bg);
 }
 table tbody tr:last-child {
