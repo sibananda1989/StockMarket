@@ -64,3 +64,17 @@ nohup.out
 
 # Screenshots
 fvg_*.png
+# Session / QA artifacts (never commit)
+.omo/
+test-results/
+CODE_REVIEW_REPORT.md
+PLANNING_REPORT.md
+SPECIFICATION_KILO_PROBE.md
+implementation_summary.md
+verification_report.txt
+code_review_report.txt
+check-nvidia-models.sh
+check-nvidia-provider.sh
+list-free-nvidia-models.sh
+probe-*.sh
+stock-detail-top.png
