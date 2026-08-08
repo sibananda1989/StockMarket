@@ -1,9 +1,20 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "disabled_providers": ["aihubmix", "groq","openAI","OpenRouter","GitHub Models"],
-  "plugin": ["opencode-auto-fallback", "openkilo"],
+  "disabled_providers": [
+    "aihubmix",
+    "groq",
+    "openAI",
+    "GitHub Models"
+  ],
+  "plugin": [
+    "opencode-auto-fallback",
+    "openkilo"
+  ],
   "default_agent": "team-lead",
-  "instructions": ["AGENTS.md", "docs/PROJECT_MANIFEST.md"],
+  "instructions": [
+    "AGENTS.md",
+    "docs/PROJECT_MANIFEST.md"
+  ],
   "provider": {
     "naraya": {
       "npm": "@ai-sdk/openai-compatible",
@@ -13,42 +24,50 @@
         "apiKey": "sk-nry-kO9TT4DdO9SQbRuyrrtYM482CajIjcU26KdnZPeG_6U"
       },
       "models": {
-        "agnes-2.5-flash": {
-          "name": "Agnes 2.5 flash free"
+        "stepfun-3.7-flash": {
+          "name": "Stepfun-3.7-flash Free"
         },
         "agnes-2.0-flash": {
           "name": "Agnes 2.0 flash free"
         },
-        "nemotron-3-ultra": {
-          "name": "Nemotron 3 ultra free"
+        "grok-4.5-free": {
+          "name": "Grok 4.5 Free"
         },
-		"ling-3.0-flash-free": {
-			"name": "Ling 3.0 flash free"
-		},
- 		"mistral-large": {
-			"name": "Mistral large"
-		},
-		"mistral-medium-3-5": {
-			"name": "Mistral medium 3.5"
-		}
-      }
-    },
-     "agnes": {
-        "npm": "@ai-sdk/openai-compatible",
-        "name": "Agnes",
-        "options": {
-          "baseURL": "https://apihub.agnes-ai.com/v1",
-          "apiKey": "sk-fR5NSxdyqCdbC0FwA9k1CXNaLEiRPD59WlEa27rSUd9aB6BH"
+        "mistral-large": {
+          "name": "Mistral large"
         },
-        "models": {
-          "agnes-2.0-flash": {
-            "name": "Agnes 2.0 Flash"
-          },
-          "agnes-2.5-flash": {
-            "name": "Agnes 2.5 Flash"
-          }
+        "mistral-medium-3-5": {
+          "name": "Mistral medium 3.5"
         }
       },
+      "whitelist": [
+        "stepfun-3.7-flash",
+        "agnes-2.0-flash",
+        "grok-4.5-free",
+        "mistral-large",
+        "mistral-medium-3-5"
+      ]
+    },
+    "agnes": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Agnes",
+      "options": {
+        "baseURL": "https://apihub.agnes-ai.com/v1",
+        "apiKey": "sk-fR5NSxdyqCdbC0FwA9k1CXNaLEiRPD59WlEa27rSUd9aB6BH"
+      },
+      "models": {
+        "agnes-2.0-flash": {
+          "name": "Agnes 2.0 Flash"
+        },
+        "agnes-2.5-flash": {
+          "name": "Agnes 2.5 Flash"
+        }
+      },
+      "whitelist": [
+        "agnes-2.0-flash",
+        "agnes-2.5-flash"
+      ]
+    },
     "tokenrouter": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "TokenRouter",
@@ -60,12 +79,284 @@
         "z-ai/glm-5.2-free": {
           "name": "GLM-5.2-free"
         }
+      },
+      "whitelist": [
+        "z-ai/glm-5.2-free"
+      ]
+    },
+    "nvidia": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA",
+      "models": {
+        "nvidia/ising-calibration-1.5-31b": {
+          "name": "Ising Calibration 1 5 31b"
+        },
+        "nvidia/llama-3.1-nemoguard-8b-content-safety": {
+          "name": "Llama 3 1 Nemoguard 8b Content Safety"
+        },
+        "nvidia/llama-3.1-nemoguard-8b-topic-control": {
+          "name": "Llama 3 1 Nemoguard 8b Topic Control"
+        },
+        "nvidia/llama-3.1-nemotron-nano-vl-8b-v1": {
+          "name": "Llama 3 1 Nemotron Nano Vl 8b V1"
+        },
+        "nvidia/llama-3.1-nemotron-safety-guard-8b-v3": {
+          "name": "Llama 3 1 Nemotron Safety Guard 8b V3"
+        },
+        "nvidia/llama-3.3-nemotron-super-49b-v1": {
+          "name": "Llama 3 3 Nemotron Super 49b V1"
+        },
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
+          "name": "Llama 3 3 Nemotron Super 49b V1 5"
+        },
+        "nvidia/nemotron-3-nano-30b-a3b": {
+          "name": "Nemotron 3 Nano 30b A3b"
+        },
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning": {
+          "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
+        },
+        "nvidia/nemotron-3-super-120b-a12b": {
+          "name": "Nemotron 3 Super 120b A12b"
+        },
+        "nvidia/nemotron-3.5-content-safety": {
+          "name": "Nemotron 3 5 Content Safety"
+        },
+        "nvidia/nemotron-mini-4b-instruct": {
+          "name": "Nemotron Mini 4b Instruct"
+        },
+        "nvidia/nemotron-nano-12b-v2-vl": {
+          "name": "Nemotron Nano 12b V2 Vl"
+        },
+        "nvidia/nvidia-nemotron-nano-9b-v2": {
+          "name": "Nvidia Nemotron Nano 9b V2"
+        },
+        "nvidia/riva-translate-4b-instruct-v1.1": {
+          "name": "Riva Translate 4b Instruct V1 1"
+        },
+        "nvidia/riva-translate-4b-instruct-v2": {
+          "name": "Riva Translate 4b Instruct V2"
+        }
+      },
+      "options": {
+        "baseURL": "https://integrate.api.nvidia.com/v1"
+      },
+      "whitelist": [
+        "nvidia/ising-calibration-1.5-31b",
+        "nvidia/llama-3.1-nemoguard-8b-content-safety",
+        "nvidia/llama-3.1-nemoguard-8b-topic-control",
+        "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
+        "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
+        "nvidia/llama-3.3-nemotron-super-49b-v1",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "nvidia/nemotron-3-nano-30b-a3b",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+        "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3.5-content-safety",
+        "nvidia/nemotron-mini-4b-instruct",
+        "nvidia/nemotron-nano-12b-v2-vl",
+        "nvidia/nvidia-nemotron-nano-9b-v2",
+        "nvidia/riva-translate-4b-instruct-v1.1",
+        "nvidia/riva-translate-4b-instruct-v2"
+      ]
+    },
+    "openrouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "OpenRouter",
+      "models": {
+        "cohere/north-mini-code:free": {
+          "name": "North Mini Code"
+        },
+        "google/gemma-4-26b-a4b-it:free": {
+          "name": "Gemma 4 26b A4b It"
+        },
+        "inclusionai/ling-3.0-tiny:free": {
+          "name": "Ling 3 0 Tiny"
+        },
+        "nvidia/nemotron-3-nano-30b-a3b:free": {
+          "name": "Nemotron 3 Nano 30b A3b"
+        },
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+          "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 3 Super 120b A12b"
+        },
+        "nvidia/nemotron-3-ultra-550b-a55b:free": {
+          "name": "Nemotron 3 Ultra 550b A55b"
+        },
+        "nvidia/nemotron-3.5-content-safety:free": {
+          "name": "Nemotron 3 5 Content Safety"
+        },
+        "nvidia/nemotron-nano-12b-v2-vl:free": {
+          "name": "Nemotron Nano 12b V2 Vl"
+        },
+        "nvidia/nemotron-nano-9b-v2:free": {
+          "name": "Nemotron Nano 9b V2"
+        },
+        "openrouter/free": {
+          "name": "Free"
+        },
+        "poolside/laguna-s-2.1:free": {
+          "name": "Laguna S 2 1"
+        },
+        "poolside/laguna-xs-2.1:free": {
+          "name": "Laguna Xs 2 1"
+        }
+      },
+      "options": {
+        "baseURL": "https://openrouter.ai/api/v1"
+      },
+      "whitelist": [
+        "cohere/north-mini-code:free",
+        "google/gemma-4-26b-a4b-it:free",
+        "inclusionai/ling-3.0-tiny:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-content-safety:free",
+        "nvidia/nemotron-nano-12b-v2-vl:free",
+        "nvidia/nemotron-nano-9b-v2:free",
+        "openrouter/free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free"
+      ]
+    },
+    "google": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Google",
+      "models": {
+        "gemini-2.5-flash": {
+          "name": "Gemini 2 5 Flash"
+        },
+        "gemini-2.5-flash-lite": {
+          "name": "Gemini 2 5 Flash Lite"
+        },
+        "gemini-3-flash-preview": {
+          "name": "Gemini 3 Flash Preview"
+        },
+        "gemini-3.1-flash-lite": {
+          "name": "Gemini 3 1 Flash Lite"
+        },
+        "gemini-3.1-flash-lite-preview": {
+          "name": "Gemini 3 1 Flash Lite Preview"
+        },
+        "gemini-3.5-flash": {
+          "name": "Gemini 3 5 Flash"
+        },
+        "gemini-3.5-flash-lite": {
+          "name": "Gemini 3 5 Flash Lite"
+        },
+        "gemini-3.6-flash": {
+          "name": "Gemini 3 6 Flash"
+        },
+        "gemini-flash-latest": {
+          "name": "Gemini Flash Latest"
+        },
+        "gemini-flash-lite-latest": {
+          "name": "Gemini Flash Lite Latest"
+        },
+        "gemini-robotics-er-1.6-preview": {
+          "name": "Gemini Robotics Er 1 6 Preview"
+        },
+        "gemini-robotics-er-2-preview": {
+          "name": "Gemini Robotics Er 2 Preview"
+        },
+        "gemma-4-26b-a4b-it": {
+          "name": "Gemma 4 26b A4b It"
+        },
+        "gemma-4-31b-it": {
+          "name": "Gemma 4 31b It"
+        }
+      },
+      "options": {
+        "baseURL": "https://generativelanguage.googleapis.com/v1beta/openai/"
+      },
+      "whitelist": [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
+        "gemini-flash-latest",
+        "gemini-flash-lite-latest",
+        "gemini-robotics-er-1.6-preview",
+        "gemini-robotics-er-2-preview",
+        "gemma-4-26b-a4b-it",
+        "gemma-4-31b-it"
+      ]
+    },
+    "kilo": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Kilo Gateway",
+      "options": {
+        "baseURL": "https://api.kilo.ai/api/openrouter",
+        "apiKey": "${KILO_API_KEY}"
+      },
+      "whitelist": [
+        "cohere/north-mini-code:free",
+        "inclusionai/ling-3.0-tiny:free",
+        "kilo-auto/free",
+        "kilo-auto/small",
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-content-safety:free",
+        "openrouter/free",
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free",
+        "stepfun/step-3.7-flash:free",
+        "tencent/hy3:free"
+      ],
+      "models": {
+        "cohere/north-mini-code:free": {
+          "name": "North Mini Code"
+        },
+        "inclusionai/ling-3.0-tiny:free": {
+          "name": "Ling 3 0 Tiny"
+        },
+        "kilo-auto/free": {
+          "name": "Free"
+        },
+        "kilo-auto/small": {
+          "name": "Small"
+        },
+        "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+          "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
+        },
+        "nvidia/nemotron-3-super-120b-a12b:free": {
+          "name": "Nemotron 3 Super 120b A12b"
+        },
+        "nvidia/nemotron-3-ultra-550b-a55b:free": {
+          "name": "Nemotron 3 Ultra 550b A55b"
+        },
+        "nvidia/nemotron-3.5-content-safety:free": {
+          "name": "Nemotron 3 5 Content Safety"
+        },
+        "openrouter/free": {
+          "name": "Free"
+        },
+        "poolside/laguna-s-2.1:free": {
+          "name": "Laguna S 2 1"
+        },
+        "poolside/laguna-xs-2.1:free": {
+          "name": "Laguna Xs 2 1"
+        },
+        "stepfun/step-3.7-flash:free": {
+          "name": "Step 3 7 Flash"
+        },
+        "tencent/hy3:free": {
+          "name": "Hy3"
+        }
       }
     }
   },
   "agent": {
     "team-lead": {
-      "model": "openkilo/kilo-auto/free",
+      "model": "kilo/kilo-auto/free",
       "permission": {
         "read": "allow",
         "task": "allow",
