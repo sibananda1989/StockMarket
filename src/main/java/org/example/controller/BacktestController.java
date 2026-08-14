@@ -21,7 +21,9 @@ public class BacktestController {
             @PathVariable Long stockId,
             @RequestParam(defaultValue = "true") boolean stopLoss,
             @RequestParam(defaultValue = "0.02") double positionSizePct,
-            @RequestParam(defaultValue = "0") int days) {
+            @RequestParam(defaultValue = "0") int days,
+            @RequestParam(defaultValue = "2.0") double riskFreeRatePct,
+            @RequestParam(defaultValue = "3.0") double trailingStopMultiplier) {
         return ResponseEntity.status(501).body(ApiResponse.error("Backtest feature is disabled for performance optimization"));
     }
 }
