@@ -1810,26 +1810,25 @@ function renderCandlestickChart(prices, signalHistory, currentSignal, srData, tx
     // Re-apply markers on zoom/pan to prevent them from disappearing (lightweight-charts v4.2.0)
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
         if (_csCandlestick && _lastMarkersFull) {
-            const showBuy = document.getElementById('toggleBuyArrows')?.checked;
-            const showSell = document.getElementById('toggleSellArrows')?.checked;
-            const filtered = _lastMarkersFull.filter(m => {
-                if (!m.text) return true;
-                // Transaction markers (e.g., "B 100", "S 50") - always show
-                if (m.text.includes(' ') && /\d/.test(m.text.split(' ')[1])) {
-                    return true;
-                }
-                // STRONG BUY ('SB') and STRONG SELL ('SS') ALWAYS show
-                if (m.text === 'SB' || m.text === 'SS') return true;
-                const firstChar = m.text.charAt(0);
-                if ((firstChar === 'B') && !showBuy) return false;
-                if ((firstChar === 'S') && !showSell) return false;
-                return true;
-            });
-            try { _csCandlestick.setMarkers(filtered); } catch(e) {}
+            try { _csCandlestick.setMarkers(getVisibleMarkers()); } catch(e) {}
         }
     });
 
     toggleChartOverlays();
+}
+
+function getVisibleMarkers() {
+    const showBuy = document.getElementById('toggleBuyArrows')?.checked;
+    const showSell = document.getElementById('toggleSellArrows')?.checked;
+    return _lastMarkersFull.filter(m => {
+        if (!m.text) return true;
+        if (m.isTransaction) return true;
+        if (m.text === 'SB' || m.text === 'SS') return true;
+        const firstChar = m.text.charAt(0);
+        if (firstChar === 'B' && !showBuy) return false;
+        if (firstChar === 'S' && !showSell) return false;
+        return true;
+    });
 }
 
 function toggleChartOverlays() {
@@ -1841,9 +1840,13 @@ function toggleChartOverlays() {
     
     // Toggle S/R lines
     if (_chartOverlays.sr && _chartOverlays.srColors) {
+        const srVisible = document.getElementById('toggleSR')?.checked !== false;
         _chartOverlays.sr.forEach((pl, i) => {
             if (pl && typeof pl.applyOptions === 'function') {
-                pl.applyOptions({ color: document.getElementById('toggleSR')?.checked !== false ? (_chartOverlays.srColors[i] || '#6b7280') : 'transparent' });
+                pl.applyOptions({
+                    color: srVisible ? (_chartOverlays.srColors[i] || '#6b7280') : 'transparent',
+                    axisLabelVisible: srVisible,
+                });
             }
         });
     }
@@ -1854,25 +1857,12 @@ function toggleChartOverlays() {
         _chartOverlays.fvg.setVisible(showFvg !== false);
     }
     
-    // Update arrow toggles and markers
-    const showBuy = document.getElementById('toggleBuyArrows')?.checked;
-    const showSell = document.getElementById('toggleSellArrows')?.checked;
-    _showBuyArrows = showBuy !== false;
-    _showSellArrows = showSell !== false;
-    
+    // Update arrow toggle state
+    _showBuyArrows = document.getElementById('toggleBuyArrows')?.checked !== false;
+    _showSellArrows = document.getElementById('toggleSellArrows')?.checked !== false;
+
     if (_csCandlestick && _lastMarkersFull) {
-        const filtered = _lastMarkersFull.filter(m => {
-            // Always show: pattern dots, transaction markers, strong signals
-            if (!m.text) return true;
-            if (m.isTransaction) return true;
-            if (m.text === 'SB' || m.text === 'SS') return true;
-            
-            const firstChar = m.text.charAt(0);
-            if ((firstChar === 'B') && !showBuy) return false;
-            if ((firstChar === 'S') && !showSell) return false;
-            return true;
-        });
-        try { _csCandlestick.setMarkers(filtered); } catch(e) {}
+        try { _csCandlestick.setMarkers(getVisibleMarkers()); } catch(e) {}
     }
 }
 
@@ -3425,34 +3415,160 @@ async function refreshIndicators() {
 }
 
 async function runBacktest() {
-    ['btWinRate','btTotalReturn','btMaxDrawdown','btTotalTrades','btWinningTrades',
-     'btLosingTrades','btStoppedOut','btSignalExits','btEventsSkipped','btFinalValue']
-        .forEach(id => document.getElementById(id) && (document.getElementById(id).textContent = 'Disabled'));
+    const stockId = _stockId;
+    if (stockId == null) {
+        alert('No stock selected');
+        return;
+    }
+    try {
+        showBacktestLoading(true);
+        const res = await getBacktestData(stockId, true, 0.02);
+        renderBacktestResults(res.data);
+        showBacktestLoading(false);
+    } catch (e) {
+        console.error('Backtest error:', e);
+        alert('Backtest failed: ' + (e.message || 'Unknown error'));
+        showBacktestLoading(false);
+    }
+}
+
+async function runBacktestWithParameters() {
+    const stockId = _stockId;
+    if (stockId == null) {
+        alert('No stock selected');
+        return;
+    }
+    const positionSize = parseFloat(document.getElementById('positionSizeInput').value) || 0.02;
+    const trailingStop = parseFloat(document.getElementById('trailingStopInput').value) || 2;
+    const riskFreeRate = parseFloat(document.getElementById('riskFreeRateInput').value) || 2;
+    const days = parseInt(document.getElementById('backtestDaysInput').value) || 365;
+    
+    try {
+        showBacktestLoading(true);
+        const res = await getBacktestData(stockId, true, positionSize, days, riskFreeRate, trailingStop);
+        renderBacktestResults(res.data);
+        showBacktestLoading(false);
+    } catch (e) {
+        console.error('Backtest error:', e);
+        alert('Backtest failed: ' + (e.message || 'Unknown error'));
+        showBacktestLoading(false);
+    }
 }
 
 function renderBacktestResults(r) {
     setText('btWinRate', r.winRate != null ? r.winRate.toFixed(1) + '%' : '--');
     setText('btTotalReturn', r.totalReturn != null ? (r.totalReturn >= 0 ? '+' : '') + r.totalReturn.toFixed(2) + '%' : '--');
     setText('btMaxDrawdown', r.maxDrawdown != null ? r.maxDrawdown.toFixed(2) + '%' : '--');
-    setText('btTotalTrades', r.totalTrades != null ? r.totalTrades : '--');
+    setText('btTradeCount', r.totalTrades != null ? Math.floor(r.totalTrades / 2) : '0');
     setText('btWinningTrades', r.winningTrades != null ? r.winningTrades : '--');
     setText('btLosingTrades', r.losingTrades != null ? r.losingTrades : '--');
     setText('btStoppedOut', r.stoppedOutTrades != null ? r.stoppedOutTrades : '--');
     setText('btSignalExits', r.signalExits != null ? r.signalExits : '--');
     setText('btEventsSkipped', r.eventsSkipped != null ? r.eventsSkipped : '--');
     setText('btFinalValue', r.finalPortfolioValue != null ? fmtPrice(r.finalPortfolioValue) : '--');
-
+    setText('btLongestDrawdownDays', r.longestDrawdownDays != null ? r.longestDrawdownDays : '0');
+    
+    // Advanced metrics
+    setText('btSharpeRatio', r.sharpeRatio != null ? r.sharpeRatio.toFixed(2) : '--');
+    setText('btCalmarRatio', r.calmarRatio != null ? r.calmarRatio.toFixed(2) : '--');
+    setText('btSortinoRatio', r.sortinoRatio != null ? r.sortinoRatio.toFixed(2) : '--');
+    setText('btProfitFactor', r.profitFactor != null ? r.profitFactor.toFixed(2) : '--');
+    setText('btAvgWinningTrade', r.avgWinningTrade != null ? fmtPrice(r.avgWinningTrade) : '--');
+    setText('btAvgLosingTrade', r.avgLosingTrade != null ? fmtPrice(r.avgLosingTrade) : '--');
+    setText('btLargestWinnerTrade', r.largestWinnerCount != null ? r.largestWinnerCount : '0');
+    setText('btLargestLoserTrade', r.largestLoserCount != null ? r.largestLoserCount : '0');
+    
     // Color total return
     const retEl = document.getElementById('btTotalReturn');
     if (retEl && r.totalReturn != null) {
         const v = parseFloat(r.totalReturn);
-        retEl.className = 'text-4xl font-bold ' + (v >= 0 ? 'text-green-400' : 'text-red-400');
+        retEl.className = 'text-2xl font-bold ' + (v >= 0 ? 'text-green-400' : 'text-red-400');
     }
+    
+    // Render trade history
+    renderTradeHistory(r.tradeHistory);
 }
+
+function renderTradeHistory(trades) {
+    const tbody = document.getElementById('tradeHistoryBody');
+    if (!tbody) return;
+    
+    if (!trades || trades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-secondary"><i class="fas fa-info-circle mr-2"></i>No trades executed during backtest period.</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = trades.map(t => {
+        const isBuy = t.action === 'BUY';
+        const pnlClass = t.pnl != null ? (t.pnl >= 0 ? 'text-green-400' : 'text-red-400') : 'text-secondary';
+        const pnlText = t.pnl != null ? (t.pnl >= 0 ? '+' : '') + fmtPrice(t.pnl) : '--';
+        const stopLossBadge = t.stopLossHit 
+            ? '<span class="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">SL</span>' 
+            : '<span class="text-secondary">—</span>';
+        
+        return `<tr class="border-b border-gray-700 hover:bg-gray-700/30 transition-colors">
+            <td class="px-4 py-3 text-secondary">${t.exitDate || t.entryDate || '--'}</td>
+            <td class="px-4 py-3">
+                <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${isBuy ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
+                    ${t.action}
+                </span>
+            </td>
+            <td class="px-4 py-3 text-right font-mono">${t.entryPrice ? fmtPrice(t.entryPrice) : '--'}</td>
+            <td class="px-4 py-3 text-right font-mono">${t.exitPrice ? fmtPrice(t.exitPrice) : '--'}</td>
+            <td class="px-4 py-3 text-right font-mono">${t.quantity ? Number(t.quantity).toLocaleString('en-IN') : '--'}</td>
+            <td class="px-4 py-3 text-right font-mono font-semibold ${pnlClass}">${pnlText}</td>
+            <td class="px-4 py-3 text-secondary text-xs">${t.exitReason || '--'}</td>
+            <td class="px-4 py-3 text-center">${stopLossBadge}</td>
+        </tr>`;
+    }).join('');
+}
+
+function exportEquityData() {
+    const trades = window._lastBacktestTrades || [];
+    if (trades.length === 0) {
+        alert('No trade data to export. Run a backtest first.');
+        return;
+    }
+    
+    let csv = 'Date,Action,Entry Price,Exit Price,Quantity,P&L,Exit Reason,Stop Loss Hit\n';
+    trades.forEach(t => {
+        csv += `${t.exitDate || t.entryDate || ''},${t.action},${t.entryPrice || ''},${t.exitPrice || ''},${t.quantity || ''},${t.pnl || ''},${t.exitReason || ''},${t.stopLossHit}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backtest-${_stockId || 'data'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Store trades globally for export
+const _origRenderBacktestResults = renderBacktestResults;
+renderBacktestResults = function(r) {
+    window._lastBacktestTrades = r.tradeHistory || [];
+    _origRenderBacktestResults(r);
+};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 function showErrorState() {
     document.getElementById('stockTitle').textContent = '⚠ Error loading data';
+}
+
+function showBacktestLoading(show) {
+    const section = document.getElementById('backtestSection');
+    const loadingSection = document.getElementById('backtestLoadingSection');
+    if (show) {
+        if (section) section.style.display = 'block';
+        if (loadingSection) {
+            loadingSection.classList.remove('hidden');
+        }
+    } else {
+        if (loadingSection) {
+            loadingSection.classList.add('hidden');
+        }
+    }
 }
 
 function destroyChart(key) {

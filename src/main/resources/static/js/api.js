@@ -234,6 +234,10 @@ async function getPortfolioScreener(date) {
     return apiCall(`/portfolio/screener${q}`);
 }
 
+async function forceBackfillSnapshots() {
+    return apiCall('/portfolio/backfill/force', { method: 'POST' });
+}
+
 async function recalculateAllPortfolios() {
     return apiCall('/stocks/recalculate-portfolio', {
         method: 'POST',
@@ -371,11 +375,14 @@ async function getSignalHistory(stockId, days = 90) {
 }
 
 // Backtest API
-async function getBacktestData(stockId, stopLoss, positionSizePct) {
+async function getBacktestData(stockId, stopLoss, positionSizePct, days, riskFreeRate, trailingStop) {
     let endpoint = `/backtest/stock/${stockId}`;
     const params = new URLSearchParams();
     if (stopLoss !== undefined) params.append('stopLoss', stopLoss);
     if (positionSizePct !== undefined) params.append('positionSizePct', positionSizePct);
+    if (days !== undefined) params.append('days', days);
+    if (riskFreeRate !== undefined) params.append('riskFreeRate', riskFreeRate);
+    if (trailingStop !== undefined) params.append('trailingStop', trailingStop);
     const qs = params.toString();
     if (qs) endpoint += '?' + qs;
     return apiCall(endpoint);
