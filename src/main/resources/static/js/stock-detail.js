@@ -3532,17 +3532,19 @@ function renderTradeHistory(trades) {
     
     tbody.innerHTML = trades.map(t => {
         const isBuy = t.action === 'BUY';
+        // Use "EXIT" instead of "SELL" — this is a long-only backtest, not short-selling
+        const displayAction = isBuy ? 'BUY' : 'EXIT';
         const pnlClass = t.pnl != null ? (t.pnl >= 0 ? 'text-green-400' : 'text-red-400') : 'text-secondary';
         const pnlText = t.pnl != null ? (t.pnl >= 0 ? '+' : '') + fmtPrice(t.pnl) : '--';
-        const stopLossBadge = t.stopLossHit 
-            ? '<span class="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">SL</span>' 
+        const stopLossBadge = t.stopLossHit
+            ? '<span class="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-xs rounded">SL</span>'
             : '<span class="text-secondary">—</span>';
-        
+
         return `<tr class="border-b border-gray-700 hover:bg-gray-700/30 transition-colors">
             <td class="px-4 py-3 text-secondary">${t.exitDate || t.entryDate || '--'}</td>
             <td class="px-4 py-3">
                 <span class="px-2 py-0.5 rounded-full text-xs font-semibold ${isBuy ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}">
-                    ${t.action}
+                    ${displayAction}
                 </span>
             </td>
             <td class="px-4 py-3 text-right font-mono">${t.entryPrice ? fmtPrice(t.entryPrice) : '--'}</td>
