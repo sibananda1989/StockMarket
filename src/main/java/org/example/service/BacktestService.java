@@ -53,14 +53,24 @@ public class BacktestService {
     }
 
     public BacktestResultDTO runBacktest(Long stockId) {
-        return runBacktest(stockId, true, BigDecimal.valueOf(0.02), 0);
+        return runBacktest(stockId, true, BigDecimal.valueOf(0.02), 0, 2.0, 3.0);
     }
 
     public BacktestResultDTO runBacktest(Long stockId, boolean useStopLoss, BigDecimal positionSizePct) {
-        return runBacktest(stockId, useStopLoss, positionSizePct, 0);
+        return runBacktest(stockId, useStopLoss, positionSizePct, 0, 2.0, 3.0);
     }
 
     public BacktestResultDTO runBacktest(Long stockId, boolean useStopLoss, BigDecimal positionSizePct, int days) {
+        return runBacktest(stockId, useStopLoss, positionSizePct, days, 2.0, 3.0);
+    }
+
+    public BacktestResultDTO runBacktest(Long stockId, boolean useStopLoss, BigDecimal positionSizePct, int days,
+            double riskFreeRatePct, double trailingStopMultiplier) {
+        return runBacktestCore(stockId, useStopLoss, positionSizePct, days, riskFreeRatePct, trailingStopMultiplier);
+    }
+
+    private BacktestResultDTO runBacktestCore(Long stockId, boolean useStopLoss, BigDecimal positionSizePct, int days,
+            double riskFreeRatePct, double trailingStopMultiplier) {
 Stock stock = stockRepository.findById(stockId).orElse(null);
 if (stock == null) {
     log.warn("Stock not found for backtest: ID {}", stockId);
@@ -129,8 +139,10 @@ String symbol = stock.getSymbol();
                 if (useStopLoss) {
                     // Use previous day's high to update trailing stop (avoid look-ahead bias)
                     DailyPrice yesterday = i > 0 ? allPrices.get(i - 1) : today;
-                    stopPrice = TrailingStopService.updateTrailingStop(stopPrice, yesterday.getHighPrice(),
-                            atrCalculator.calculate(historicalData));
+                    BigDecimal atr = atrCalculator.calculate(historicalData);
+                    BigDecimal trailDistance = atr.multiply(BigDecimal.valueOf(trailingStopMultiplier));
+                    BigDecimal newStop = yesterday.getHighPrice().subtract(trailDistance);
+                    stopPrice = newStop.compareTo(stopPrice) > 0 ? newStop : stopPrice;
                     if (TrailingStopService.isStopped(today.getLowPrice(), stopPrice)) {
                         BigDecimal sellValue = shares.multiply(currentPrice);
                         if (sellValue.compareTo(entryPrice.multiply(shares)) > 0) {
@@ -259,9 +271,9 @@ String symbol = stock.getSymbol();
                 : BigDecimal.ZERO;
 
         // Calculate advanced metrics
-        Double sharpeRatio = calcSharpe(dailyPortfolioValues);
+        Double sharpeRatio = calcSharpe(dailyPortfolioValues, riskFreeRatePct);
         Double calmarRatio = maxDrawdown > 0 ? totalReturn.doubleValue() / (maxDrawdown * 100) : null;
-        Double sortinoRatio = calcSortino(dailyPortfolioValues);
+        Double sortinoRatio = calcSortino(dailyPortfolioValues, riskFreeRatePct);
         Double profitFactor = calcProfitFactor(tradeRecords);
         BigDecimal avgWinning = calcAvgWin(tradeRecords);
         BigDecimal avgLosing = calcAvgLoss(tradeRecords);
@@ -311,19 +323,19 @@ String symbol = stock.getSymbol();
         return t;
     }
 
-    private Double calcSharpe(List<Double> values) {
+    private Double calcSharpe(List<Double> values, double riskFreeRatePct) {
         if (values.size() < 2) return 0.0;
         double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-        double rfDaily = 0.02 / 252;
+        double rfDaily = riskFreeRatePct / 100.0 / 252.0;
         double var = values.stream().mapToDouble(v -> Math.pow(v - mean, 2)).average().orElse(0);
         double std = Math.sqrt(var);
         return std > 0 ? ((mean - rfDaily) * 252) / std : 0.0;
     }
 
-    private Double calcSortino(List<Double> values) {
+    private Double calcSortino(List<Double> values, double riskFreeRatePct) {
         if (values.size() < 2) return 0.0;
         double mean = values.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-        double rfDaily = 0.02 / 252;
+        double rfDaily = riskFreeRatePct / 100.0 / 252.0;
         double downVar = values.stream().mapToDouble(v -> {
             double excess = v - rfDaily;
             return excess < 0 ? excess * excess : 0;

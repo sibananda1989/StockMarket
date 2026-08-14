@@ -24,6 +24,7 @@ public class BacktestController {
             @RequestParam(defaultValue = "0") int days,
             @RequestParam(defaultValue = "2.0") double riskFreeRatePct,
             @RequestParam(defaultValue = "3.0") double trailingStopMultiplier) {
-        return ResponseEntity.status(501).body(ApiResponse.error("Backtest feature is disabled for performance optimization"));
+        BacktestResultDTO result = backtestService.runBacktest(stockId, stopLoss, BigDecimal.valueOf(positionSizePct), days, riskFreeRatePct, trailingStopMultiplier);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }
