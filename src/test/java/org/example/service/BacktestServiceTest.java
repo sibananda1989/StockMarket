@@ -6,7 +6,6 @@ import org.example.entity.DailyPrice;
 import org.example.entity.Stock;
 import org.example.repository.DailyPriceRepository;
 import org.example.repository.StockRepository;
-import org.example.service.calculator.ATRCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,8 +48,6 @@ class BacktestServiceTest {
     @Mock
     private CorporateEventService corporateEventService;
 
-@Mock
-    private ATRCalculator atrCalculator;
 
     private BacktestService underTest;
     private Stock testStock;
