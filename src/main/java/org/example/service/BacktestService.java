@@ -245,6 +245,8 @@ String symbol = stock.getSymbol();
             } else {
                 losingTrades++;
             }
+            capital = sellValue.subtract(sellCosts);
+            dailyPortfolioValues.add(capital.doubleValue());
         }
 
         BigDecimal finalValue;
@@ -304,6 +306,7 @@ String symbol = stock.getSymbol();
                 .largestWinnerCount(largestWinCt)
                 .largestLoserCount(largestLossCt)
                 .tradeHistory(tradeRecords)
+                .equityCurve(dailyPortfolioValues)
                 .build();
     }
 

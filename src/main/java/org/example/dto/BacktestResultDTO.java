@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @Builder
@@ -24,4 +25,21 @@ public class BacktestResultDTO {
     private BigDecimal averageReturnPerTrade;
     private BigDecimal maxDrawdown;
     private BigDecimal finalPortfolioValue;
+
+    // Advanced risk metrics
+    private Double sharpeRatio;
+    private Double calmarRatio;
+    private Double sortinoRatio;
+    private Integer longestDrawdownDays;
+    private Double profitFactor;
+    private BigDecimal avgWinningTrade;
+    private BigDecimal avgLosingTrade;
+    private Integer largestWinnerCount;
+    private Integer largestLoserCount;
+
+    // Individual trade records
+    private List<TradeRecordDTO> tradeHistory;
+
+    // Equity curve
+    private List<Double> equityCurve;
 }
