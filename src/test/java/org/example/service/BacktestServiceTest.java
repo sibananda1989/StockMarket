@@ -49,13 +49,7 @@ class BacktestServiceTest {
     @Mock
     private CorporateEventService corporateEventService;
 
-    @Mock
-    private PositionSizingService positionSizingService;
-
-    @Mock
-    private TrailingStopService trailingStopService;
-
-    @Mock
+@Mock
     private ATRCalculator atrCalculator;
 
     private BacktestService underTest;

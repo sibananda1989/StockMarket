@@ -116,8 +116,6 @@ String symbol = stock.getSymbol();
         List<TradeRecordDTO> tradeRecords = new ArrayList<>();
         List<Double> dailyPortfolioValues = new ArrayList<>();
         LocalDate tradeEntryDate = null;
-        double maxPeakValue = INITIAL_CAPITAL.doubleValue();
-        int peakIdx = 0;
 
         for (int i = 20; i < allPrices.size(); i++) {
             List<DailyPrice> historicalData = allPrices.subList(0, i + 1);
@@ -222,7 +220,6 @@ String symbol = stock.getSymbol();
 
             if (currentPortfolioValue > peakValue) {
                 peakValue = currentPortfolioValue;
-                peakIdx = i;
             }
 
             double drawdown = (peakValue - currentPortfolioValue) / peakValue;
