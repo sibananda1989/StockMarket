@@ -247,16 +247,10 @@ String symbol = stock.getSymbol();
             }
             capital = sellValue.subtract(sellCosts);
             dailyPortfolioValues.add(capital.doubleValue());
+            shares = BigDecimal.ZERO;
         }
 
-        BigDecimal finalValue;
-        if (shares.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal sellValue = shares.multiply(allPrices.get(allPrices.size() - 1).getClosingPrice());
-            BigDecimal sellCosts = calculateTransactionCosts(sellValue, true);
-            finalValue = capital.add(sellValue).subtract(sellCosts);
-        } else {
-            finalValue = capital;
-        }
+        BigDecimal finalValue = capital;
 
         BigDecimal totalReturn = BigDecimal.ZERO;
         if (finalValue != null && INITIAL_CAPITAL != null) {

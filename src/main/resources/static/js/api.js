@@ -381,8 +381,8 @@ async function getBacktestData(stockId, stopLoss, positionSizePct, days, riskFre
     if (stopLoss !== undefined) params.append('stopLoss', stopLoss);
     if (positionSizePct !== undefined) params.append('positionSizePct', positionSizePct);
     if (days !== undefined) params.append('days', days);
-    if (riskFreeRate !== undefined) params.append('riskFreeRate', riskFreeRate);
-    if (trailingStop !== undefined) params.append('trailingStop', trailingStop);
+    if (riskFreeRate !== undefined) params.append('riskFreeRatePct', riskFreeRate);
+    if (trailingStop !== undefined) params.append('trailingStopMultiplier', trailingStop);
     const qs = params.toString();
     if (qs) endpoint += '?' + qs;
     return apiCall(endpoint);
