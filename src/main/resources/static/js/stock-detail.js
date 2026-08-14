@@ -3485,6 +3485,38 @@ function renderBacktestResults(r) {
         retEl.className = 'text-2xl font-bold ' + (v >= 0 ? 'text-green-400' : 'text-red-400');
     }
     
+    destroyChart('backtestEquity');
+    const eqCanvas = document.getElementById('backtestEquityCurve');
+    if (eqCanvas && r.equityCurve && r.equityCurve.length > 0) {
+        const labels = r.equityCurve.map((_, i) => i + 1);
+        _charts.backtestEquity = new Chart(eqCanvas, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Portfolio Value (₹)',
+                    data: r.equityCurve,
+                    borderColor: '#22c55e',
+                    backgroundColor: 'rgba(34,197,94,0.08)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: { callbacks: { label: ctx => fmtPrice(ctx.raw) } }
+                },
+                scales: {
+                    x: { ticks: { maxTicksLimit: 8 } },
+                    y: { position: 'right', ticks: { callback: v => fmtPrice(v) } }
+                }
+            }
+        });
+    }
+
     // Render trade history
     renderTradeHistory(r.tradeHistory);
 }
@@ -3524,22 +3556,22 @@ function renderTradeHistory(trades) {
 }
 
 function exportEquityData() {
-    const trades = window._lastBacktestTrades || [];
-    if (trades.length === 0) {
-        alert('No trade data to export. Run a backtest first.');
+    const equity = window._lastBacktestEquityCurve || [];
+    if (equity.length === 0) {
+        alert('No equity curve data to export. Run a backtest first.');
         return;
     }
-    
-    let csv = 'Date,Action,Entry Price,Exit Price,Quantity,P&L,Exit Reason,Stop Loss Hit\n';
-    trades.forEach(t => {
-        csv += `${t.exitDate || t.entryDate || ''},${t.action},${t.entryPrice || ''},${t.exitPrice || ''},${t.quantity || ''},${t.pnl || ''},${t.exitReason || ''},${t.stopLossHit}\n`;
+
+    let csv = 'Day,Portfolio Value\n';
+    equity.forEach((v, i) => {
+        csv += `${i + 1},${v != null ? Number(v).toFixed(2) : ''}\n`;
     });
-    
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `backtest-${_stockId || 'data'}.csv`;
+    a.download = `backtest-${_stockId || 'data'}-equity.csv`;
     a.click();
     URL.revokeObjectURL(url);
 }
@@ -3548,6 +3580,7 @@ function exportEquityData() {
 const _origRenderBacktestResults = renderBacktestResults;
 renderBacktestResults = function(r) {
     window._lastBacktestTrades = r.tradeHistory || [];
+    window._lastBacktestEquityCurve = r.equityCurve || [];
     _origRenderBacktestResults(r);
 };
 
