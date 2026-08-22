@@ -19,7 +19,10 @@ import java.time.LocalDateTime;
  * References Portfolio and Stock directly (not the holding) so it survives holding deletion.
  */
 @Entity
-@Table(name = "portfolio_transactions", indexes = @Index(name = "idx_txn_portfolio_stock_date", columnList = "portfolio_id, stock_id, transaction_date, id"))
+@Table(name = "portfolio_transactions", indexes = {
+        @Index(name = "idx_txn_portfolio_stock_date", columnList = "portfolio_id, stock_id, transaction_date, id"),
+        @Index(name = "idx_txn_linked_buy", columnList = "linked_buy_id")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -28,6 +31,14 @@ public class PortfolioTransaction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * For SELL rows: the BUY transaction (lot) this sell consumes quantity from.
+     * Null for BUY rows. A SELL always maps to exactly one BUY lot; its
+     * {@code quantity} is the amount taken from that specific lot.
+     */
+    @Column(name = "linked_buy_id")
+    private Long linkedBuyId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id", nullable = false)

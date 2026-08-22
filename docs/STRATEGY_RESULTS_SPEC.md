@@ -101,7 +101,7 @@ Entity follows `StrategyConfig.java` conventions: `@Entity`, `@Data`, `@NoArgsCo
 
 **`getCounts()`**:
 - If `strategyResultsRepository.count() == 0` → call `refreshAll()` first (first-visit seeding of today).
-- `LocalDate latest = strategyResultsRepository.findMaxSnapshotDate()`; load only `latest`'s rows (`findAllBySnapshotDate(latest)`) and aggregate in memory by `(strategy_name, signal_type)` into `List<StrategyCountDTO>` sorted by `priority` desc then name. (N = stocks × strategies per day; in-memory grouping is fine at this scale. `ponytail: switch to a GROUP BY JPQL query if the table ever exceeds ~100k rows.`)
+- `LocalDate latest = strategyResultsRepository.findMaxSnapshotDate()`; load only `latest`'s rows (`findAllBySnapshotDate(latest)`) and aggregate in memory by `(strategy_name, signal_type)` into `List<StrategyCountDTO>` sorted by `priority` desc then name. (N = stocks × strategies per day; in-memory grouping is fine at this scale. 
 
 **`getStocksFor(strategyName)`**:
 - Auto-seed first if the table is empty; `LocalDate latest = findMaxSnapshotDate()`; `findAllByStrategyNameAndSnapshotDate(strategyName, latest)`, map to `StrategyStockResultDTO` (join stock symbol via a `StockRepository` lookup or map of id→symbol built once), return all signals — the frontend filters out HOLD rows. One endpoint serves the expansion without needing a second contract if the UI changes.

@@ -234,4 +234,17 @@ class PortfolioTransactionServiceTest {
         verify(portfolioService).addHolding(10L, 1L, 10, new BigDecimal("202.00"));
         verify(portfolioService, never()).updateHolding(anyLong(), anyLong(), anyInt(), any());
     }
+
+    @Test
+    void recordBuy_AlreadyHasHolding_BlendsAvgCost() {
+        stubPortfolioAndStock();
+        when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.of(holding));
+
+        TransactionDTO dto = transactionService.recordBuy(10L, 1L, 5,
+                new BigDecimal("120.00"), new BigDecimal("10.00"), LocalDate.now(), null);
+
+        verify(portfolioService).updateHolding(10L, 100L, 15, new BigDecimal("107.33"));
+        assertEquals(TransactionType.BUY, dto.getType());
+        assertEquals(5, dto.getQuantity());
+    }
 }

@@ -3,6 +3,8 @@ package org.example.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.PortfolioAggregateDTO;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.example.dto.PortfolioSnapshotDTO;
 import org.example.entity.DailyPrice;
 import org.example.entity.Portfolio;
@@ -33,6 +35,9 @@ public class PortfolioSnapshotService {
     private final StockRepository stockRepository;
     private final DailyPriceRepository dailyPriceRepository;
     private final PortfolioHoldingRepository holdingRepository;
+    @Lazy
+    @Autowired
+    private PortfolioTransactionService transactionService;
 
     /**
      * Save or update a snapshot for a stock in the given portfolio.
@@ -58,9 +63,9 @@ public class PortfolioSnapshotService {
 
         snap.setStock(stock);
         snap.setSnapshotDate(date);
-        snap.setLastTradedPrice(stock.getLastTradedPrice());
 
-        // Use portfolio holding's quantity/avgPrice when portfolio-scoped, fall back to stock-level legacy fields
+        // Use portfolio holding's quantity/avgPrice when portfolio-scoped, fall back to stock-level legacy fields.
+        // For backfill, use current holding values directly since the transaction ledger may be incomplete.
         Integer qty;
         BigDecimal avgPrice;
         if (portfolio != null) {
@@ -83,6 +88,7 @@ public class PortfolioSnapshotService {
 
         // Calculate historical portfolio value based on closing price for the date
         BigDecimal historicalPrice = getClosingPriceForDate(stock, date);
+        snap.setLastTradedPrice(historicalPrice);
         BigDecimal historicalInvestment = BigDecimal.ZERO;
         BigDecimal historicalCurrentValue = BigDecimal.ZERO;
 
@@ -156,6 +162,11 @@ public class PortfolioSnapshotService {
         snapshotRepository.deleteByPortfolioIdAndStockId(portfolioId, stockId);
     }
 
+    @Transactional
+    public void deleteSnapshotsByDate(LocalDate date) {
+        snapshotRepository.deleteBySnapshotDate(date);
+    }
+
     @Transactional(readOnly = true)
     public long getPriceDaysCount(Long stockId) {
         return snapshotRepository.countByStockId(stockId);
@@ -177,7 +188,7 @@ public class PortfolioSnapshotService {
             return pricesBefore.get(0).getClosingPrice();
         }
 
-        return stock.getLastTradedPrice();
+        return null;
     }
 
     // ── Portfolio-scoped aggregation ────────────────────────────────────
@@ -243,6 +254,16 @@ public class PortfolioSnapshotService {
 
         int total = 0;
         for (LocalDate date : tradingDates) {
+            // Skip dates with no market price data (weekends, holidays)
+            long priceCount = dailyPriceRepository.countByPriceDate(date);
+            if (priceCount == 0) {
+                // Delete any existing stale snapshots for this date
+                if (force) {
+                    snapshotRepository.deleteBySnapshotDate(date);
+                }
+                continue;
+            }
+
             int processed = 0;
             for (Stock stock : stocks) {
                 List<PortfolioHolding> holdings = holdingRepository.findByStockId(stock.getId());
@@ -273,6 +294,34 @@ public class PortfolioSnapshotService {
             }
         }
         log.info("Backfill complete: {} snapshot records processed", total);
+    }
+
+    @Transactional
+    public void backfillMissingSnapshots(LocalDate fromDate) {
+        List<LocalDate> tradingDates = dailyPriceRepository.findDistinctTradingDatesAfter(fromDate);
+        List<Stock> stocks = stockRepository.findAll();
+        int total = 0;
+        for (LocalDate date : tradingDates) {
+            for (Stock stock : stocks) {
+                List<PortfolioHolding> holdings = holdingRepository.findByStockId(stock.getId());
+                if (holdings.isEmpty()) {
+                    if (!snapshotRepository.existsByStockIdAndSnapshotDate(stock.getId(), date)) {
+                        saveOrUpdate(stock, date, (Portfolio) null);
+                        total++;
+                    }
+                } else {
+                    for (PortfolioHolding h : holdings) {
+                        if (snapshotRepository
+                                .findByStockIdAndPortfolioIdAndSnapshotDate(stock.getId(), h.getPortfolio().getId(), date)
+                                .isEmpty()) {
+                            saveOrUpdate(stock, date, h.getPortfolio());
+                            total++;
+                        }
+                    }
+                }
+            }
+        }
+        log.info("Missing snapshot backfill complete: {} records created", total);
     }
 
     private PortfolioSnapshotDTO toDTO(PortfolioSnapshot s) {

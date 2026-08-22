@@ -3,6 +3,7 @@
 
 const NAV_ITEMS = [
   { href: 'index.html', label: 'Dashboard', icon: 'fas fa-chart-pie' },
+  { href: 'portfolio-transactions.html', label: 'Transactions', icon: 'fas fa-receipt' },
   { href: 'strategy.html', label: 'Strategy', icon: 'fas fa-chess-knight' },
   { href: 'strategy-results.html', label: 'Strategy Results', icon: 'fas fa-chart-bar' },
   { href: 'stocks.html', label: 'Stock Management', icon: 'fas fa-database' }

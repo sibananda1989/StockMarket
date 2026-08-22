@@ -41,6 +41,8 @@ public class StockController {
     @PostMapping
     public ResponseEntity<ApiResponse<StockDTO>> createStock(@Valid @RequestBody StockDTO dto) {
         Stock stock = new Stock(dto.getSymbol(), dto.getName(), dto.getSector(), dto.getIndustry());
+        stock.setYahooSymbol(dto.getYahooSymbol() != null && !dto.getYahooSymbol().isBlank()
+                ? dto.getYahooSymbol() : dto.getSymbol());
         Stock saved = stockService.addStock(stock);
         StockDTO savedDto = stockService.getStockDTO(saved);
         applicationEventPublisher.publishEvent(new StockCreatedEvent(this, saved.getId()));

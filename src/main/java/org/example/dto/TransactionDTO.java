@@ -26,6 +26,8 @@ public class TransactionDTO {
     private BigDecimal price;
     private BigDecimal fees;
     private BigDecimal realizedPnl;
+    /** For SELL rows: the BUY lot this sell consumes from. */
+    private Long linkedBuyId;
     private LocalDate transactionDate;
     private String notes;
     private LocalDateTime createdAt;

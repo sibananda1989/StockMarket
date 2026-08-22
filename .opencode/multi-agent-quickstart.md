@@ -1,3 +1,5 @@
+> **ARCHIVED**: The multi-agent workflow described here has been consolidated into the global full-cycle orchestrator (`~/.config/opencode/scripts/full-cycle.sh`). This doc is kept for reference only.
+
 # Multi-Agent Workflow Quick Start
 
 ## Lifecycle Phases
@@ -78,11 +80,11 @@ Each phase has a dedicated coordinator agent that delegates to sub-agents.
 
 ## Agent Files
 
-- `.opencode/agent/team-lead.md` — Team Lead coordinator
-- `.opencode/agent/define-agent.md` — Define phase
-- `.opencode/agent/plan.md` — Plan phase
-- `.opencode/agent/build.md` — Build phase
-- `.opencode/agent/verify-agent.md` — Verify phase
-- `.opencode/agent/review-agent.md` — Review phase
-- `.opencode/agent/ship-agent.md` — Ship phase
-- `.opencode/agent/stock-analyzer.md` — Stock market analysis
+- `.opencode/agents/team-lead.md` — Team Lead coordinator
+- `.opencode/agents/define-agent.md` — Define phase
+- `.opencode/agents/plan-agent.md` — Plan phase
+- `.opencode/agents/build-agent.md` — Build phase
+- `.opencode/agents/verify-agent.md` — Verify phase
+- `.opencode/agents/review-agent.md` — Review phase
+- `.opencode/agents/ship-agent.md` — Ship phase
+- `.opencode/agents/stock-analyzer.md` — Stock market analysis

@@ -121,7 +121,6 @@ public class PortfolioService {
         holding.setAvgPrice(avgPrice);
         holding = holdingRepository.save(holding);
 
-        snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
         return computeHoldingDTO(holding);
     }
 
@@ -137,8 +136,6 @@ public class PortfolioService {
         if (avgPrice != null) holding.setAvgPrice(avgPrice);
         holding = holdingRepository.save(holding);
 
-        Stock stock = holding.getStock();
-        snapshotService.saveOrUpdate(stock, LocalDate.now(), holding.getPortfolio());
         return computeHoldingDTO(holding);
     }
 
@@ -156,9 +153,7 @@ public class PortfolioService {
         // This preserves the stock's historical contribution in the portfolio trend chart.
         // Previously we deleted ALL snapshots here, which made the chart "go to the bottom"
         // by removing all historical value from the sold stock.
-        snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
-
-        holdingRepository.delete(holding);
+        // NOTE: Snapshot is now handled by PortfolioTransactionService to avoid duplicates.
     }
 
     public void removeHoldingByStockId(Long portfolioId, Long stockId) {
@@ -169,9 +164,7 @@ public class PortfolioService {
         Portfolio portfolio = holding.getPortfolio();
 
         // Capture a final snapshot before deletion (preserves chart history)
-        snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
-
-        holdingRepository.delete(holding);
+        // NOTE: Snapshot is now handled by PortfolioTransactionService to avoid duplicates.
     }
 
     @Transactional(readOnly = true)

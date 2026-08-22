@@ -294,8 +294,10 @@ class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm
 </div>
 <div>
 <label for="qcExchange" class="block text-xs text-secondary mb-1">Exchange</label>
-<input type="text" id="qcExchange" readonly
-class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
+<select id="qcExchange" class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+<option value="NSE">NSE</option>
+<option value="BSE">BSE</option>
+</select>
 </div>
 <div>
 <label for="qcSector" class="block text-xs text-secondary mb-1">Sector</label>
@@ -384,7 +386,7 @@ placeholder="Enter average buy price">
 class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
 Cancel
 </button>
-<button onclick="confirmAddToPortfolio()"
+<button onclick="confirmAddToPortfolio(event)"
 class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
 <i class="fas fa-shopping-cart mr-1"></i>Add to Portfolio
 </button>
@@ -423,6 +425,5 @@ document.getElementById(modalId).classList.remove('hidden');
 document.getElementById(modalId).classList.add('flex');
 }
 </script>
-<script src="js/navigation.js"></script>
 </body>
 </html>

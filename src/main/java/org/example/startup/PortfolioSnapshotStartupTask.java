@@ -77,5 +77,13 @@ public class PortfolioSnapshotStartupTask implements StartupTask {
         } else {
             log.info("All portfolio snapshots already exist for today ({})", today);
         }
+
+        // Force backfill to regenerate all historical snapshots with corrected pricing logic
+        try {
+            snapshotService.backfillSnapshots(LocalDate.of(2020, 1, 1), true);
+            log.info("Force backfill completed on startup");
+        } catch (Exception e) {
+            log.error("Force backfill failed on startup", e);
+        }
     }
 }

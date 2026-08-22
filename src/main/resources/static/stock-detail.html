@@ -183,7 +183,7 @@
         </div>
 
 <!-- Hero Summary Section -->
-        <div class="card rounded-xl shadow-lg mb-8 border border-gray-700 card-hover bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm overflow-hidden enhanced-card" style="--accent-color: #3b82f6">
+        <div id="heroSummary" class="card rounded-xl shadow-lg mb-8 border border-gray-700 card-hover bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm overflow-hidden enhanced-card" style="--accent-color: #3b82f6">
             <div class="p-6 md:p-8">
                 <!-- Stock Info Header -->
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
@@ -847,6 +847,20 @@
     </div>
 
     <script src="js/api.js?_=v20260808_avgcost1"></script>
+    <!-- Module dependencies: state first, then charts, data, features, entry point -->
+    <script src="js/modules/state.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/charts/line-charts.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/charts/candlestick.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/data/loading.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/insights/index.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/insights/fundamentals.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/kpi.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/fiidii.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/events.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/holding-details.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/backtest/index.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/watchlist/index.js?_=v20260808_avgcost1"></script>
+    <!-- Main entry point — wires up DOM ready -->
     <script src="js/stock-detail.js?_=v20260808_avgcost1"></script>
     <script src="js/navigation.js?_=v20260808_avgcost1"></script>
     <script>

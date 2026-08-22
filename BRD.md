@@ -48,16 +48,16 @@ org.example
 ├── config/
 │   ├── CorsConfig.java                    # CORS: all origins on /api/**
 │   └── ClientAbortSilencerFilter.java     # Broken-pipe exception handler
-├── controller/                            # 18 controllers (17 @RestController + 1 @Controller) + 1 .bak
-├── dto/                                   # 47 Data Transfer Objects (including nested classes)
-├── entity/                                # 22 JPA entities + 2 enums
+├── controller/                            # 27 controllers (26 @RestController + 1 @Controller)
+├── dto/                                   # 59 Data Transfer Objects (including nested classes)
+├── entity/                                # 29 JPA entities (including 3 enums)
 ├── exception/                             # 6 custom exceptions + GlobalExceptionHandler
 ├── metrics/                               # InstitutionalMetrics (Micrometer counters/timers)
-├── repository/                            # 22 Spring Data JPA repositories
+├── repository/                            # 26 Spring Data JPA repositories
 ├── scheduler/                             # 7 scheduled task classes (12 cron jobs + startup indicators)
 ├── startup/                               # 6 startup tasks
-└── service/                               # 32 services (active) + 3 .bak
-    ├── calculator/                        # 29 technical indicator calculators (1 interface + 28 impls)
+└── service/                               # 37 services
+    ├── calculator/                        # 34 technical indicator calculators (1 interface + 32 impls + 1 orchestration service)
     └── institutional/                     # 8 institutional activity services
 ```
 
@@ -66,7 +66,7 @@ org.example
 - **Layered architecture:** Controller → Service → Repository → Entity
 - **Universal response envelope:** `ApiResponse<T>` wraps all responses with `{status, message, data, timestamp}`
 - **Exception:** `TechnicalIndicatorController` returns raw DTOs (not wrapped in `ApiResponse`)
-- **EAV pattern for indicators:** Single `technical_indicators` table stores all 27 indicator types via `IndicatorType` enum
+- **EAV pattern for indicators:** Single `technical_indicators` table stores all 31 indicator types via `IndicatorType` enum
 - **No authentication:** All endpoints are public; CORS allows all origins
 - **DDL auto-management:** `spring.jpa.hibernate.ddl-auto=update` with manual SQL migration scripts
 - **View controller:** `StockHistoryViewController` is the only `@Controller` (returns Thymeleaf view); all others are `@RestController`
@@ -90,7 +90,7 @@ org.example
 ### 4.2 Enums
 
 **`IndicatorType`** (persisted as `VARCHAR(50)` in `technical_indicators.indicator_type`):
-`RSI`, `SMA_20`, `SMA_50`, `SMA_200`, `EMA_20`, `MACD_LINE`, `MACD_SIGNAL`, `BOLLINGER_UPPER`, `BOLLINGER_LOWER`, `STOCH_K`, `STOCH_D`, `WILLIAMS_R`, `ATR`, `CCI`, `STOCH_RSI`, `ADX`, `PLUS_DI`, `MINUS_DI`, `ULTIMATE_OSC`, `ROC_12`, `OBV`, `VWAP`, `TENKAN_SEN`, `KIJUN_SEN`, `SENKOU_SPAN_A`, `SENKOU_SPAN_B`, `CHIKOU_SPAN` (27 values total — includes VWAP and 6 Ichimoku Cloud components)
+`RSI`, `SMA_20`, `SMA_50`, `SMA_200`, `SMA_44`, `EMA_20`, `MACD_LINE`, `MACD_SIGNAL`, `BOLLINGER_UPPER`, `BOLLINGER_LOWER`, `STOCH_K`, `STOCH_D`, `WILLIAMS_R`, `ATR`, `CCI`, `STOCH_RSI`, `ADX`, `PLUS_DI`, `MINUS_DI`, `ULTIMATE_OSC`, `ROC_12`, `OBV`, `VWAP`, `TENKAN_SEN`, `KIJUN_SEN`, `SENKOU_SPAN_A`, `SENKOU_SPAN_B`, `CHIKOU_SPAN`, `VOLUME_RATIO`, `DOLLAR_VOLUME`, `AMIHUD_ILLIQUIDITY` (31 values total — includes VWAP, 5 Ichimoku Cloud components, SMA_44, VOLUME_RATIO, DOLLAR_VOLUME, AMIHUD_ILLIQUIDITY)
 
 **`LevelType`** (persisted as `VARCHAR(30)` in `support_resistance_levels.level_type`):
 `SWING_LOW`, `SWING_HIGH`, `PIVOT_P`, `PIVOT_S1`, `PIVOT_S2`, `PIVOT_S3`, `PIVOT_R1`, `PIVOT_R2`, `PIVOT_R3`, `MAJOR_SUPPORT`, `MAJOR_RESISTANCE`
@@ -233,7 +233,7 @@ org.example
 |--------|------|-------------|-------|
 | `id` | BIGINT | PK, AUTO_INCREMENT | |
 | `stock_id` | BIGINT | FK → `stocks.id`, NOT NULL | `@ManyToOne(LAZY)` |
-| `indicator_type` | VARCHAR(50) | NOT NULL | `@Enumerated(STRING)` — one of 21 IndicatorType values |
+| `indicator_type` | VARCHAR(50) | NOT NULL | `@Enumerated(STRING)` — one of 31 IndicatorType values |
 | `value` | DECIMAL(18,6) | NOT NULL | Widened by V2 migration |
 | `calculation_date` | DATE | NOT NULL | `@PastOrPresent` |
 | `created_at` | DATETIME | NOT NULL | `@CreationTimestamp` |
@@ -450,7 +450,7 @@ Same schema as `bulk_deals`.
 | `created_at` | DATETIME | NOT NULL | `@CreationTimestamp` |
 | `updated_at` | DATETIME | nullable | `@UpdateTimestamp` |
 
-**Auto-seed:** On first startup, all 5 strategies are seeded as active (backward compatible). `DataIntegrityViolationException` handled for concurrency safety.
+**Auto-seed:** On first startup, all 10 strategies are seeded as active (backward compatible). `DataIntegrityViolationException` handled for concurrency safety.
 
 **Used by:** `MultiStrategySignalEngine` reads `active = true` entries as the default set when no `?active=` query param is provided. The `?active=` param still works as a per-request override.
 
@@ -474,7 +474,7 @@ Same schema as `bulk_deals`.
 
 **Unique constraint:** `(strategy_name, condition_id)`
 
-**Auto-seed:** 5 default conditions per strategy (25 total) seeded on `ApplicationReadyEvent`.
+**Auto-seed:** ~5 default conditions per strategy (~50 total for 10 strategies) seeded on `ApplicationReadyEvent`.
 
 ---
 
@@ -815,20 +815,20 @@ All endpoints return `ApiResponse<T>` with envelope `{status, message, data, tim
 | POST | `/api/strategy-config/conditions/reset` | — | `ApiResponse<Void>` | Reset all conditions to defaults; triggers async recompute |
 | PUT | `/api/strategy-config/{strategyName}/priority` | `?priority=1-10` | `ApiResponse<StrategyConfigDTO>` | Update strategy priority |
 
-**Note:** On first startup, `StrategyConfigService` auto-seeds all 5 strategies as active. `MultiStrategySignalEngine` reads DB state as the default active set when no `?active=` query param is provided. `StrategyConditionService` seeds 25 default conditions (5 per strategy) on `ApplicationReadyEvent`.
+**Note:** On first startup, `StrategyConfigService` auto-seeds all 10 strategies as active. `MultiStrategySignalEngine` reads DB state as the default active set when no `?active=` query param is provided. `StrategyConditionService` seeds ~50 default conditions (~5 per strategy) on `ApplicationReadyEvent`.
 
 ### 5.20 Summary
 
 | HTTP Method | Count |
 |-------------|-------|
-| GET | 66 |
-| POST | 38 |
-| PUT | 7 |
+| GET | ~84 |
+| POST | ~48 |
+| PUT | ~9 |
 | PATCH | 2 |
-| DELETE | 7 |
-| **Total (REST)** | **119** |
+| DELETE | ~10 |
+| **Total (REST)** | **~152** |
 | View (Thymeleaf) | 1 |
-| **Grand Total** | **120** |
+| **Grand Total** | **~153** |
 
 ---
 
@@ -994,7 +994,7 @@ Ranks portfolio holdings by buy/sell opportunity strength with detailed trade se
 
 **DTO Fields:** `InstitutionalScoreDTO` includes stockId, symbol, name, sector, all 8 component scores, totalScore, institutionalGrade, latestPrice, holding percentages with QoQ changes, latestQuarterEnd, recentBulkBuys, recentBlockBuys, averageVolume, latestVolume, signalRecommendation
 
-### 6.4 Technical Indicators (29 Calculators)
+### 6.4 Technical Indicators (34 Calculators)
 
 | Indicator | Calculator | Description |
 |-----------|-----------|-------------|
@@ -1017,6 +1017,10 @@ Ranks portfolio holdings by buy/sell opportunity strength with detailed trade se
 | ROC (12) | `RocCalculator` | Rate of Change |
 | OBV | `ObvCalculator` | On-Balance Volume |
 | VWAP | `VwapCalculator` | Volume-Weighted Average Price |
+| SMA 44 | `Sma44Calculator` | 44-day SMA (pullback/bounce) |
+| Volume Ratio | `VolumeRatioCalculator` | 20-day volume ratio |
+| Dollar Volume | `DollarVolumeCalculator` | Close × Volume liquidity |
+| Amihud Illiquidity | `AmihudCalculator` | Price impact illiquidity (lower = more liquid) |
 | Tenkan Sen | `TenkanSenCalculator` | Ichimoku conversion line |
 | Kijun Sen | `KijunSenCalculator` | Ichimoku base line |
 | Senkou Span A/B | `SenkouSpanACalculator`, `SenkouSpanBCalculator` | Ichimoku cloud boundaries |

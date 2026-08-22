@@ -47,10 +47,26 @@ public class PortfolioController {
 
   @PostMapping("/backfill")
   public ResponseEntity<ApiResponse<String>> backfillSnapshots(
-      @RequestParam(defaultValue = "false") boolean force) {
-    snapshotService.backfillSnapshots(LocalDate.now().minusDays(60), force);
+      @RequestParam(defaultValue = "false") boolean force,
+      @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate) {
+    LocalDate start = fromDate != null ? fromDate : LocalDate.now().minusDays(60);
+    snapshotService.backfillSnapshots(start, force);
     String msg = force ? "Backfill complete (forced rebuild)" : "Backfill complete";
     return ResponseEntity.ok(ApiResponse.success(msg));
+  }
+
+  @PostMapping("/backfill/force")
+  public ResponseEntity<ApiResponse<String>> forceBackfillSnapshots() {
+    snapshotService.backfillSnapshots(LocalDate.of(2020, 1, 1), true);
+    return ResponseEntity.ok(ApiResponse.success("Force backfill complete"));
+  }
+
+  @PostMapping("/backfill/date")
+  public ResponseEntity<ApiResponse<String>> backfillDate(
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+    snapshotService.deleteSnapshotsByDate(date);
+    snapshotService.backfillSnapshots(date, true);
+    return ResponseEntity.ok(ApiResponse.success("Backfill completed for " + date));
   }
 
   @GetMapping("/screener")

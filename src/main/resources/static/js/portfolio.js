@@ -221,8 +221,11 @@ async function loadHistoryChart() {
     renderTrendChart();
   } catch (e) {
     console.error('Error loading history:', e);
+    destroyChart('trend');
     const parent = document.getElementById('portfolioTrendChart')?.parentElement;
-    if (parent) parent.innerHTML = '<p class="text-danger text-center py-8">Failed to load portfolio history</p>';
+    if (parent) {
+      parent.innerHTML = '<p class="text-danger text-center py-8">Failed to load portfolio history</p>';
+    }
   }
 }
 
@@ -311,10 +314,12 @@ function renderTrendChart() {
   canvas.style.display = 'block';
   if (emptyMsg) emptyMsg.style.display = 'none';
 
-  // Parse date strings into Date objects for the Chart.js time scale
+  // Parse date strings into Date objects for the Chart.js time scale.
+  // Use Date.UTC to anchor to midnight UTC so the chart displays the correct
+  // calendar date regardless of the user's local timezone offset.
   const parseDate = (d) => {
     const p = d.split('-');
-    return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+    return new Date(Date.UTC(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])));
   };
 
   charts.trend = new Chart(document.getElementById('portfolioTrendChart'), {
@@ -870,7 +875,7 @@ function isHighConvictionBuy(signal) {
 }
 
 function getDisplayRecommendation(signal) {
-  return signal || {};  // ponytail: show actual signal, no artificial filtering
+  return signal || {};
 }
 
 function renderOpportunityCards(data) {

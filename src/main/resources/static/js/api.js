@@ -346,6 +346,21 @@ async function deleteTransaction(portfolioId, txId) {
     });
 }
 
+// ─── Buy lots (lot-based sell matching) ──────────────────────────────
+
+async function getBuyLots(portfolioId, stockId) {
+    const q = stockId != null ? `?stockId=${encodeURIComponent(stockId)}` : '';
+    return apiCall(`/portfolios/${portfolioId}/lots${q}`);
+}
+
+async function sellFromLot(portfolioId, payload) {
+    return apiCall(`/portfolios/${portfolioId}/transactions/sell-from-lot`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+
 // FII/DII API
 async function getFiiDiiData() {
     return apiCall('/fiidii');
@@ -367,6 +382,16 @@ async function triggerEventsRefresh() {
 // Stock Signal API
 async function getStockSignal(stockId) {
     return apiCall(`/signals/${stockId}`);
+}
+
+async function getAllSignals() {
+    return apiCall('/signals');
+}
+
+// Signals for a specific set of stock ids (watchlist page) — avoids
+// computing signals for all stocks in the system.
+async function getBatchSignals(ids) {
+    return apiCall(`/signals/batch?ids=${ids}`);
 }
 
 // Signal History API

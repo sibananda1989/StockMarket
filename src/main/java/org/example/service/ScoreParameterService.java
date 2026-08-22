@@ -25,7 +25,6 @@ public class ScoreParameterService implements StartupTask {
 
     private volatile Set<String> disabledLegacyFactorsCache = Collections.emptySet();
 
-    // ponytail: auto-execute on startup to seed score parameters
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
         log.info("Score parameter service started - seeding default parameters");

@@ -1,3 +1,5 @@
+> **ARCHIVED**: The multi-agent workflow described here has been consolidated into the global full-cycle orchestrator (`~/.config/opencode/scripts/full-cycle.sh`). This doc is kept for reference only.
+
 # Multi-Agent Software Engineering Workflow
 
 This document defines the lifecycle-driven multi-agent workflow for the Stock Market Analysis Platform.
@@ -135,23 +137,35 @@ Used for **analysis only** — signal debugging, strategy questions, indicator e
 
 ## Lifecycle Routing
 
-The Team Lead routes requests based on complexity:
+The Team Lead routes requests based on complexity. **Always use the shortest path that works.**
 
 ```
 User Request
     ↓
 Team Lead evaluates:
     ↓
-┌── Simple question/analysis → stock-analyzer or thinker → Done
+┌── Simple question/analysis → stock-analyzer or answer directly → Done
 │
-├── Simple bug fix → build-agent → verify-agent → Done
+├── Bug fix (clear scope) → build-agent → Done
 │
-├── Standard feature → plan-agent → build-agent → verify-agent → review-agent → ship-agent
+├── Simple feature (clear scope) → build-agent → Done
 │
-├── Complex feature (vague) → define-agent → plan-agent → build-agent → verify-agent → review-agent → ship-agent
+├── Medium feature → plan-agent → build-agent → Done
 │
-└── Architecture change → define-agent → plan-agent → build-agent → verify-agent → review-agent → ship-agent
+├── Complex feature (vague) → define-agent → plan-agent → build-agent → Done
+└── Architecture change → define-agent → plan-agent → build-agent → Done
 ```
+
+**Key principle: Skip phases that don't add value.**
+- Don't plan what's obvious
+- Don't verify what you just tested
+- Don't review what's a one-line fix
+- Don't ship-document a bug fix
+
+Only add Verify/Review/Ship phases when:
+- The change is large (10+ files)
+- The change affects production systems
+- The user explicitly asks for it
 
 ## Quality Gates (Mandatory)
 
@@ -180,11 +194,11 @@ Every phase enforces quality gates before passing to the next:
   opencode.json                — Agent model configuration
   multi-agent-workflow.md      — This file
   multi-agent-quickstart.md    — Quick reference
-  agent/
+  agents/
     team-lead.md               — Team Lead coordinator
     define-agent.md            — Define phase (spec-driven)
-    plan.md                    — Plan phase coordinator
-    build.md                   — Build phase coordinator
+    plan-agent.md              — Plan phase coordinator
+    build-agent.md             — Build phase coordinator
     verify-agent.md            — Verify phase (test + security + perf)
     review-agent.md            — Review phase (code review)
     ship-agent.md              — Ship phase (changelog + release)

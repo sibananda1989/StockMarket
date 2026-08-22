@@ -98,11 +98,9 @@ public class PortfolioManagementController {
     public ResponseEntity<ApiResponse<HoldingDTO>> addHolding(
             @PathVariable Long id,
             @Valid @RequestBody AddHoldingRequest request) {
-        HoldingDTO dto = portfolioService.addHolding(id, request.getStockId(),
-                request.getQuantity(), request.getAvgPrice());
-        // Record as a buy transaction in the ledger
         transactionService.recordBuy(id, request.getStockId(), request.getQuantity(),
                 request.getAvgPrice(), BigDecimal.ZERO, LocalDate.now(), null);
+        HoldingDTO dto = portfolioService.getHolding(id, request.getStockId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Holding added", dto));
     }
@@ -248,11 +246,35 @@ public class PortfolioManagementController {
         return ResponseEntity.ok(ApiResponse.success("Transactions", txns));
     }
 
+    @GetMapping("/{id}/lots")
+    public ResponseEntity<ApiResponse<List<BuyLotDTO>>> getBuyLots(
+            @PathVariable Long id,
+            @RequestParam(required = false) Long stockId) {
+        List<BuyLotDTO> lots = transactionService.getLots(id, stockId);
+        return ResponseEntity.ok(ApiResponse.success("Buy lots", lots));
+    }
+
+    @PostMapping("/{id}/transactions/sell-from-lot")
+    public ResponseEntity<ApiResponse<TransactionDTO>> sellFromLot(
+            @PathVariable Long id,
+            @Valid @RequestBody SellFromLotRequest request) {
+        TransactionDTO dto = transactionService.recordSellAgainstLot(
+                id,
+                request.getBuyTransactionId(),
+                request.getQuantity(),
+                request.getPrice(),
+                request.getFees(),
+                request.getTransactionDate(),
+                request.getNotes());
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Lot sell recorded", dto));
+    }
+
     @DeleteMapping("/{id}/transactions/{txId}")
     public ResponseEntity<ApiResponse<String>> deleteTransaction(
             @PathVariable Long id,
             @PathVariable Long txId) {
-        transactionService.deleteTransaction(txId);
+        transactionService.deleteTransaction(id, txId);
         return ResponseEntity.ok(ApiResponse.success("Transaction deleted"));
     }
 

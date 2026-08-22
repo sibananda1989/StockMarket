@@ -68,7 +68,6 @@ public class StrategyConditionService implements StartupTask {
     );
     private static final Set<String> VALID_CONFIDENCE = Set.of("high", "mid", "low");
 
-    // ponytail: auto-execute on startup to seed default conditions
     @EventListener(ApplicationReadyEvent.class)
     public void init() {
         log.info("Strategy condition service started - running startup tasks");

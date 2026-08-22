@@ -10,6 +10,7 @@ import org.example.exception.PriceAlreadyExistsException;
 import org.example.exception.StockNotFoundException;
 import org.example.repository.DailyPriceRepository;
 
+import org.example.service.PortfolioSnapshotService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
@@ -25,10 +26,11 @@ import java.util.stream.Collectors;
 @Transactional
 public class DailyPriceService {
 
-private final DailyPriceRepository dailyPriceRepository;
-private final StockService stockService;
-private final TechnicalAnalysisService technicalAnalysisService;
-private final EntityManager entityManager;
+    private final DailyPriceRepository dailyPriceRepository;
+    private final StockService stockService;
+    private final TechnicalAnalysisService technicalAnalysisService;
+    private final PortfolioSnapshotService snapshotService;
+    private final EntityManager entityManager;
 
     @Transactional(noRollbackFor = PriceAlreadyExistsException.class)
     public DailyPrice saveDailyPrice(Long stockId, BigDecimal closingPrice, LocalDate priceDate,
@@ -54,6 +56,12 @@ private final EntityManager entityManager;
         }
 
         stockService.recalculatePortfolio(stock);
+
+        try {
+            snapshotService.saveOrUpdate(stock, priceDate);
+        } catch (Exception e) {
+            log.warn("Portfolio snapshot creation failed for stock {} on {}: {}", stockId, priceDate, e.getMessage());
+        }
 
         return saved;
     }

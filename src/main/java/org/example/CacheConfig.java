@@ -1,3 +1,4 @@
+// GATE-TEST-MARKER
 package org.example;
 
 import com.github.benmanes.caffeine.cache.Caffeine;

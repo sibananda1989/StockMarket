@@ -100,7 +100,7 @@ class PortfolioSnapshotServiceUnitTest {
             assertEquals(snapshotDate, result.getSnapshotDate());
             assertEquals(stock.getQuantity(), result.getQuantity());
             assertEquals(stock.getAvgPrice(), result.getAvgPrice());
-            assertEquals(stock.getLastTradedPrice(), result.getLastTradedPrice());
+            assertEquals(new BigDecimal("120.00"), result.getLastTradedPrice());
 
             // Investment = avgPrice * quantity = 150.00 * 100 = 15,000 (cost basis)
             assertEquals(new BigDecimal("15000.00"), result.getInvestment(),
@@ -158,6 +158,7 @@ class PortfolioSnapshotServiceUnitTest {
                     "Should use current investment when no historical data");
             assertEquals(0, stock.getCurrentValue().compareTo(result.getCurrentValue()),
                     "Should use current currentValue when no historical data");
+            assertNull(result.getLastTradedPrice(), "Should be null when no historical price data");
         }
 
         @Test

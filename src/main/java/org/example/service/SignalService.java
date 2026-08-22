@@ -112,11 +112,32 @@ public class SignalService {
         List<SignalDTO> signals = computeSignalsBulk(stocks);
         cachedAllSignals = signals;
         cachedAllSignalsAt = now;
-        
+
         // Trigger async shadow signal computation for all stocks
         triggerAllShadowSignalComputation();
-        
+
         return signals;
+    }
+
+    /**
+     * Computes signals for a specific subset of stocks (e.g. a watchlist).
+     * Serves from the all-signals cache when fresh; otherwise bulk-computes
+     * only the requested stocks — avoids the cost of computing signals for
+     * every stock in the system.
+     */
+    public List<SignalDTO> getSignalsForIds(List<Long> stockIds) {
+        if (stockIds == null || stockIds.isEmpty()) return Collections.emptyList();
+        long now = System.currentTimeMillis();
+        if (cachedAllSignals != null && (now - cachedAllSignalsAt) < CACHE_TTL_MS) {
+            Map<Long, SignalDTO> byId = cachedAllSignals.stream()
+                    .filter(s -> s.getStockId() != null)
+                    .collect(Collectors.toMap(SignalDTO::getStockId, s -> s, (a, b) -> a));
+            return stockIds.stream()
+                    .map(byId::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+        }
+        return computeSignalsBulk(stockService.getStocksByIds(stockIds));
     }
     
     private void triggerAllShadowSignalComputation() {

@@ -163,6 +163,11 @@ public class StockService {
     }
 
     @Transactional(readOnly = true)
+    public StockDTO getStockDTO(Stock stock, BigDecimal latestPrice, BigDecimal latestRsi) {
+        return convertToDTO(stock, latestPrice, latestRsi);
+    }
+
+    @Transactional(readOnly = true)
     public List<StockDTO> getAllStockDTOs() {
         List<Stock> stocks = stockRepository.findAll();
         if (stocks.isEmpty()) return List.of();

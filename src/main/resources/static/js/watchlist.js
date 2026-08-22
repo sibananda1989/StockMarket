@@ -152,16 +152,61 @@ const stock = _selectedStock;
 // Check if stock exists locally
 let localStock = allStocks.find(s => s.symbol.toUpperCase() === stock.symbol.toUpperCase());
 
+// If local stock exists, persist any sector/industry/exchange edits made in the modal
+if (localStock) {
+    const selectedSector = document.getElementById('qcSector').value;
+    const selectedIndustry = document.getElementById('qcIndustry').value.trim();
+    const selectedExchange = document.getElementById('qcExchange').value;
+    // Derive expected yahooSymbol from exchange selection
+    let expectedYahoo = localStock.yahooSymbol;
+    if (selectedExchange === 'BSE' && (!expectedYahoo || !expectedYahoo.endsWith('.BO'))) {
+        expectedYahoo = localStock.symbol.replace(/\.NS$/,'').replace(/\.BO$/,'') + '.BO';
+    } else if (selectedExchange === 'NSE' && (!expectedYahoo || !expectedYahoo.endsWith('.NS'))) {
+        // Keep as-is if already has suffix, otherwise default to .NS for NSE
+        if (!expectedYahoo || (!expectedYahoo.endsWith('.NS') && !expectedYahoo.endsWith('.BO'))) {
+            const base = localStock.symbol.replace(/\.NS$/,'').replace(/\.BO$/,'');
+            expectedYahoo = base + '.NS';
+        }
+    }
+    const needsUpdate = (selectedSector && selectedSector !== localStock.sector)
+        || (selectedIndustry !== (localStock.industry || ''))
+        || (expectedYahoo && expectedYahoo !== localStock.yahooSymbol);
+    if (needsUpdate) {
+        try {
+            const updatePayload = {
+                symbol: localStock.symbol,
+                name: localStock.name,
+                sector: selectedSector || localStock.sector || 'Other',
+                industry: selectedIndustry || localStock.industry || '',
+                yahooSymbol: expectedYahoo || localStock.yahooSymbol
+            };
+            await updateStockApi(localStock.id, updatePayload);
+            // refresh local cache
+            const stocksRes = await getAllStocks();
+            allStocks = stocksRes.data || [];
+            localStock = allStocks.find(s => s.symbol.toUpperCase() === stock.symbol.toUpperCase());
+        } catch (e) {
+            showToast(e.message || 'Failed to update stock details', 'error');
+            return;
+        }
+    }
+}
+
 // If not local, create it first
   if (!localStock) {
     const selectedSector = document.getElementById('qcSector').value || 'Other';
     const selectedIndustry = document.getElementById('qcIndustry').value.trim() || stock.industry || '';
+    // Derive yahooSymbol from exchange selection for new stocks
+    const selectedExchange = document.getElementById('qcExchange').value;
+    let yahooSym = stock.symbol;
+    if (selectedExchange === 'BSE') yahooSym = stock.symbol.replace(/\.NS$/,'').replace(/\.BO$/,'') + '.BO';
+    else if (selectedExchange === 'NSE' && !yahooSym.includes('.')) yahooSym = yahooSym + '.NS';
     try {
     const createRes = await addStockApi({
       symbol: stock.symbol,
       name: stock.name,
       sector: selectedSector,
-      yahooSymbol: stock.symbol,
+      yahooSymbol: yahooSym,
       industry: selectedIndustry
     });
 localStock = createRes.data;
@@ -176,15 +221,12 @@ return;
 // Add to watchlist
 try {
 await addStockToWatchlist(watchlistId, localStock.id);
-showToast(stock.symbol + ' added to watchlist', 'success');
-closeModal('addStockModal');
-await selectWatchlist(watchlistId);
-const res = await getWatchlists();
-allWatchlists = res.data || [];
-renderWatchlists();
-
-// Re-fetch after background sync completes to pick up LTP and record count
-setTimeout(() => selectWatchlist(watchlistId), 5000);
+    showToast(stock.symbol + ' added to watchlist', 'success');
+    closeModal('addStockModal');
+    await selectWatchlist(watchlistId);
+    const res = await getWatchlists();
+    allWatchlists = res.data || [];
+    renderWatchlists();
 } catch (e) {
 showToast(e.message || 'Failed to add stock', 'error');
 }
@@ -218,35 +260,42 @@ closeModal('portfolioModal');
 }
 
 async function confirmAddToPortfolio() {
-const stockId = parseInt(document.getElementById('portfolioStockId').value);
-const symbol = document.getElementById('portfolioSymbol').value;
-const qty = document.getElementById('portfolioQty').value;
-const avgPrice = document.getElementById('portfolioAvgPrice').value;
-const portfolioId = parseInt(document.getElementById('portfolioTargetSelector').value);
-if (!portfolioId) {
-showToast('Please select a target portfolio', 'error');
-return;
-}
-if (!qty || parseInt(qty) <= 0) {
-showToast('Quantity must be greater than 0', 'error');
-return;
-}
-if (!avgPrice || parseFloat(avgPrice) < 0) {
-showToast('Avg price must be 0 or more', 'error');
-return;
-}
-try {
-await addHolding(portfolioId, stockId, parseInt(qty), parseFloat(avgPrice));
+    const stockId = parseInt(document.getElementById('portfolioStockId').value);
+    const symbol = document.getElementById('portfolioSymbol').value;
+    const qty = document.getElementById('portfolioQty').value;
+    const avgPrice = document.getElementById('portfolioAvgPrice').value;
+    const portfolioId = parseInt(document.getElementById('portfolioTargetSelector').value);
+    if (!portfolioId) {
+    showToast('Please select a target portfolio', 'error');
+    return;
+    }
+    if (!qty || parseInt(qty) <= 0) {
+    showToast('Quantity must be greater than 0', 'error');
+    return;
+    }
+    if (!avgPrice || parseFloat(avgPrice) < 0) {
+    showToast('Avg price must be 0 or more', 'error');
+    return;
+    }
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Adding...';
+    try {
+    await addHolding(portfolioId, stockId, parseInt(qty), parseFloat(avgPrice));
 
-showToast(symbol + ' added to portfolio', 'success');
-closePortfolioModal();
-if (selectedWatchlistId) {
-await selectWatchlist(selectedWatchlistId);
-}
-} catch (e) {
-showToast(e.message || 'Failed to add to portfolio', 'error');
-}
-}
+    showToast(symbol + ' added to portfolio', 'success');
+    closePortfolioModal();
+    if (selectedWatchlistId) {
+    await selectWatchlist(selectedWatchlistId);
+    }
+    } catch (e) {
+    showToast(e.message || 'Failed to add to portfolio', 'error');
+    } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    }
+    }
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
@@ -256,13 +305,15 @@ loadAll();
 
 async function loadAll() {
 try {
-const [watchlistsRes, stocksRes] = await Promise.all([
-getWatchlists(),
-getAllStocks()
-]);
+// Load watchlists first — render cards immediately.
+// allStocks is only needed for search; load it in background.
+const watchlistsRes = await getWatchlists();
 allWatchlists = watchlistsRes.data || [];
-allStocks = stocksRes.data || [];
 renderWatchlists();
+
+getAllStocks().then(stocksRes => {
+    allStocks = stocksRes.data || [];
+}).catch(e => console.error('Error loading stocks:', e));
 } catch (e) {
 console.error('Error loading watchlist data:', e);
 showToast('Failed to load watchlists', 'error');
@@ -330,19 +381,32 @@ const res = await getWatchlistItems(id);
 const detailData = res.data;
 const stocks = detailData.stocks || [];
 
-// Fetch signals for all stocks in parallel
-let signalsMap = {};
-if (stocks.length > 0) {
-const signalResults = await Promise.all(
-stocks.map(s => getStockSignal(s.id).catch(() => null))
-);
-signalResults.forEach((result, idx) => {
-if (result && result.data) signalsMap[stocks[idx].id] = result.data;
-});
+// Render table immediately with placeholder signals (no blocking)
+renderDetailStocks(stocks, {});
+if (stocks.length >= 2) {
+    renderSectorChart(stocks);
 }
 
-renderDetailStocks(stocks, signalsMap);
-renderSectorChart(stocks);
+// Fetch signals only for the watchlist stocks (batch) and re-render
+if (stocks.length > 0) {
+    try {
+        const ids = stocks.map(s => s.id).join(',');
+        const sigRes = await getBatchSignals(ids);
+        const allSignals = sigRes.data || [];
+        const signalsMap = {};
+        for (const signal of allSignals) {
+            if (signal.stockId != null) {
+                signalsMap[signal.stockId] = signal;
+            }
+        }
+        // Only re-render if user hasn't switched to another watchlist meanwhile
+        if (selectedWatchlistId === id) {
+            renderDetailStocks(stocks, signalsMap);
+        }
+    } catch (e) {
+        console.error('Error fetching batch signals:', e);
+    }
+}
 } catch (e) {
 console.error('Error loading watchlist items:', e);
   document.getElementById('detailTableBody').innerHTML =
@@ -629,7 +693,7 @@ document.getElementById('addStockBtn').disabled = true;
 displaySearchResultsWatchlist(allStocks.slice(0, 20).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : (s.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
 sector: s.sector || '',
 industry: s.industry || '',
 quoteType: 'EQUITY',
@@ -809,7 +873,7 @@ s.symbol.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
 ).slice(0, 10).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : (s.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
 sector: s.sector || '',
 industry: s.industry || '',
 quoteType: 'EQUITY',
@@ -826,7 +890,7 @@ s.symbol.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
 ).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : (s.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
 sector: s.sector || '',
 industry: s.industry || '',
 quoteType: 'EQUITY',
@@ -896,7 +960,7 @@ container.innerHTML = '';
 }
 }
 
-function selectStockFromSearchWatchlist(stock) {
+async function selectStockFromSearchWatchlist(stock) {
 _selectedStock = stock;
 
 // Show the fields panel
@@ -905,20 +969,63 @@ document.getElementById('selectedStockFields').classList.remove('hidden');
 // Fill read-only fields
 document.getElementById('qcSymbol').value = stock.symbol || '';
 document.getElementById('qcName').value = stock.name || '';
-document.getElementById('qcExchange').value = stock.exchange || '';
-
-if (!stock.exchange) {
+// Exchange: derive from stock.exchange or local yahooSymbol, default to NSE for local stocks
+let exch = stock.exchange || '';
+if (!exch) {
     const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
     if (local && local.yahooSymbol) {
-        document.getElementById('qcExchange').value = local.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE';
+        exch = local.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE';
+    } else if (local) {
+        // Local stock without yahooSymbol — infer from symbol suffix or default NSE
+        if (local.symbol.endsWith('.BO')) exch = 'BSE';
+        else exch = 'NSE';
+    } else if (stock.symbol) {
+        if (stock.symbol.endsWith('.BO')) exch = 'BSE';
+        else if (stock.symbol.endsWith('.NS')) exch = 'NSE';
     }
 }
+document.getElementById('qcExchange').value = exch;
 
-// Auto-select sector — if Yahoo search didn't return sector, try local data
+// Auto-select sector — if Yahoo search didn't return sector, try local data then Yahoo validate API
 let sector = stock.sector;
+let isLocalStock = allStocks.some(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
 if (!sector) {
 const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
 if (local && local.sector) sector = local.sector;
+}
+// If still no sector OR no industry, fetch via Yahoo validate API (applies to BOTH
+// local stocks missing data and new Yahoo results)
+let _needIndustry = null;
+{
+    const sym = (stock.symbol || '').toUpperCase();
+    const local = allStocks.find(s => s.symbol.toUpperCase() === sym);
+    _needIndustry = stock.industry || (local && local.industry) ? null : 'missing';
+}
+if ((!sector || _needIndustry) && stock.symbol) {
+    // show loading state
+    document.getElementById('qcSector').innerHTML = '<option>Loading...</option>';
+    document.getElementById('qcIndustry').value = 'Loading...';
+    try {
+        const vRes = await validateStockSymbol(stock.symbol);
+        const v = vRes && vRes.data ? vRes.data : vRes;
+        if (v && v.valid && v.sector) sector = v.sector;
+        if (v && v.valid && v.industry && !stock.industry) {
+            stock.industry = v.industry; // cache for industry step below
+        }
+        // restore sector options if we overwrote
+        const sel = document.getElementById('qcSector');
+        if (sel && sel.options.length === 1 && sel.options[0].text === 'Loading...') {
+            sel.innerHTML = '<option value="">Select</option><option>Technology</option><option>Finance</option><option>Healthcare</option><option>Energy</option><option>Consumer Discretionary</option><option>Consumer Staples</option><option>Aero & defence</option><option>Industrial</option><option>Utilities</option><option>Real Estate</option><option>Materials</option><option>Other</option>';
+        }
+        document.getElementById('qcIndustry').value = '';
+    } catch (e) {
+        const sel = document.getElementById('qcSector');
+        if (sel && sel.options.length === 1 && sel.options[0].text === 'Loading...') {
+            sel.innerHTML = '<option value="">Select</option><option>Technology</option><option>Finance</option><option>Healthcare</option><option>Energy</option><option>Consumer Discretionary</option><option>Consumer Staples</option><option>Aero & defence</option><option>Industrial</option><option>Utilities</option><option>Real Estate</option><option>Materials</option><option>Other</option>';
+        }
+        document.getElementById('qcIndustry').value = '';
+        console.warn('validate sector fetch failed', e);
+    }
 }
 
 const sectorSelect = document.getElementById('qcSector');

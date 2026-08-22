@@ -7,10 +7,8 @@
     "GitHub Models"
   ],
   "plugin": [
-    "opencode-auto-fallback",
-    "openkilo"
+    "opencode-auto-fallback"
   ],
-  "default_agent": "team-lead",
   "instructions": [
     "AGENTS.md",
     "docs/PROJECT_MANIFEST.md"
@@ -24,20 +22,26 @@
         "apiKey": "sk-nry-kO9TT4DdO9SQbRuyrrtYM482CajIjcU26KdnZPeG_6U"
       },
       "models": {
-        "stepfun-3.7-flash": {
-          "name": "Stepfun-3.7-flash Free"
+        "laguna-s-2.1": {
+          "name": "Laguna s 2.1 Free"
         },
         "agnes-2.0-flash": {
           "name": "Agnes 2.0 flash free"
         },
-        "grok-4.5-free": {
-          "name": "Grok 4.5 Free"
+        "agnes-2.5-flash": {
+          "name": "Agnes 2.5 flash free"
+        },
+        "ling-3.0-flash-free": {
+          "name": "Ling 3.0 flash Free"
         },
         "mistral-large": {
           "name": "Mistral large"
         },
         "mistral-medium-3-5": {
           "name": "Mistral medium 3.5"
+        },
+        "tencent-hy3-free": {
+          "name": "Tencent hy3 Free"
         }
       },
       "whitelist": [
@@ -118,14 +122,17 @@
         "nvidia/nemotron-3-super-120b-a12b": {
           "name": "Nemotron 3 Super 120b A12b"
         },
+        "nvidia/nemotron-3-ultra-550b-a55b": {
+          "name": "Nemotron 3 Ultra 550b A55b"
+        },
         "nvidia/nemotron-3.5-content-safety": {
           "name": "Nemotron 3 5 Content Safety"
         },
+        "nvidia/nemotron-3.5-lightning-30b-a3b": {
+          "name": "Nemotron 3 5 Lightning 30b A3b"
+        },
         "nvidia/nemotron-mini-4b-instruct": {
           "name": "Nemotron Mini 4b Instruct"
-        },
-        "nvidia/nemotron-nano-12b-v2-vl": {
-          "name": "Nemotron Nano 12b V2 Vl"
         },
         "nvidia/nvidia-nemotron-nano-9b-v2": {
           "name": "Nvidia Nemotron Nano 9b V2"
@@ -151,9 +158,10 @@
         "nvidia/nemotron-3-nano-30b-a3b",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         "nvidia/nemotron-3-super-120b-a12b",
+        "nvidia/nemotron-3-ultra-550b-a55b",
         "nvidia/nemotron-3.5-content-safety",
+        "nvidia/nemotron-3.5-lightning-30b-a3b",
         "nvidia/nemotron-mini-4b-instruct",
-        "nvidia/nemotron-nano-12b-v2-vl",
         "nvidia/nvidia-nemotron-nano-9b-v2",
         "nvidia/riva-translate-4b-instruct-v1.1",
         "nvidia/riva-translate-4b-instruct-v2"
@@ -166,14 +174,11 @@
         "cohere/north-mini-code:free": {
           "name": "North Mini Code"
         },
-        "google/gemma-4-26b-a4b-it:free": {
-          "name": "Gemma 4 26b A4b It"
+        "dots-studio/dots-3-note-preview:free": {
+          "name": "Dots 3 Note Preview"
         },
-        "inclusionai/ling-3.0-tiny:free": {
-          "name": "Ling 3 0 Tiny"
-        },
-        "nvidia/nemotron-3-nano-30b-a3b:free": {
-          "name": "Nemotron 3 Nano 30b A3b"
+        "liquid/lfm-2.5-2.6b:free": {
+          "name": "Lfm 2 5 2 6b"
         },
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
           "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
@@ -187,20 +192,17 @@
         "nvidia/nemotron-3.5-content-safety:free": {
           "name": "Nemotron 3 5 Content Safety"
         },
-        "nvidia/nemotron-nano-12b-v2-vl:free": {
-          "name": "Nemotron Nano 12b V2 Vl"
-        },
-        "nvidia/nemotron-nano-9b-v2:free": {
-          "name": "Nemotron Nano 9b V2"
-        },
-        "openrouter/free": {
-          "name": "Free"
+        "nvidia/nemotron-3.5-lightning:free": {
+          "name": "Nemotron 3 5 Lightning"
         },
         "poolside/laguna-s-2.1:free": {
           "name": "Laguna S 2 1"
         },
         "poolside/laguna-xs-2.1:free": {
           "name": "Laguna Xs 2 1"
+        },
+        "stealth/ox-alpha": {
+          "name": "Ox Alpha"
         }
       },
       "options": {
@@ -208,18 +210,16 @@
       },
       "whitelist": [
         "cohere/north-mini-code:free",
-        "google/gemma-4-26b-a4b-it:free",
-        "inclusionai/ling-3.0-tiny:free",
-        "nvidia/nemotron-3-nano-30b-a3b:free",
+        "dots-studio/dots-3-note-preview:free",
+        "liquid/lfm-2.5-2.6b:free",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
         "nvidia/nemotron-3.5-content-safety:free",
-        "nvidia/nemotron-nano-12b-v2-vl:free",
-        "nvidia/nemotron-nano-9b-v2:free",
-        "openrouter/free",
+        "nvidia/nemotron-3.5-lightning:free",
         "poolside/laguna-s-2.1:free",
-        "poolside/laguna-xs-2.1:free"
+        "poolside/laguna-xs-2.1:free",
+        "stealth/ox-alpha"
       ]
     },
     "google": {
@@ -249,6 +249,9 @@
         },
         "gemini-3.6-flash": {
           "name": "Gemini 3 6 Flash"
+        },
+        "gemini-3.7-flash": {
+          "name": "Gemini 3 7 Flash"
         },
         "gemini-flash-latest": {
           "name": "Gemini Flash Latest"
@@ -281,6 +284,7 @@
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
         "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "gemini-flash-latest",
         "gemini-flash-lite-latest",
         "gemini-robotics-er-1.6-preview",
@@ -298,31 +302,42 @@
       },
       "whitelist": [
         "cohere/north-mini-code:free",
-        "inclusionai/ling-3.0-tiny:free",
+        "dots-studio/dots-3-note-preview:free",
         "kilo-auto/free",
         "kilo-auto/small",
+        "liquid/lfm-2.5-2.6b:free",
+        "meituan/longcat-2.0-free",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
-        "nvidia/nemotron-3.5-content-safety:free",
+        "nvidia/nemotron-3.5-lightning:free",
         "openrouter/free",
         "poolside/laguna-s-2.1:free",
         "poolside/laguna-xs-2.1:free",
+        "stealth/ox-alpha",
         "stepfun/step-3.7-flash:free",
-        "tencent/hy3:free"
+        "tencent/hy3:free",
+        "thinkingmachines/inkling-small:free",
+        "thinkingmachines/inkling:free"
       ],
       "models": {
         "cohere/north-mini-code:free": {
           "name": "North Mini Code"
         },
-        "inclusionai/ling-3.0-tiny:free": {
-          "name": "Ling 3 0 Tiny"
+        "dots-studio/dots-3-note-preview:free": {
+          "name": "Dots 3 Note Preview"
         },
         "kilo-auto/free": {
           "name": "Free"
         },
         "kilo-auto/small": {
           "name": "Small"
+        },
+        "liquid/lfm-2.5-2.6b:free": {
+          "name": "Lfm 2 5 2 6b"
+        },
+        "meituan/longcat-2.0-free": {
+          "name": "Longcat 2 0 Free"
         },
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
           "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
@@ -333,8 +348,8 @@
         "nvidia/nemotron-3-ultra-550b-a55b:free": {
           "name": "Nemotron 3 Ultra 550b A55b"
         },
-        "nvidia/nemotron-3.5-content-safety:free": {
-          "name": "Nemotron 3 5 Content Safety"
+        "nvidia/nemotron-3.5-lightning:free": {
+          "name": "Nemotron 3 5 Lightning"
         },
         "openrouter/free": {
           "name": "Free"
@@ -345,28 +360,21 @@
         "poolside/laguna-xs-2.1:free": {
           "name": "Laguna Xs 2 1"
         },
+        "stealth/ox-alpha": {
+          "name": "Ox Alpha"
+        },
         "stepfun/step-3.7-flash:free": {
           "name": "Step 3 7 Flash"
         },
         "tencent/hy3:free": {
           "name": "Hy3"
+        },
+        "thinkingmachines/inkling-small:free": {
+          "name": "Inkling Small"
+        },
+        "thinkingmachines/inkling:free": {
+          "name": "Inkling"
         }
-      }
-    }
-  },
-  "agent": {
-    "team-lead": {
-      "model": "kilo/kilo-auto/free",
-      "permission": {
-        "read": "allow",
-        "task": "allow",
-        "question": "allow",
-        "edit": "deny",
-        "bash": "deny",
-        "grep": "deny",
-        "glob": "deny",
-        "websearch": "deny",
-        "webfetch": "deny"
       }
     }
   }

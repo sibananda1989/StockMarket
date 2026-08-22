@@ -56,16 +56,88 @@ public class YahooFinanceService {
         // Try the symbol as-is first
         SymbolValidationResult result = tryValidateSymbol(symbol);
         if (result.isValid()) {
-            return result;
+            return enrichSectorFromSearch(symbol, result);
         }
         // Fall back to .NS suffix for NSE stocks
         if (!symbol.contains(".")) {
             result = tryValidateSymbol(symbol + ".NS");
             if (result.isValid()) {
-                return result;
+                return enrichSectorFromSearch(symbol + ".NS", result);
             }
         }
+        // Quote endpoint may be unavailable/rate-limited — derive everything from search API
+        return buildResultFromSearch(symbol);
+    }
+
+    /**
+     * Build a validation result purely from the v1 search endpoint.
+     * Normalizes the found symbol to <BASE>.NS for NSE listings so it can be used
+     * as yahooSymbol.
+     */
+    private SymbolValidationResult buildResultFromSearch(String symbol) {
+        try {
+            List<StockSearchResultDTO> matches = searchByName(symbol, 5);
+            String base = symbol.replaceAll("\\.(NS|BO)$", "");
+            StockSearchResultDTO best = null;
+            for (StockSearchResultDTO m : matches) {
+                if (m.getSymbol() != null && m.getQuoteType() != null && "EQUITY".equalsIgnoreCase(m.getQuoteType())
+                        && m.getSymbol().replaceAll("\\.(NS|BO)$", "").equalsIgnoreCase(base)) {
+                    // Prefer .NS listing, else any exchange match
+                    if (best == null || m.getSymbol().endsWith(".NS")) {
+                        best = m;
+                        if (m.getSymbol().endsWith(".NS")) break;
+                    }
+                }
+            }
+            if (best != null && best.getName() != null) {
+                String yahooSym = symbol.contains(".") ? symbol
+                        : (best.getSymbol() != null ? best.getSymbol() : base + ".NS");
+                return new SymbolValidationResult(true, yahooSym, best.getName(),
+                        best.getSector(), best.getIndustry());
+            }
+        } catch (Exception e) {
+            log.warn("Search-based validation failed for {}: {}", symbol, e.getMessage());
+        }
         return new SymbolValidationResult(false, symbol, null, null, null);
+    }
+
+    /**
+     * The v7 quote endpoint often omits sector/industry for NSE/BSE symbols.
+     * Fall back to the v1 search endpoint which returns sectorDisp/industryDisp.
+     */
+    private SymbolValidationResult enrichSectorFromSearch(String yahooSymbol, SymbolValidationResult result) {
+        if (result.getSector() != null && !result.getSector().isBlank()
+                && result.getIndustry() != null && !result.getIndustry().isBlank()) {
+            return result;
+        }
+        try {
+            List<StockSearchResultDTO> matches = searchByName(yahooSymbol, 1);
+            if (matches.isEmpty()) {
+                // try base symbol without exchange suffix
+                String base = yahooSymbol.replaceAll("\\.(NS|BO)$", "");
+                if (!base.equals(yahooSymbol)) {
+                    matches = searchByName(base, 1);
+                }
+            }
+            if (!matches.isEmpty()) {
+                StockSearchResultDTO m = matches.get(0);
+                boolean matchesSymbol = m.getSymbol() != null &&
+                        (m.getSymbol().equalsIgnoreCase(yahooSymbol)
+                         || m.getSymbol().replaceAll("\\.(NS|BO)$", "").equalsIgnoreCase(yahooSymbol.replaceAll("\\.(NS|BO)$", "")));
+                if (matchesSymbol) {
+                    String sector = (result.getSector() == null || result.getSector().isBlank())
+                            ? m.getSector() : result.getSector();
+                    String industry = (result.getIndustry() == null || result.getIndustry().isBlank())
+                            ? m.getIndustry() : result.getIndustry();
+                    String name = (result.getCompanyName() == null || result.getCompanyName().isBlank())
+                            ? m.getName() : result.getCompanyName();
+                    return new SymbolValidationResult(true, result.getYahooSymbol(), name, sector, industry);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Sector enrichment via search failed for {}: {}", yahooSymbol, e.getMessage());
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")
