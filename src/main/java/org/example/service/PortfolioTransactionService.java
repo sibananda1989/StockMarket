@@ -3,7 +3,6 @@ package org.example.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dto.BuyLotDTO;
-import org.example.dto.CreateTransactionRequest;
 import org.example.dto.TransactionDTO;
 import org.example.entity.Portfolio;
 import org.example.entity.PortfolioHolding;
@@ -15,11 +14,12 @@ import org.example.repository.PortfolioHoldingRepository;
 import org.example.repository.PortfolioRepository;
 import org.example.repository.PortfolioTransactionRepository;
 import org.example.repository.StockRepository;
+import org.example.service.PortfolioDailyValueService;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
@@ -31,9 +31,8 @@ import java.util.stream.Collectors;
  * Records buy/sell transactions as an immutable ledger and derives holding state
  * (quantity, avg cost) plus realized P&L from the remaining transactions.
  *
- * Existing {@link PortfolioService} holding CRUD (addHolding/updateHolding/removeHolding)
- * is reused as the source of truth for the derived holding state so snapshots and
- * Stock sync stay in sync. The ledger is authoritative.
+ * The ledger is authoritative; {@link PortfolioHolding} rows are derived projections
+ * recomputed by {@link PortfolioPositionReplayer} after every mutation.
  */
 @Service
 @RequiredArgsConstructor
@@ -41,16 +40,14 @@ import java.util.stream.Collectors;
 @Transactional
 public class PortfolioTransactionService {
 
-    private static final int AVG_MATH_SCALE = 4;
-    private static final int STORE_SCALE = 2;
-    private static final int PNL_SCALE = 2;
-
     private final PortfolioTransactionRepository transactionRepository;
     private final PortfolioService portfolioService;
     private final PortfolioRepository portfolioRepository;
     private final StockRepository stockRepository;
     private final PortfolioHoldingRepository holdingRepository;
-    private final PortfolioSnapshotService snapshotService;
+    private final PortfolioPositionReplayer replayer;
+    private final PortfolioSnapshotWriter snapshotWriter;
+    private final PortfolioDailyValueService dailyValueService;
 
     // ═══════════════════════════════════════════════════════════════════
     // Lot-based sells (each SELL maps to exactly one BUY record)
@@ -61,8 +58,9 @@ public class PortfolioTransactionService {
      * The sell quantity must be <= the lot's open (unsold) quantity.
      * Realized P/L is computed against the LOT's buy price (true per-lot P/L).
      */
+    @CacheEvict(cacheNames = {"signals", "signalDto", "portfolioHistory"}, allEntries = true)
     public TransactionDTO recordSellAgainstLot(Long portfolioId, Long buyTxId, Integer quantity,
-                                               BigDecimal price, BigDecimal fees, LocalDate date, String notes) {
+                                                BigDecimal price, BigDecimal fees, LocalDate date, String notes) {
         validateCommon(quantity, price);
         Portfolio portfolio = portfolioRepository.findById(portfolioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Portfolio not found: " + portfolioId));
@@ -89,7 +87,7 @@ public class PortfolioTransactionService {
         BigDecimal realizedPnl = price.subtract(buyTx.getPrice())
                 .multiply(BigDecimal.valueOf(quantity))
                 .subtract(feeAmount)
-                .setScale(PNL_SCALE, RoundingMode.HALF_UP);
+                .setScale(2, java.math.RoundingMode.HALF_UP);
 
         PortfolioTransaction tx = new PortfolioTransaction();
         tx.setPortfolio(portfolio);
@@ -104,21 +102,34 @@ public class PortfolioTransactionService {
         tx.setNotes(notes);
         tx = transactionRepository.save(tx);
 
-        // Keep the derived holding in sync: reduce qty, retain avg price
-        holdingRepository.findByPortfolioIdAndStockId(portfolioId, buyTx.getStock().getId())
-                .ifPresent(h -> {
-                    int newQty = (h.getQuantity() != null ? h.getQuantity() : 0) - quantity;
-                    if (newQty <= 0) {
-                        portfolioService.removeHolding(portfolioId, h.getId());
-                    } else {
-                        portfolioService.updateHolding(portfolioId, h.getId(), newQty, h.getAvgPrice());
-                    }
-                });
+        // Validate holding exists before reducing it — throw if missing (was silent skip)
+        Long stockId = buyTx.getStock().getId();
+        PortfolioHolding holding = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No holding found for stock " + buyTx.getStock().getSymbol() + " in portfolio " + portfolioId));
+
+        int newQty = (holding.getQuantity() != null ? holding.getQuantity() : 0) - quantity;
+        if (newQty <= 0) {
+            portfolioService.removeHolding(portfolioId, holding.getId());
+        } else {
+            portfolioService.updateHolding(portfolioId, holding.getId(), newQty, holding.getAvgPrice());
+        }
 
         try {
-            snapshotService.saveOrUpdate(buyTx.getStock(), tx.getTransactionDate());
+            snapshotWriter.saveSnapshots(buyTx.getStock(), tx.getTransactionDate());
+            snapshotWriter.rebuildSnapshotsFrom(buyTx.getStock(), tx.getTransactionDate());
         } catch (Exception e) {
             log.warn("Snapshot creation failed after lot sell for {}: {}", buyTx.getStock().getSymbol(), e.getMessage());
+        }
+        try {
+            LocalDate txDate = tx.getTransactionDate();
+            if (txDate != null && txDate.isBefore(LocalDate.now())) {
+                dailyValueService.rebuildFromDate(portfolioId, txDate);
+            } else {
+                dailyValueService.upsertForDate(portfolioId, txDate != null ? txDate : LocalDate.now());
+            }
+        } catch (Exception e) {
+            log.warn("Daily value rebuild failed after lot SELL for portfolio {}: {}", portfolioId, e.getMessage());
         }
         return toDTO(tx);
     }
@@ -132,8 +143,6 @@ public class PortfolioTransactionService {
 
     /**
      * Lists BUY records as individual lots with sold/remaining quantity and status.
-     * Each lot's linked sells are embedded. Avg price is intentionally not used here —
-     * every buy is handled as its own entry.
      */
     @Transactional(readOnly = true)
     public List<BuyLotDTO> getLots(Long portfolioId, Long stockId) {
@@ -187,9 +196,7 @@ public class PortfolioTransactionService {
 
     /**
      * Backfills legacy unmapped SELL rows with FIFO links to prior BUY rows,
-     * per (portfolio, stock). Legacy sells whose quantity cannot be fully
-     * covered by earlier buys are linked to the last available buy partially
-     * (linked row keeps its full quantity; validation tolerates historical data).
+     * per (portfolio, stock).
      */
     public int backfillSellLotLinks() {
         List<Long> portfolioIds = portfolioRepository.findAll().stream()
@@ -200,7 +207,6 @@ public class PortfolioTransactionService {
                     .findByPortfolioIdAndLinkedBuyIdIsNullAndType(pid, TransactionType.SELL);
             if (unmapped.isEmpty()) continue;
 
-            // Group unmapped sells by stock
             var byStock = unmapped.stream()
                     .collect(Collectors.groupingBy(s -> s.getStock().getId()));
             for (var entry : byStock.entrySet()) {
@@ -227,13 +233,10 @@ public class PortfolioTransactionService {
 
                 for (PortfolioTransaction s : sells) {
                     int qty = s.getQuantity() != null ? s.getQuantity() : 0;
-                    // FIFO: earliest buy with open quantity
                     for (PortfolioTransaction b : buys) {
                         if (qty <= 0) break;
                         int open = openByBuy.getOrDefault(b.getId(), 0);
                         if (open > 0) {
-                            // Whole legacy sell maps to the first lot that can absorb it;
-                            // if no single lot can, map to the largest-open lot to keep history intact.
                             s.setLinkedBuyId(b.getId());
                             openByBuy.put(b.getId(), Math.max(0, open - qty));
                             qty = 0;
@@ -241,7 +244,6 @@ public class PortfolioTransactionService {
                         }
                     }
                     if (qty > 0 && s.getLinkedBuyId() == null) {
-                        // No open capacity anywhere (historical over-sell) — link to latest buy
                         s.setLinkedBuyId(buys.get(buys.size() - 1).getId());
                         mapped++;
                     }
@@ -254,9 +256,14 @@ public class PortfolioTransactionService {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // Record transactions
+    // Record transactions — single-source-of-truth via replayer
     // ═══════════════════════════════════════════════════════════════════
 
+    /**
+     * Records a BUY transaction. Appends the ledger row, then replays the full
+     * portfolio to derive and persist all holding projections.
+     */
+    @CacheEvict(cacheNames = {"signals", "signalDto", "portfolioHistory"}, allEntries = true)
     public TransactionDTO recordBuy(Long portfolioId, Long stockId, Integer quantity,
                                      BigDecimal price, BigDecimal fees, LocalDate date, String notes) {
         validateCommon(quantity, price);
@@ -265,59 +272,44 @@ public class PortfolioTransactionService {
         Stock stock = stockRepository.findById(stockId)
                 .orElseThrow(() -> new ResourceNotFoundException("Stock not found: " + stockId));
 
-        BigDecimal feeAmount = fees != null ? fees : BigDecimal.ZERO;
-        Optional<PortfolioHolding> existing = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId);
-
-        if (existing.isPresent()) {
-            PortfolioHolding holding = existing.get();
-            // CSV-imported holdings may have null avgPrice / zero qty. Treat as a fresh
-            // position so the transaction price becomes the cost basis (not blended with 0).
-            if (holding.getAvgPrice() == null
-                    || holding.getQuantity() == null || holding.getQuantity() == 0) {
-                BigDecimal perShareFee = feeAmount.divide(
-                        BigDecimal.valueOf(quantity), AVG_MATH_SCALE, RoundingMode.HALF_UP);
-                BigDecimal effectiveAvg = price.add(perShareFee)
-                        .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                holdingRepository.delete(holding);
-                portfolioService.addHolding(portfolioId, stockId, quantity, effectiveAvg);
-            } else {
-                int qty0 = holding.getQuantity();
-                BigDecimal avg0 = holding.getAvgPrice();
-                int newQty = qty0 + quantity;
-                // Blended avg cost: (oldCost + newCostWithFees) / totalQty, scale 4 then store scale 2.
-                BigDecimal oldCost = avg0.multiply(BigDecimal.valueOf(qty0));
-                BigDecimal newCost = price.multiply(BigDecimal.valueOf(quantity)).add(feeAmount);
-                BigDecimal newAvg = oldCost.add(newCost)
-                        .divide(BigDecimal.valueOf(newQty), AVG_MATH_SCALE, RoundingMode.HALF_UP)
-                        .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                portfolioService.updateHolding(portfolioId, holding.getId(), newQty, newAvg);
-            }
-        } else {
-            BigDecimal perShareFee = feeAmount.divide(BigDecimal.valueOf(quantity), AVG_MATH_SCALE, RoundingMode.HALF_UP);
-            BigDecimal effectiveAvg = price.add(perShareFee)
-                    .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-            portfolioService.addHolding(portfolioId, stockId, quantity, effectiveAvg);
-        }
-
         PortfolioTransaction tx = new PortfolioTransaction();
         tx.setPortfolio(portfolio);
         tx.setStock(stock);
         tx.setType(TransactionType.BUY);
         tx.setQuantity(quantity);
         tx.setPrice(price);
-        tx.setFees(feeAmount);
+        tx.setFees(fees != null ? fees : BigDecimal.ZERO);
         tx.setRealizedPnl(null);
         tx.setTransactionDate(date != null ? date : LocalDate.now());
         tx.setNotes(notes);
         tx = transactionRepository.save(tx);
+
+        syncHoldingsFromReplay(portfolioId, stock);
         try {
-            snapshotService.saveOrUpdate(stock, tx.getTransactionDate());
+            snapshotWriter.saveSnapshots(stock, tx.getTransactionDate());
+            snapshotWriter.rebuildSnapshotsFrom(stock, tx.getTransactionDate());
         } catch (Exception e) {
-            log.warn("Snapshot creation failed after {} for {}: {}", tx.getType(), stock.getSymbol(), e.getMessage());
+            log.warn("Snapshot creation failed after BUY for {}: {}", stock.getSymbol(), e.getMessage());
+        }
+        // auto forward-rebuild for portfolio_daily_values (R1-R8) — back-dated vs today
+        try {
+            LocalDate txDate = tx.getTransactionDate();
+            if (txDate != null && txDate.isBefore(LocalDate.now())) {
+                dailyValueService.rebuildFromDate(portfolioId, txDate);
+            } else {
+                dailyValueService.upsertForDate(portfolioId, txDate != null ? txDate : LocalDate.now());
+            }
+        } catch (Exception e) {
+            log.warn("Daily value rebuild failed after BUY for portfolio {}: {}", portfolioId, e.getMessage());
         }
         return toDTO(tx);
     }
 
+    /**
+     * Records a SELL transaction. Validates holding existence (throws if missing),
+     * appends the ledger row, then replays the full portfolio to derive projections.
+     */
+    @CacheEvict(cacheNames = {"signals", "signalDto", "portfolioHistory"}, allEntries = true)
     public TransactionDTO recordSell(Long portfolioId, Long stockId, Integer quantity,
                                       BigDecimal price, BigDecimal fees, LocalDate date, String notes) {
         validateCommon(quantity, price);
@@ -337,19 +329,10 @@ public class PortfolioTransactionService {
 
         BigDecimal feeAmount = fees != null ? fees : BigDecimal.ZERO;
         BigDecimal avgPrice = holding.getAvgPrice() != null ? holding.getAvgPrice() : BigDecimal.ZERO;
-        // realizedPnl = (price - avgPrice) * qty - fees
         BigDecimal realizedPnl = price.subtract(avgPrice)
                 .multiply(BigDecimal.valueOf(quantity))
                 .subtract(feeAmount)
-                .setScale(PNL_SCALE, RoundingMode.HALF_UP);
-
-        int newQty = holding.getQuantity() - quantity;
-        if (newQty == 0) {
-            portfolioService.removeHolding(portfolioId, holding.getId());
-        } else {
-            // avgPrice retained on partial sell
-            portfolioService.updateHolding(portfolioId, holding.getId(), newQty, avgPrice);
-        }
+                .setScale(2, java.math.RoundingMode.HALF_UP);
 
         PortfolioTransaction tx = new PortfolioTransaction();
         tx.setPortfolio(portfolio);
@@ -362,18 +345,32 @@ public class PortfolioTransactionService {
         tx.setTransactionDate(date != null ? date : LocalDate.now());
         tx.setNotes(notes);
         tx = transactionRepository.save(tx);
+
+        syncHoldingsFromReplay(portfolioId, stock);
         try {
-            snapshotService.saveOrUpdate(stock, tx.getTransactionDate());
+            snapshotWriter.saveSnapshots(stock, tx.getTransactionDate());
+            snapshotWriter.rebuildSnapshotsFrom(stock, tx.getTransactionDate());
         } catch (Exception e) {
-            log.warn("Snapshot creation failed after {} for {}: {}", tx.getType(), stock.getSymbol(), e.getMessage());
+            log.warn("Snapshot creation failed after SELL for {}: {}", stock.getSymbol(), e.getMessage());
+        }
+        try {
+            LocalDate txDate = tx.getTransactionDate();
+            if (txDate != null && txDate.isBefore(LocalDate.now())) {
+                dailyValueService.rebuildFromDate(portfolioId, txDate);
+            } else {
+                dailyValueService.upsertForDate(portfolioId, txDate != null ? txDate : LocalDate.now());
+            }
+        } catch (Exception e) {
+            log.warn("Daily value rebuild failed after SELL for portfolio {}: {}", portfolioId, e.getMessage());
         }
         return toDTO(tx);
     }
 
     /**
      * Deletes a transaction only if it belongs to the given portfolio.
-     * Prevents deleting via a mismatched portfolioId in the URL path.
+     * After deletion, replays the remaining ledger to overwrite all holdings.
      */
+    @CacheEvict(cacheNames = {"signals", "signalDto", "portfolioHistory"}, allEntries = true)
     public void deleteTransaction(Long portfolioId, Long txId) {
         PortfolioTransaction tx = transactionRepository.findById(txId)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + txId));
@@ -384,6 +381,7 @@ public class PortfolioTransactionService {
         deleteTransaction(txId);
     }
 
+    @CacheEvict(cacheNames = {"signals", "signalDto", "portfolioHistory"}, allEntries = true)
     public void deleteTransaction(Long id) {
         PortfolioTransaction tx = transactionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + id));
@@ -399,103 +397,26 @@ public class PortfolioTransactionService {
         }
 
         Long portfolioId = tx.getPortfolio().getId();
-        Long stockId = tx.getStock().getId();
-        // Remove the row (append-only semantics preserved: we recompute from the remainder)
         transactionRepository.delete(tx);
 
-        // Replay the REMAINING ledger in chronological order (date+id asc) using the
-        // exact same semantics as recordBuy/recordSell so the reconstructed holding
-        // matches the original state exactly.
-        List<PortfolioTransaction> remaining =
-                transactionRepository.findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(portfolioId, stockId);
-
-        int qty = 0;
-        BigDecimal avg = BigDecimal.ZERO;
-        boolean hasHolding = false;
-
-        for (PortfolioTransaction t : remaining) {
-            if (t.getType() == TransactionType.BUY) {
-                int q = t.getQuantity();
-                BigDecimal fee = t.getFees() != null ? t.getFees() : BigDecimal.ZERO;
-                int newQty = qty + q;
-                if (!hasHolding) {
-                    BigDecimal perShareFee = fee.divide(
-                            BigDecimal.valueOf(q), AVG_MATH_SCALE, RoundingMode.HALF_UP);
-                    avg = t.getPrice().add(perShareFee)
-                            .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                    hasHolding = true;
-                } else {
-                    BigDecimal oldCost = avg.multiply(BigDecimal.valueOf(qty));
-                    BigDecimal newCost = t.getPrice().multiply(BigDecimal.valueOf(q)).add(fee);
-                    avg = oldCost.add(newCost)
-                            .divide(BigDecimal.valueOf(newQty), AVG_MATH_SCALE, RoundingMode.HALF_UP)
-                            .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                }
-                qty = newQty;
-            } else { // SELL — holding qty reduced, avg retained
-                qty -= t.getQuantity();
-            }
-        }
-
-        if (!hasHolding || qty <= 0) {
-            holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
-                    .ifPresent(h -> {
-                        portfolioService.removeHolding(portfolioId, h.getId());
-                        resetStockWhenHoldingRemoved(stockId);
-                    });
-            return;
-        }
-
-        recomputeHolding(portfolioId, stockId, qty, avg);
+        // Full replay overwrites all projections for this portfolio
+        Map<Long, PortfolioPositionReplayer.PositionState> states = replayer.replay(portfolioId);
+        applyReplayToHoldings(portfolioId, states, tx.getStock().getId());
 
         try {
-            snapshotService.saveOrUpdate(tx.getStock(), tx.getTransactionDate());
+            snapshotWriter.saveSnapshots(tx.getStock(), tx.getTransactionDate());
+            snapshotWriter.rebuildSnapshotsFrom(tx.getStock(), tx.getTransactionDate());
         } catch (Exception e) {
             log.warn("Snapshot creation failed after transaction delete for {}: {}", tx.getStock().getSymbol(), e.getMessage());
         }
-    }
-
-    /**
-     * Resets the Stock row's quantity/avgPrice after a portfolio holding has been removed,
-     * recomputing from the OTHER remaining portfolios' holdings (or zeroing if none),
-     * so the Stock entity never shows stale values.
-     */
-    private void resetStockWhenHoldingRemoved(Long stockId) {
-        Stock stock = stockRepository.findById(stockId).orElse(null);
-        if (stock == null) return;
-        List<PortfolioHolding> otherHoldings = holdingRepository.findByStockId(stockId);
-        if (otherHoldings.isEmpty()) {
-            stock.setQuantity(0);
-            stock.setAvgPrice(null);
-        } else {
-            int totalQty = otherHoldings.stream()
-                    .filter(h -> h.getQuantity() != null)
-                    .mapToInt(PortfolioHolding::getQuantity)
-                    .sum();
-            BigDecimal weightedSum = BigDecimal.ZERO;
-            for (PortfolioHolding h : otherHoldings) {
-                if (h.getQuantity() != null && h.getAvgPrice() != null) {
-                    weightedSum = weightedSum.add(
-                            h.getAvgPrice().multiply(BigDecimal.valueOf(h.getQuantity())));
-                }
+        try {
+            LocalDate txDate = tx.getTransactionDate();
+            if (txDate != null) {
+                dailyValueService.rebuildFromDate(portfolioId, txDate);
             }
-            stock.setQuantity(totalQty > 0 ? totalQty : 0);
-            stock.setAvgPrice(totalQty > 0
-                    ? weightedSum.divide(BigDecimal.valueOf(totalQty), STORE_SCALE, RoundingMode.HALF_UP)
-                    : null);
+        } catch (Exception e) {
+            log.warn("Daily value rebuild failed after delete for portfolio {}: {}", portfolioId, e.getMessage());
         }
-        stockRepository.save(stock);
-    }
-
-    /**
-     * Upserts the derived holding from the recomputed ledger. netQty/newAvg are passed
-     * as values (effectively final) so they can be safely used inside lambdas.
-     */
-    private void recomputeHolding(Long portfolioId, Long stockId, int netQty, BigDecimal newAvg) {
-        holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
-                .ifPresentOrElse(
-                        h -> portfolioService.updateHolding(portfolioId, h.getId(), netQty, newAvg),
-                        () -> portfolioService.addHolding(portfolioId, stockId, netQty, newAvg));
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -526,84 +447,131 @@ public class PortfolioTransactionService {
                 .stream().map(this::toDTO).collect(Collectors.toList());
     }
 
-    /**
-     * Replays the transaction ledger for a (portfolio, stock) pair up to and including
-     * the given snapshot date and returns the resulting [quantity, avgPrice] state.
-     * Returns null if no buys existed by that date (position was not yet opened).
-     */
     @Transactional(readOnly = true)
     public int[] getHistoricalStateAt(LocalDate snapshotDate, Long portfolioId, Long stockId) {
         List<PortfolioTransaction> txns = transactionRepository
                 .findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(portfolioId, stockId);
-        int qty = 0;
-        BigDecimal avg = BigDecimal.ZERO;
-        boolean hasHolding = false;
-
+        PortfolioPositionReplayer.PositionState state = PortfolioPositionReplayer.PositionState.EMPTY;
         for (PortfolioTransaction t : txns) {
             if (t.getTransactionDate().isAfter(snapshotDate)) break;
             if (t.getType() == TransactionType.BUY) {
-                int q = t.getQuantity();
-                BigDecimal fee = t.getFees() != null ? t.getFees() : BigDecimal.ZERO;
-                int newQty = qty + q;
-                if (!hasHolding) {
-                    BigDecimal perShareFee = fee.divide(
-                            BigDecimal.valueOf(q), AVG_MATH_SCALE, RoundingMode.HALF_UP);
-                    avg = t.getPrice().add(perShareFee)
-                            .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                    hasHolding = true;
-                } else {
-                    BigDecimal oldCost = avg.multiply(BigDecimal.valueOf(qty));
-                    BigDecimal newCost = t.getPrice().multiply(BigDecimal.valueOf(q)).add(fee);
-                    avg = oldCost.add(newCost)
-                            .divide(BigDecimal.valueOf(newQty), AVG_MATH_SCALE, RoundingMode.HALF_UP)
-                            .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                }
-                qty = newQty;
+                state = replayer.applyBuy(state, t.getQuantity(), t.getPrice(), t.getFees());
             } else {
-                qty -= t.getQuantity();
+                state = replayer.applySell(state, t.getQuantity(), t.getPrice(), t.getFees()).state();
             }
         }
-        return hasHolding ? new int[]{qty, 0} : null; // qty only; avg handled via separate call
+        if (state.quantity() == null || state.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return new int[]{state.quantity().intValue(), 0};
     }
 
     @Transactional(readOnly = true)
     public BigDecimal getHistoricalAvgPriceAt(LocalDate snapshotDate, Long portfolioId, Long stockId) {
         List<PortfolioTransaction> txns = transactionRepository
                 .findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(portfolioId, stockId);
-        int qty = 0;
-        BigDecimal avg = BigDecimal.ZERO;
-        boolean hasHolding = false;
-
+        PortfolioPositionReplayer.PositionState state = PortfolioPositionReplayer.PositionState.EMPTY;
         for (PortfolioTransaction t : txns) {
             if (t.getTransactionDate().isAfter(snapshotDate)) break;
             if (t.getType() == TransactionType.BUY) {
-                int q = t.getQuantity();
-                BigDecimal fee = t.getFees() != null ? t.getFees() : BigDecimal.ZERO;
-                int newQty = qty + q;
-                if (!hasHolding) {
-                    BigDecimal perShareFee = fee.divide(
-                            BigDecimal.valueOf(q), AVG_MATH_SCALE, RoundingMode.HALF_UP);
-                    avg = t.getPrice().add(perShareFee)
-                            .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                    hasHolding = true;
-                } else {
-                    BigDecimal oldCost = avg.multiply(BigDecimal.valueOf(qty));
-                    BigDecimal newCost = t.getPrice().multiply(BigDecimal.valueOf(q)).add(fee);
-                    avg = oldCost.add(newCost)
-                            .divide(BigDecimal.valueOf(newQty), AVG_MATH_SCALE, RoundingMode.HALF_UP)
-                            .setScale(STORE_SCALE, RoundingMode.HALF_UP);
-                }
-                qty = newQty;
+                state = replayer.applyBuy(state, t.getQuantity(), t.getPrice(), t.getFees());
             } else {
-                qty -= t.getQuantity();
+                state = replayer.applySell(state, t.getQuantity(), t.getPrice(), t.getFees()).state();
             }
         }
-        return hasHolding ? avg : null;
+        return state.quantity() != null && state.quantity().compareTo(BigDecimal.ZERO) > 0
+                ? state.avgCost() : null;
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // Helpers
+    // Internal helpers
     // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * After a mutation, replays the entire portfolio and syncs all holdings
+     * to match the derived ledger state. Ghost rows (qty=0) are deleted.
+     *
+     * @param portfolioId the portfolio to replay
+     * @param stock       the stock involved in the mutation (for snapshot context)
+     */
+    private void syncHoldingsFromReplay(Long portfolioId, Stock stock) {
+        Map<Long, PortfolioPositionReplayer.PositionState> states = replayer.replay(portfolioId);
+        applyReplayToHoldings(portfolioId, states, stock.getId());
+    }
+
+    /**
+     * Applies replay results to the holding repository.
+     * For each stock in the replay: upsert if qty>0, delete if qty==0.
+     * Also deletes any holding rows not present in the replay (ghost cleanup).
+     */
+    private void applyReplayToHoldings(Long portfolioId,
+                                        Map<Long, PortfolioPositionReplayer.PositionState> states,
+                                        Long mutatedStockId) {
+        // Update or insert holdings that exist in the replay
+        for (Map.Entry<Long, PortfolioPositionReplayer.PositionState> entry : states.entrySet()) {
+            Long stockId = entry.getKey();
+            PortfolioPositionReplayer.PositionState state = entry.getValue();
+            if (state.quantity() == null || state.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            Optional<PortfolioHolding> existing = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId);
+            if (existing.isPresent()) {
+                portfolioService.updateHolding(portfolioId, existing.get().getId(),
+                        state.quantity().intValue(), state.avgCost());
+            } else {
+                Stock stock = stockRepository.findById(stockId).orElse(null);
+                if (stock != null) {
+                    portfolioService.addHolding(portfolioId, stockId,
+                            state.quantity().intValue(), state.avgCost());
+                }
+            }
+        }
+
+        // Delete ghost holdings: rows in DB but not in replay (qty=0 or fully sold)
+        List<PortfolioHolding> dbHoldings = holdingRepository.findByPortfolioId(portfolioId);
+        for (PortfolioHolding h : dbHoldings) {
+            if (!states.containsKey(h.getStock().getId())) {
+                portfolioService.removeHolding(portfolioId, h.getId());
+            }
+        }
+
+        // Reset stock-level fields when the mutated stock's holding was deleted
+        PortfolioPositionReplayer.PositionState mutatedState = states.get(mutatedStockId);
+        if (mutatedState == null || mutatedState.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+            resetStockWhenHoldingRemoved(mutatedStockId);
+        }
+    }
+
+    /**
+     * Resets the Stock row's quantity/avgPrice after a portfolio holding has been removed,
+     * recomputing from other portfolios' holdings (or zeroing if none).
+     */
+    private void resetStockWhenHoldingRemoved(Long stockId) {
+        Stock stock = stockRepository.findById(stockId).orElse(null);
+        if (stock == null) return;
+        List<PortfolioHolding> otherHoldings = holdingRepository.findByStockId(stockId);
+        if (otherHoldings.isEmpty()) {
+            stock.setQuantity(0);
+            stock.setAvgPrice(null);
+        } else {
+            int totalQty = otherHoldings.stream()
+                    .filter(h -> h.getQuantity() != null)
+                    .mapToInt(PortfolioHolding::getQuantity)
+                    .sum();
+            BigDecimal weightedSum = BigDecimal.ZERO;
+            for (PortfolioHolding h : otherHoldings) {
+                if (h.getQuantity() != null && h.getAvgPrice() != null) {
+                    weightedSum = weightedSum.add(
+                            h.getAvgPrice().multiply(BigDecimal.valueOf(h.getQuantity())));
+                }
+            }
+            stock.setQuantity(totalQty > 0 ? totalQty : 0);
+            stock.setAvgPrice(totalQty > 0
+                    ? weightedSum.divide(BigDecimal.valueOf(totalQty), 2, java.math.RoundingMode.HALF_UP)
+                    : null);
+        }
+        stockRepository.save(stock);
+    }
 
     private void validateCommon(Integer quantity, BigDecimal price) {
         if (quantity == null || quantity <= 0) {

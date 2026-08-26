@@ -13,7 +13,7 @@ import org.example.entity.PortfolioSnapshot;
 import org.example.entity.Stock;
 import org.example.repository.DailyPriceRepository;
 import org.example.repository.PortfolioHoldingRepository;
-
+import org.example.repository.PortfolioTransactionRepository;
 import org.example.repository.PortfolioSnapshotRepository;
 import org.example.repository.StockRepository;
 import org.springframework.stereotype.Service;
@@ -35,6 +35,7 @@ public class PortfolioSnapshotService {
     private final StockRepository stockRepository;
     private final DailyPriceRepository dailyPriceRepository;
     private final PortfolioHoldingRepository holdingRepository;
+    private final PortfolioTransactionRepository transactionRepository;
     @Lazy
     @Autowired
     private PortfolioTransactionService transactionService;
@@ -64,20 +65,36 @@ public class PortfolioSnapshotService {
         snap.setStock(stock);
         snap.setSnapshotDate(date);
 
-        // Use portfolio holding's quantity/avgPrice when portfolio-scoped, fall back to stock-level legacy fields.
-        // For backfill, use current holding values directly since the transaction ledger may be incomplete.
+        // Use historical position from transaction ledger when available, otherwise fall back to current holding.
+        // This fixes the flat Investment line caused by using current qty for all historical dates.
         Integer qty;
         BigDecimal avgPrice;
         if (portfolio != null) {
-            PortfolioHolding holding = holdingRepository
-                    .findByPortfolioIdAndStockId(portfolio.getId(), stock.getId())
-                    .orElse(null);
-            if (holding != null) {
-                qty = holding.getQuantity();
-                avgPrice = holding.getAvgPrice();
+            List<org.example.entity.PortfolioTransaction> txns = transactionRepository
+                    .findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(portfolio.getId(), stock.getId());
+            if (!txns.isEmpty()) {
+                // Ledger exists — derive historical state at this snapshot date (qty=0 before first buy)
+                BigDecimal histAvg = transactionService.getHistoricalAvgPriceAt(date, portfolio.getId(), stock.getId());
+                int[] histState = transactionService.getHistoricalStateAt(date, portfolio.getId(), stock.getId());
+                if (histState != null && histState[0] > 0) {
+                    qty = histState[0];
+                    avgPrice = histAvg;
+                } else {
+                    // No position at this date — investment/value should be zero (not current holding)
+                    qty = 0;
+                    avgPrice = histAvg; // may be null if fully sold
+                }
             } else {
-                qty = stock.getQuantity();
-                avgPrice = stock.getAvgPrice();
+                PortfolioHolding holding = holdingRepository
+                        .findByPortfolioIdAndStockId(portfolio.getId(), stock.getId())
+                        .orElse(null);
+                if (holding != null) {
+                    qty = holding.getQuantity();
+                    avgPrice = holding.getAvgPrice();
+                } else {
+                    qty = stock.getQuantity();
+                    avgPrice = stock.getAvgPrice();
+                }
             }
         } else {
             qty = stock.getQuantity();
@@ -224,7 +241,15 @@ public class PortfolioSnapshotService {
         return rows.stream()
                 .filter(row -> row != null && row[0] != null)
                 .map(row -> {
-                    LocalDate date = ((java.sql.Date) row[0]).toLocalDate();
+                    Object dateObj = row[0];
+                    LocalDate date;
+                    if (dateObj instanceof java.sql.Date sqlDate) {
+                        date = sqlDate.toLocalDate();
+                    } else if (dateObj instanceof LocalDate ld) {
+                        date = ld;
+                    } else {
+                        date = LocalDate.parse(dateObj.toString());
+                    }
                     BigDecimal investment = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
                     BigDecimal currentValue = row[2] != null ? (BigDecimal) row[2] : BigDecimal.ZERO;
                     BigDecimal pnl = row[3] != null ? (BigDecimal) row[3] : BigDecimal.ZERO;
@@ -294,6 +319,28 @@ public class PortfolioSnapshotService {
             }
         }
         log.info("Backfill complete: {} snapshot records processed", total);
+    }
+
+    /**
+     * Rebuild snapshots for a single stock from the given date through today.
+     * Used after a transaction to correct the forward trend (investment/value) that
+     * was previously flattened by using current qty for all dates.
+     */
+    @Transactional
+    public void rebuildSnapshotsForStockFrom(Stock stock, LocalDate fromDate) {
+        List<LocalDate> tradingDates = dailyPriceRepository.findDistinctTradingDatesAfter(fromDate);
+        if (tradingDates.isEmpty()) {
+            // No price history — at least ensure today exists
+            tradingDates = List.of(fromDate, LocalDate.now());
+        }
+        for (LocalDate date : tradingDates) {
+            if (date.isBefore(fromDate) || date.isAfter(LocalDate.now())) continue;
+            saveOrUpdate(stock, date);
+        }
+        // Ensure today snapshot if not a trading date (e.g., weekend)
+        if (!tradingDates.contains(LocalDate.now())) {
+            saveOrUpdate(stock, LocalDate.now());
+        }
     }
 
     @Transactional

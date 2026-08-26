@@ -219,13 +219,14 @@ window.fillRsiGaps = fillRsiGaps;
 window.fillIndicatorGaps = fillIndicatorGaps;
 window.resetIndicators = resetIndicators;
 
-// Portfolio API
+// Portfolio API — always reads from portfolio_daily_values via source=daily
 async function getPortfolioHistory(days = 365, all = false, portfolioId = null) {
     let endpoint = '/portfolio/history?';
     const params = [];
     if (!all) params.push(`days=${days}`);
     if (all) params.push('all=true');
     if (portfolioId) params.push(`portfolioId=${portfolioId}`);
+    params.push('source=daily');
     return apiCall(`/portfolio/history?${params.join('&')}`);
 }
 
