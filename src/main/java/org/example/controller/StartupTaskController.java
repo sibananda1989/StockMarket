@@ -42,14 +42,11 @@ public class StartupTaskController {
      */
     private static final List<String> EXECUTION_ORDER = List.of(
             "portfolio-migration",
-            "portfolio-snapshot",
-            "sell-lot-backfill",
             "strategy-conditions",
             "score-params",
             "data-sync",
             "fundamental-data",
             "fiidii-data",
-            "signal-cache",
             "signal-accuracy",
             "indicator-calc",
             "signal-performance"

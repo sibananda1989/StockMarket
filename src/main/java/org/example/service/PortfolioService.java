@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +34,7 @@ public class PortfolioService {
     private final StockRepository stockRepository;
     private final DailyPriceRepository dailyPriceRepository;
     private final PortfolioSnapshotService snapshotService;
+    private final PortfolioPositionReplayer replayer;
 
     // ═══════════════════════════════════════════════════════════════════
     // Portfolio CRUD
@@ -238,6 +240,45 @@ public class PortfolioService {
             throw new ResourceNotFoundException("Portfolio not found: " + portfolioId);
         }
         return getHoldingsInternal(portfolioId);
+    }
+
+    /**
+     * Rebuilds all holdings for a portfolio from the transaction ledger.
+     * Truncates existing holdings then re-inserts from replay.
+     * Returns a diff summary.
+     */
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
+    @Transactional
+    public RebuildHoldingsResponseDTO rebuildHoldings(Long portfolioId) {
+        if (!portfolioRepository.existsById(portfolioId)) {
+            throw new ResourceNotFoundException("Portfolio not found: " + portfolioId);
+        }
+        int beforeCount = (int) holdingRepository.countByPortfolioId(portfolioId);
+        holdingRepository.deleteByPortfolioId(portfolioId);
+
+        Map<Long, PortfolioPositionReplayer.PositionState> states = replayer.replay(portfolioId);
+        int added = 0, updated = 0, deleted = 0;
+        for (Map.Entry<Long, PortfolioPositionReplayer.PositionState> entry : states.entrySet()) {
+            Long stockId = entry.getKey();
+            PortfolioPositionReplayer.PositionState state = entry.getValue();
+            if (state.quantity() == null || state.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+                deleted++;
+                continue;
+            }
+            Stock stock = stockRepository.findById(stockId).orElse(null);
+            if (stock != null) {
+                addHolding(portfolioId, stockId, state.quantity().intValue(), state.avgCost());
+                added++;
+            }
+        }
+        int afterCount = (int) holdingRepository.countByPortfolioId(portfolioId);
+        return RebuildHoldingsResponseDTO.builder()
+                .beforeCount(beforeCount)
+                .afterCount(afterCount)
+                .added(added)
+                .updated(0)
+                .deleted(deleted)
+                .build();
     }
 
     private List<HoldingDTO> getHoldingsInternal(Long portfolioId) {

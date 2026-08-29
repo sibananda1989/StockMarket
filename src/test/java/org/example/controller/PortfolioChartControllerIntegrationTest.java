@@ -8,14 +8,12 @@ import org.example.repository.PortfolioSnapshotRepository;
 import org.example.repository.StockRepository;
 import org.example.repository.DailyPriceRepository;
 import org.example.service.PortfolioSnapshotService;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -46,41 +44,12 @@ class PortfolioChartControllerIntegrationTest {
     @Autowired
     private StockRepository stockRepository;
 
-    @Autowired
-    private DailyPriceRepository dailyPriceRepository;
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
     private Stock testStock;
     private LocalDate testDate;
 
-    private void clearAllData() {
-        jdbcTemplate.execute("DELETE FROM portfolio_holdings");
-        jdbcTemplate.execute("DELETE FROM portfolio_snapshots");
-        jdbcTemplate.execute("DELETE FROM portfolios");
-        jdbcTemplate.execute("DELETE FROM watchlist_items");
-        jdbcTemplate.execute("DELETE FROM block_deals");
-        jdbcTemplate.execute("DELETE FROM bulk_deals");
-        jdbcTemplate.execute("DELETE FROM institutional_holdings");
-        jdbcTemplate.execute("DELETE FROM technical_indicators");
-        jdbcTemplate.execute("DELETE FROM support_resistance_levels");
-        jdbcTemplate.execute("DELETE FROM daily_prices");
-        jdbcTemplate.execute("DELETE FROM fiidii_data");
-        jdbcTemplate.execute("DELETE FROM corporate_events");
-        jdbcTemplate.execute("DELETE FROM signal_historical_performance");
-        jdbcTemplate.execute("DELETE FROM fundamental_data");
-        jdbcTemplate.execute("DELETE FROM stocks");
-    }
-
-    @AfterEach
-    void tearDown() {
-        clearAllData();
-    }
-
     @BeforeEach
     void setUp() {
-        clearAllData();
+        // No cleanup needed — @Transactional on class auto-rolls changes after each test
 
         // Create test stock
         testStock = new Stock();

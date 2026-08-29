@@ -22,6 +22,7 @@ import org.mockito.quality.Strictness;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,6 +44,7 @@ class PortfolioLotSellServiceTest {
     @Mock private StockRepository stockRepository;
     @Mock private PortfolioHoldingRepository holdingRepository;
     @Mock private PortfolioSnapshotService snapshotService;
+    @Mock private PortfolioPositionReplayer replayer;
 
     @InjectMocks
     private PortfolioTransactionService transactionService;
@@ -95,6 +97,8 @@ class PortfolioLotSellServiceTest {
         when(transactionRepository.findByLinkedBuyIdOrderByTransactionDateAscIdAsc(500L))
                 .thenReturn(List.of()); // nothing sold yet
         when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.of(holding));
+        when(replayer.replay(10L)).thenReturn(Map.of(1L,
+                new org.example.service.PortfolioPositionReplayer.PositionState(new BigDecimal("6"), new BigDecimal("100.00"))));
 
         TransactionDTO dto = transactionService.recordSellAgainstLot(
                 10L, 500L, 4, new BigDecimal("150.00"), new BigDecimal("10.00"), LocalDate.now(), "partial");
@@ -113,6 +117,8 @@ class PortfolioLotSellServiceTest {
         when(transactionRepository.findByLinkedBuyIdOrderByTransactionDateAscIdAsc(500L))
                 .thenReturn(List.of());
         when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.of(holding));
+        when(replayer.replay(10L)).thenReturn(Map.of());
+        when(holdingRepository.findByPortfolioId(10L)).thenReturn(List.of(holding));
 
         transactionService.recordSellAgainstLot(
                 10L, 500L, 10, new BigDecimal("120.00"), BigDecimal.ZERO, LocalDate.now(), null);
@@ -260,6 +266,7 @@ class PortfolioLotSellServiceTest {
                 .thenReturn(List.of());
         when(transactionRepository.findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(10L, 1L))
                 .thenReturn(List.of());
+        when(replayer.replay(10L)).thenReturn(Map.of());
 
         transactionService.deleteTransaction(500L);
 

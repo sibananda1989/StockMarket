@@ -132,13 +132,21 @@ public class PortfolioMigrationStartupTask implements StartupTask {
         }
 
         // Step 3: Update portfolio_snapshots with null portfolio_id to default portfolio
-        // Use conditional update to avoid unique constraint violations from pre-existing
-        // (portfolio_id, stock_id, snapshot_date) duplicates caused by prior partial migrations.
+        // MySQL prohibits self-referential UPDATE...WHERE NOT EXISTS, so we use
+        // UPDATE...JOIN with a derived table instead.
         Query updateSnapshots = entityManager.createNativeQuery(
-                "UPDATE portfolio_snapshots ps SET portfolio_id = :portfolioId " +
-                "WHERE ps.portfolio_id IS NULL " +
-                "AND NOT EXISTS (SELECT 1 FROM portfolio_snapshots ps2 " +
-                "WHERE ps2.portfolio_id = :portfolioId AND ps2.stock_id = ps.stock_id AND ps2.snapshot_date = ps.snapshot_date)");
+                "UPDATE portfolio_snapshots " +
+                "INNER JOIN (" +
+                "  SELECT ps_inner.id " +
+                "  FROM portfolio_snapshots ps_inner " +
+                "  LEFT JOIN portfolio_snapshots ps_dup " +
+                "    ON ps_dup.portfolio_id = :portfolioId " +
+                "    AND ps_dup.stock_id = ps_inner.stock_id " +
+                "    AND ps_dup.snapshot_date = ps_inner.snapshot_date " +
+                "  WHERE ps_inner.portfolio_id IS NULL " +
+                "    AND ps_dup.id IS NULL" +
+                ") AS to_update ON portfolio_snapshots.id = to_update.id " +
+                "SET portfolio_snapshots.portfolio_id = :portfolioId");
         updateSnapshots.setParameter("portfolioId", defaultPort.getId());
         int snapshotsUpdated = updateSnapshots.executeUpdate();
         if (snapshotsUpdated > 0) {

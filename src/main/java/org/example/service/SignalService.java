@@ -91,10 +91,6 @@ public class SignalService {
     @org.springframework.context.annotation.Lazy
     private SignalService self;
 
-    @Autowired
-    @org.springframework.beans.factory.annotation.Qualifier("backfillExecutor")
-    private Executor startupTaskExecutor;
-
     @Value("${signal.gate.high-confidence.enabled:false}")
     private boolean highConfidenceGateEnabled;
 
@@ -1450,25 +1446,12 @@ public class SignalService {
     public int backfillSignalRecords() {
         List<Stock> stocks = stockService.getAllStocks();
 
-        // OPT 4: parallelize across stocks using the bounded startupTaskExecutor.
-        List<CompletableFuture<Integer>> futures = new ArrayList<>();
-        for (Stock stock : stocks) {
-            futures.add(CompletableFuture.supplyAsync(() -> {
-                try {
-                    return self.backfillStock(stock);
-                } catch (Exception e) {
-                    log.debug("Could not backfill signal records for {}: {}", stock.getSymbol(), e.getMessage());
-                    return 0;
-                }
-            }, startupTaskExecutor));
-        }
-
         int totalCreated = 0;
-        for (CompletableFuture<Integer> f : futures) {
+        for (Stock stock : stocks) {
             try {
-                totalCreated += f.join();
+                totalCreated += self.backfillStock(stock);
             } catch (Exception e) {
-                // already logged inside the task
+                log.debug("Could not backfill signal records for {}: {}", stock.getSymbol(), e.getMessage());
             }
         }
         return totalCreated;

@@ -187,12 +187,11 @@
                             <th class="px-4 py-3 text-right" onclick="sortTable('currentValue')">Curr Value <i class="fas fa-sort ml-1"></i></th>
                             <th class="px-4 py-3 text-right" onclick="sortTable('pnl')">P&L <i class="fas fa-sort ml-1"></i></th>
                             <th class="px-4 py-3 text-right" onclick="sortTable('pnlPercent')">P&L % <i class="fas fa-sort ml-1"></i></th>
-                            <th class="px-4 py-3 text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="holdingsTableBody">
                         <tr>
-                            <td colspan="10" class="text-center py-8">Loading holdings...</td>
+                            <td colspan="9" class="text-center py-8">Loading holdings...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -379,44 +378,6 @@
         </div>
     </div>
 
-    <!-- Transaction (Buy/Sell) Modal -->
-    <div id="transactionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div class="card rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
-            <div class="flex justify-between items-center mb-4">
-                <h3 id="transactionModalTitle" class="text-lg font-bold">Transaction</h3>
-                <button onclick="hideTransactionModal()" class="text-gray-400 hover:text-white text-xl">&times;</button>
-            </div>
-            <input type="hidden" id="txnType">
-            <div class="mb-3">
-                <label for="txnQuantity" class="block text-sm text-secondary mb-1">Quantity *</label>
-                <input type="number" id="txnQuantity" min="1" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="mb-3">
-                <label for="txnPrice" class="block text-sm text-secondary mb-1">Price (₹) *</label>
-                <input type="number" id="txnPrice" min="0" step="0.01" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="mb-3">
-                <label for="txnFees" class="block text-sm text-secondary mb-1">Fees (₹)</label>
-                <input type="number" id="txnFees" min="0" step="0.01" value="0" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="mb-3">
-                <label for="txnDate" class="block text-sm text-secondary mb-1">Date</label>
-                <input type="date" id="txnDate" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="mb-4">
-                <label for="txnNotes" class="block text-sm text-secondary mb-1">Notes</label>
-                <textarea id="txnNotes" rows="2" class="w-full px-3 py-2 rounded-lg bg-gray-700 border border-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-            </div>
-            <div id="txnError" class="text-red-400 text-sm mb-3" style="display:none;"></div>
-            <div class="flex justify-end gap-3">
-                <button onclick="hideTransactionModal()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-medium transition-colors">Cancel</button>
-                <button onclick="submitTransaction()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-                    <i class="fas fa-check mr-1"></i>Record
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Startup Tasks Modal -->
     <div id="startupModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick="if(event.target===this)skipStartupTasks()">
         <div class="card rounded-xl p-6 w-full max-w-4xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -466,6 +427,9 @@
                             </select>
                         </div>
                         <button onclick="skipStartupTasks()" class="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-sm font-medium">Skip</button>
+                        <button onclick="runAllStartupTasks()" id="runAllTasksBtn" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors">
+                            <i class="fas fa-list-check mr-1"></i>Run All
+                        </button>
                         <button onclick="runSelectedStartupTasks()" id="runTasksBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium">Run Selected</button>
                     </div>
                 </div>
@@ -476,14 +440,15 @@
 
     <!-- Startup Progress Overlay -->
     <div id="startupProgressOverlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-        <div class="card rounded-xl p-8 w-full max-w-md mx-4 shadow-2xl text-center">
+        <div class="card rounded-xl p-8 w-full max-w-lg mx-4 shadow-2xl text-center">
             <i class="fas fa-cog fa-spin text-4xl text-blue-400 mb-4"></i>
             <h3 class="text-lg font-bold mb-2">Running Tasks</h3>
             <p id="startupProgressText" class="text-secondary mb-4">Initializing...</p>
             <div class="w-full bg-gray-700 rounded-full h-2 mb-4">
                 <div id="startupProgressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
-            <p id="startupProgressDetail" class="text-sm text-secondary"></p>
+            <p id="startupProgressDetail" class="text-sm text-secondary mb-3"></p>
+            <div id="taskLog" class="text-left text-xs text-gray-400 max-h-32 overflow-y-auto bg-gray-900/50 rounded p-2 hidden font-mono"></div>
         </div>
     </div>
 
@@ -535,15 +500,6 @@
                 if (response.success) {
                     startupTasks = response.data;
                     
-                    // Inject Maintenance task
-                    startupTasks.push({
-                        id: 'task-fill-indicator-gaps',
-                        name: 'Fill Indicator Gaps',
-                        description: 'Fill missing technical indicators for the last 7 days for all stocks',
-                        category: 'MAINTENANCE',
-                        required: false
-                    });
-
                     try {
                         const da = await getDataAvailability();
                         if (da.success) renderDataAvailability(da.data);
@@ -645,69 +601,157 @@
             });
         }
 
+        /**
+         * Runs a single task via the API and returns the result.
+         */
+        async function executeSingleTask(taskId) {
+            try {
+                const res = await runStartupTask(taskId);
+                if (res && (res.status === 'success' || res.status === 'accepted')) {
+                    return { taskId, status: 'queued' };
+                }
+                return { taskId, status: 'failed' };
+            } catch (e) {
+                return { taskId, status: 'failed', error: e.message };
+            }
+        }
+
+        /**
+         * Shows a per-task result line in the task log area.
+         */
+        function logTaskResult(taskName, status) {
+            const logEl = document.getElementById('taskLog');
+            if (!logEl) return;
+            const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const icon = status === 'queued'
+                ? '<i class="fas fa-check text-green-400"></i>'
+                : '<i class="fas fa-times text-red-400"></i>';
+            logEl.innerHTML += `<div class="flex items-center gap-2 py-0.5">${icon} <span class="text-gray-300">${escHtml(taskName)}</span> <span class="ml-auto text-gray-500">${time}</span></div>`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        /**
+         * Common setup for both Run All and Run Selected.
+         * Shows the progress overlay and returns shared UI refs.
+         */
+        function showProgressOverlay() {
+            document.getElementById('startupModal').classList.add('hidden');
+            document.getElementById('startupProgressOverlay').classList.remove('hidden');
+            const taskLog = document.getElementById('taskLog');
+            if (taskLog) { taskLog.innerHTML = ''; taskLog.classList.remove('hidden'); }
+            return {
+                progressText: document.getElementById('startupProgressText'),
+                progressBar: document.getElementById('startupProgressBar'),
+                progressDetail: document.getElementById('startupProgressDetail')
+            };
+        }
+
+        /**
+         * Run ALL eligible tasks sequentially with per-task progress feedback.
+         */
+        async function runAllStartupTasks() {
+            if (startupTasks.length === 0) {
+                alert('No tasks available to run.');
+                return;
+            }
+
+            // Select all tasks and run sequentially
+            const allTaskIds = startupTasks.map(t => t.id);
+            const { progressText, progressBar, progressDetail } = showProgressOverlay();
+
+            const totalTasks = allTaskIds.length;
+            let completed = 0;
+            let failed = 0;
+
+            try {
+                for (const taskId of allTaskIds) {
+                    const task = startupTasks.find(t => t.id === taskId);
+                    const taskName = task ? task.name : taskId;
+
+                    progressText.textContent = `Running: ${taskName}`;
+                    progressBar.style.width = Math.round(completed / totalTasks * 100) + '%';
+                    progressDetail.textContent = `${completed + failed} of ${totalTasks}${failed ? ' (' + failed + ' failed)' : ''}`;
+
+                    const result = await executeSingleTask(taskId);
+                    if (result.status === 'queued') {
+                        completed++;
+                    } else {
+                        failed++;
+                    }
+                    logTaskResult(taskName, result.status);
+                }
+
+                // Done
+                progressBar.style.width = '100%';
+                progressText.textContent = failed === totalTasks
+                    ? 'All tasks failed'
+                    : failed > 0
+                        ? `Completed: ${completed} ok, ${failed} failed`
+                        : `All ${completed} tasks queued`;
+                progressDetail.textContent = 'Done.';
+
+                await new Promise(r => setTimeout(r, 2000));
+                document.getElementById('startupProgressOverlay').classList.add('hidden');
+                selectedStartupTasks.clear();
+                await loadStartupTasks(); // Refresh to reflect completion status
+            } catch (error) {
+                console.error('Error running startup tasks:', error);
+                document.getElementById('startupProgressOverlay').classList.add('hidden');
+                alert('Error running tasks: ' + error.message);
+            }
+        }
+
+        /**
+         * Run selected tasks sequentially with per-task progress feedback.
+         */
         async function runSelectedStartupTasks() {
             if (selectedStartupTasks.size === 0) {
                 alert('Please select at least one task');
                 return;
             }
 
-            // Show progress overlay
-            document.getElementById('startupModal').classList.add('hidden');
-            document.getElementById('startupProgressOverlay').classList.remove('hidden');
-            
+            const { progressText, progressBar, progressDetail } = showProgressOverlay();
+
             const taskIds = Array.from(selectedStartupTasks);
             const totalTasks = taskIds.length;
-            let queuedTasks = 0;
-            let failedTasks = 0;
-
-            const progressText = document.getElementById('startupProgressText');
-            const progressBar = document.getElementById('startupProgressBar');
-            const progressDetail = document.getElementById('startupProgressDetail');
+            let completed = 0;
+            let failed = 0;
 
             try {
                 for (const taskId of taskIds) {
                     const task = startupTasks.find(t => t.id === taskId);
                     const taskName = task ? task.name : taskId;
-                    const pct = Math.round((queuedTasks + failedTasks) / totalTasks * 100);
 
-                    progressText.textContent = `Queuing: ${taskName}`;
-                    progressBar.style.width = pct + '%';
-                    progressDetail.textContent = `${queuedTasks + failedTasks + 1} of ${totalTasks}${failedTasks ? ' (' + failedTasks + ' failed)' : ''}`;
+                    progressText.textContent = `Running: ${taskName}`;
+                    progressBar.style.width = Math.round((completed + failed) / totalTasks * 100) + '%';
+                    progressDetail.textContent = `${completed + failed} of ${totalTasks}${failed ? ' (' + failed + ' failed)' : ''}`;
 
-                    try {
-                        let res;
-                        if (taskId === 'task-fill-indicator-gaps') {
-                            res = await fillIndicatorGaps(7);
-                        } else {
-                            res = await runStartupTask(taskId);
-                        }
-                        // Backend now returns 202 "queued" for async fire-and-forget.
-                        // Any non-throw response means the task was accepted.
-                        if (res && (res.status === 'success' || res.status === 'accepted')) {
-                            queuedTasks++;
-                        } else {
-                            failedTasks++;
-                        }
-                    } catch (e) {
-                        console.error(`Task ${taskId} failed to queue:`, e);
-                        failedTasks++;
+                    const result = await executeSingleTask(taskId);
+                    if (result.status === 'queued') {
+                        completed++;
+                    } else {
+                        failed++;
                     }
+                    logTaskResult(taskName, result.status);
                 }
 
-                // All tasks queued (or failed to queue)
+                // Done
                 progressBar.style.width = '100%';
-                progressText.textContent = failedTasks === totalTasks
-                    ? 'All tasks failed to queue'
-                    : `Queued ${queuedTasks} task(s) in background`;
-                progressDetail.textContent = failedTasks ? `${failedTasks} failed` : 'Running...';
+                progressText.textContent = failed === totalTasks
+                    ? 'All tasks failed'
+                    : failed > 0
+                        ? `Completed: ${completed} ok, ${failed} failed`
+                        : `All ${completed} tasks queued`;
+                progressDetail.textContent = 'Done.';
 
-                await new Promise(r => setTimeout(r, 1500));
+                await new Promise(r => setTimeout(r, 2000));
                 document.getElementById('startupProgressOverlay').classList.add('hidden');
                 selectedStartupTasks.clear();
+                await loadStartupTasks(); // Refresh to reflect completion status
             } catch (error) {
                 console.error('Error running startup tasks:', error);
                 document.getElementById('startupProgressOverlay').classList.add('hidden');
-                alert('Error queuing tasks: ' + error.message);
+                alert('Error running tasks: ' + error.message);
             }
         }
 

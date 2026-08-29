@@ -1003,7 +1003,7 @@ function renderPerformerList(stocks, isTop) {
 function renderHoldingsTable() {
   const tbody = document.getElementById('holdingsTableBody');
   if (!allStocks.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="text-center py-8">No holdings found. Import stocks with portfolio data.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8">No holdings found. Import stocks with portfolio data.</td></tr>';
     document.getElementById('tableSummary').textContent = '';
     return;
   }
@@ -1029,17 +1029,6 @@ function renderHoldingsTable() {
       <td class="text-right">${fmtPrice(s.currentValue)}</td>
       <td class="text-right ${cls}">${fmtPrice(pnl)}</td>
       <td class="text-right"><span class="px-2 py-0.5 rounded text-xs font-medium text-white ${badgeCls}">${pnlPct != null ? (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%' : '--'}</span></td>
-      <td class="text-center">
-        <button onclick="openTransactionModal(${s.id}, ${stockIdOf(s)}, '${escHtml(s.symbol)}', 'BUY')" title="Buy more" class="text-green-400 hover:text-green-300 transition-colors mr-2">
-          <i class="fas fa-plus-circle"></i>
-        </button>
-        <button onclick="openTransactionModal(${s.id}, ${stockIdOf(s)}, '${escHtml(s.symbol)}', 'SELL')" title="Sell" class="text-yellow-400 hover:text-yellow-300 transition-colors mr-2">
-          <i class="fas fa-minus-circle"></i>
-        </button>
-        <button onclick="removeHoldingFromPortfolio(${s.id})" title="Remove from portfolio" class="text-red-400 hover:text-red-300 transition-colors">
-          <i class="fas fa-trash-alt"></i>
-        </button>
-      </td>
     </tr>`;
   }).join('');
 }
@@ -1177,64 +1166,6 @@ function renderStrategyBreakdownTooltip(breakdown) {
     ${rows}
   </div>`;
 }
-
-// ─── Buy / Sell Transactions ───────────────────────────────────────────
-
-let txnModalStockId = null;
-let txnModalHoldingId = null;
-let txnModalSymbol = null;
-let txnModalMode = 'BUY';
-
-function openTransactionModal(holdingId, stockId, symbol, mode) {
-  txnModalHoldingId = holdingId;
-  txnModalStockId = stockId;
-  txnModalSymbol = symbol;
-  txnModalMode = mode;
-
-  const modal = document.getElementById('transactionModal');
-  const title = document.getElementById('transactionModalTitle');
-  title.textContent = (mode === 'BUY' ? 'Buy ' : 'Sell ') + (symbol || 'Stock');
-  document.getElementById('txnType').value = mode;
-  document.getElementById('txnQuantity').value = '';
-  document.getElementById('txnPrice').value = '';
-  document.getElementById('txnFees').value = '';
-  document.getElementById('txnDate').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('txnNotes').value = '';
-  document.getElementById('txnError').textContent = '';
-  document.getElementById('txnError').style.display = 'none';
-  modal.classList.remove('hidden');
-}
-
-function hideTransactionModal() {
-  document.getElementById('transactionModal').classList.add('hidden');
-}
-
-async function submitTransaction() {
-  if (!currentPortfolioId || !txnModalStockId) return;
-  const type = document.getElementById('txnType').value;
-  const quantity = parseInt(document.getElementById('txnQuantity').value);
-  const price = parseFloat(document.getElementById('txnPrice').value);
-  const feesRaw = document.getElementById('txnFees').value;
-  const fees = feesRaw ? parseFloat(feesRaw) : 0;
-  const date = document.getElementById('txnDate').value || new Date().toISOString().slice(0, 10);
-  const notes = document.getElementById('txnNotes').value.trim();
-
-  const errEl = document.getElementById('txnError');
-  if (!quantity || quantity <= 0) { errEl.textContent = 'Quantity must be positive'; errEl.style.display = 'block'; return; }
-  if (isNaN(price) || price < 0) { errEl.textContent = 'Price must be zero or positive'; errEl.style.display = 'block'; return; }
-
-  const payload = { stockId: txnModalStockId, type, quantity, price, fees, transactionDate: date, notes };
-  try {
-    await recordTransaction(currentPortfolioId, payload);
-    showToast((type === 'BUY' ? 'Bought ' : 'Sold ') + quantity + ' of ' + (txnModalSymbol || ''), 'success');
-    hideTransactionModal();
-    await switchPortfolio(currentPortfolioId);
-  } catch (e) {
-    errEl.textContent = e.message || 'Failed to record transaction';
-    errEl.style.display = 'block';
-  }
-}
-
 
 // Click handler for strategy breakdown tooltips
 // Uses event delegation on the signals table body

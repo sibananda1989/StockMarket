@@ -24,6 +24,9 @@ const PortfolioTransactions = (() => {
   };
 
   let debounceTimer = null;
+  let buySearchTimer = null;
+  let _selectedBuyStock = null;
+  let _allStocksCache = [];
 
   // ─── DOM CACHE ───
   const els = {};
@@ -82,6 +85,11 @@ const PortfolioTransactions = (() => {
       state.filters.status = e.target.value;
       applyFiltersAndRender();
     });
+    const buySearchEl = document.getElementById('buy-stock-search');
+    if (buySearchEl) buySearchEl.addEventListener('input', (e) => {
+      clearTimeout(buySearchTimer);
+      buySearchTimer = setTimeout(() => searchBuyStocks(e.target.value), 300);
+    });
   }
 
   // ─── DATA LOADING ───
@@ -100,6 +108,7 @@ const PortfolioTransactions = (() => {
       let stocks = [];
       if (Array.isArray(stocksRes)) stocks = stocksRes;
       else if (stocksRes && Array.isArray(stocksRes.data)) stocks = stocksRes.data;
+      _allStocksCache = stocks;
       stocks.forEach(s => {
         const id = s.id != null ? s.id : s.stockId;
         const price = s.lastTradedPrice != null ? Number(s.lastTradedPrice) : (s.currentPrice != null ? Number(s.currentPrice) : 0);
@@ -524,6 +533,248 @@ const PortfolioTransactions = (() => {
     }
   }
 
+  // ─── BUY MODAL (Add New Stock / Buy More) ───
+  function openBuyModal(prefilledStockId, prefilledPortfolioId) {
+    _selectedBuyStock = null;
+    const modal = document.getElementById('buy-modal');
+    const portfolioSel = document.getElementById('buy-portfolio');
+    const searchEl = document.getElementById('buy-stock-search');
+    const resultsEl = document.getElementById('buy-search-results');
+    const selectedWrap = document.getElementById('buy-selected-stock');
+    const hiddenId = document.getElementById('buy-stock-id');
+    const qtyEl = document.getElementById('buy-qty');
+    const priceEl = document.getElementById('buy-price');
+    const feesEl = document.getElementById('buy-fees');
+    const dateEl = document.getElementById('buy-date');
+    const notesEl = document.getElementById('buy-notes');
+    const errEl = document.getElementById('buy-error');
+
+    // Populate portfolio dropdown
+    if (portfolioSel) {
+      portfolioSel.innerHTML = '<option value="">Select Portfolio</option>';
+      state.portfolios.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = String(p.id);
+        opt.textContent = p.name + (p.default ? ' (Default)' : '');
+        portfolioSel.appendChild(opt);
+      });
+      if (prefilledPortfolioId) portfolioSel.value = String(prefilledPortfolioId);
+      else if (state.filters.portfolioId !== 'all') portfolioSel.value = String(state.filters.portfolioId);
+      else {
+        const def = state.portfolios.find(p => p.default) || state.portfolios[0];
+        if (def) portfolioSel.value = String(def.id);
+      }
+    }
+
+    if (searchEl) { searchEl.value = ''; searchEl.disabled = false; }
+    if (resultsEl) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; }
+    if (selectedWrap) selectedWrap.classList.add('hidden');
+    if (hiddenId) hiddenId.value = '';
+    if (qtyEl) qtyEl.value = '';
+    if (priceEl) priceEl.value = '';
+    if (feesEl) feesEl.value = '0';
+    if (notesEl) notesEl.value = '';
+    if (dateEl) dateEl.value = new Date().toLocaleDateString('en-CA');
+    if (errEl) { errEl.classList.add('hidden'); errEl.textContent = ''; }
+
+    // Prefill stock if coming from "Buy More" on a row
+    if (prefilledStockId) {
+      const stock = _allStocksCache.find(s => Number(s.id != null ? s.id : s.stockId) === Number(prefilledStockId));
+      if (stock) {
+        const dto = { stockId: Number(stock.id != null ? stock.id : stock.stockId), symbol: stock.symbol, name: stock.name };
+        selectBuyStock(dto);
+        const ltp = state.priceMap[Number(prefilledStockId)];
+        if (ltp > 0 && priceEl) priceEl.value = ltp;
+      }
+    }
+
+    // Show initial suggestions
+    displayBuySearchResults(_allStocksCache.slice(0, 20).map(s => ({
+      symbol: s.symbol, name: s.name, exchange: '', sector: s.sector || '', industry: s.industry || '', quoteType: 'EQUITY', isLocal: true, stockId: s.id != null ? s.id : s.stockId
+    })));
+
+    if (modal) modal.classList.remove('hidden');
+    if (!prefilledStockId && searchEl) searchEl.focus();
+    else if (qtyEl) qtyEl.focus();
+  }
+
+  function closeBuyModal() {
+    const modal = document.getElementById('buy-modal');
+    if (modal) modal.classList.add('hidden');
+    clearSelectedBuyStock();
+  }
+
+  function clearSelectedBuyStock() {
+    _selectedBuyStock = null;
+    const searchEl = document.getElementById('buy-stock-search');
+    const selectedWrap = document.getElementById('buy-selected-stock');
+    const hiddenId = document.getElementById('buy-stock-id');
+    const resultsEl = document.getElementById('buy-search-results');
+    if (searchEl) { searchEl.value = ''; searchEl.disabled = false; }
+    if (hiddenId) hiddenId.value = '';
+    if (selectedWrap) selectedWrap.classList.add('hidden');
+    if (resultsEl) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; }
+    if (searchEl) searchEl.focus();
+  }
+
+  async function searchBuyStocks(query) {
+    const trimmed = (query || '').trim();
+    if (_selectedBuyStock) return;
+    if (trimmed.length < 2) {
+      const local = _allStocksCache.filter(s =>
+        s.symbol.toLowerCase().includes(trimmed.toLowerCase()) ||
+        (s.name || '').toLowerCase().includes(trimmed.toLowerCase())
+      ).slice(0, 12).map(s => ({
+        symbol: s.symbol, name: s.name, exchange: '', sector: s.sector || '', industry: s.industry || '', quoteType: 'EQUITY', isLocal: true, stockId: s.id != null ? s.id : s.stockId
+      }));
+      displayBuySearchResults(local);
+      return;
+    }
+    const local = _allStocksCache.filter(s =>
+      s.symbol.toLowerCase().includes(trimmed.toLowerCase()) ||
+      (s.name || '').toLowerCase().includes(trimmed.toLowerCase())
+    ).map(s => ({
+      symbol: s.symbol, name: s.name, exchange: '', sector: s.sector || '', industry: s.industry || '', quoteType: 'EQUITY', isLocal: true, stockId: s.id != null ? s.id : s.stockId
+    }));
+    let yahoo = [];
+    try {
+      const res = await searchStocksByName(trimmed, 8);
+      yahoo = (res.data || []).map(r => ({ ...r, isYahoo: true }));
+    } catch (_) {}
+    const seen = new Set(local.map(s => s.symbol.toUpperCase()));
+    const merged = [...local, ...yahoo.filter(r => !seen.has(r.symbol.toUpperCase()))];
+    displayBuySearchResults(merged.slice(0, 12));
+  }
+
+  function displayBuySearchResults(results) {
+    const container = document.getElementById('buy-search-results');
+    if (!container) return;
+    if (_selectedBuyStock) { container.classList.add('hidden'); return; }
+    if (!results.length) {
+      container.innerHTML = '<div class="px-4 py-3 text-sm text-secondary text-center">No stocks found — try a different search</div>';
+      container.classList.remove('hidden');
+      return;
+    }
+    container.innerHTML = results.map(stock => {
+      const payload = encodeURIComponent(JSON.stringify(stock));
+      const localBadge = stock.isLocal ? '<span class="text-xs bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded ml-2">Local</span>' : '';
+      const yahooBadge = stock.isYahoo ? '<span class="text-xs bg-purple-600/20 text-purple-400 px-1.5 py-0.5 rounded ml-1">Yahoo</span>' : '';
+      const exchBadge = stock.exchange ? `<span class="text-xs bg-gray-600 text-gray-300 px-1.5 py-0.5 rounded">${escHtml(stock.exchange)}</span>` : '';
+      const detail = [stock.sector, stock.industry].filter(Boolean).join(' \u2022 ');
+      return `
+        <div class="px-4 py-3 hover:bg-gray-700/50 cursor-pointer border-b border-gray-700 last:border-0 transition-colors"
+             onclick="PortfolioTransactions.selectBuyStockEncoded('${payload}')">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="font-bold text-white">${escHtml(stock.symbol)}</span>
+                    ${localBadge}${yahooBadge}
+                </div>
+                <div class="flex items-center gap-1">${exchBadge}</div>
+            </div>
+            <div class="text-sm text-gray-400 mt-0.5">${escHtml(stock.name || '')}</div>
+            ${detail ? `<div class="text-xs text-gray-500 mt-1">${escHtml(detail)}</div>` : ''}
+        </div>`;
+    }).join('');
+    container.classList.remove('hidden');
+  }
+
+  function selectBuyStockEncoded(encoded) {
+    try {
+      const stock = JSON.parse(decodeURIComponent(encoded));
+      selectBuyStock(stock);
+    } catch (_) {}
+  }
+
+  function selectBuyStock(stock) {
+    // Handle Yahoo vs local: if Yahoo and not local, create local stock first on submit
+    _selectedBuyStock = stock;
+    const searchEl = document.getElementById('buy-stock-search');
+    const selectedWrap = document.getElementById('buy-selected-stock');
+    const label = document.getElementById('buy-selected-label');
+    const hiddenId = document.getElementById('buy-stock-id');
+    const resultsEl = document.getElementById('buy-search-results');
+    const priceEl = document.getElementById('buy-price');
+    if (stock.stockId) {
+      if (hiddenId) hiddenId.value = String(stock.stockId);
+    } else {
+      if (hiddenId) hiddenId.value = '';
+    }
+    if (searchEl) { searchEl.value = `${stock.name || ''} (${stock.symbol})`; searchEl.disabled = true; }
+    if (label) label.textContent = `${stock.symbol} — ${stock.name || ''}`;
+    if (selectedWrap) selectedWrap.classList.remove('hidden');
+    if (resultsEl) { resultsEl.classList.add('hidden'); resultsEl.innerHTML = ''; }
+    // Prefill price with LTP if local
+    if (stock.stockId && priceEl && !priceEl.value) {
+      const ltp = state.priceMap[Number(stock.stockId)];
+      if (ltp > 0) priceEl.value = ltp;
+    }
+    document.getElementById('buy-qty')?.focus();
+  }
+
+  async function submitBuy(event) {
+    event.preventDefault();
+    const portfolioId = parseInt(document.getElementById('buy-portfolio').value, 10);
+    const qty = parseInt(document.getElementById('buy-qty').value, 10);
+    const price = parseFloat(document.getElementById('buy-price').value);
+    const fees = parseFloat(document.getElementById('buy-fees').value || '0');
+    const dateVal = document.getElementById('buy-date').value;
+    const notes = document.getElementById('buy-notes').value.trim();
+    const errEl = document.getElementById('buy-error');
+    const btn = document.getElementById('buy-submit');
+
+    if (!portfolioId) { errEl.textContent = 'Please select a portfolio.'; errEl.classList.remove('hidden'); return false; }
+    if (!_selectedBuyStock) { errEl.textContent = 'Please search and select a stock.'; errEl.classList.remove('hidden'); return false; }
+    if (!qty || qty <= 0) { errEl.textContent = 'Quantity must be at least 1.'; errEl.classList.remove('hidden'); return false; }
+    if (price == null || isNaN(price) || price < 0) { errEl.textContent = 'Please enter a valid price.'; errEl.classList.remove('hidden'); return false; }
+
+    btn.disabled = true; btn.textContent = 'Saving…';
+    errEl.classList.add('hidden');
+    try {
+      let stockId = _selectedBuyStock.stockId ? Number(_selectedBuyStock.stockId) : null;
+      // If Yahoo-only (no local stockId), create the stock first
+      if (!stockId) {
+        const sym = _selectedBuyStock.symbol.toUpperCase().trim();
+        const name = (_selectedBuyStock.name || sym).trim();
+        // Validate via Yahoo to get enriched sector/industry if needed
+        let sector = _selectedBuyStock.sector || '';
+        let industry = _selectedBuyStock.industry || '';
+        try {
+          const v = await validateStockSymbol(sym);
+          const vd = v && v.data ? v.data : v;
+          if (vd && vd.sector) sector = vd.sector;
+          if (vd && vd.industry) industry = vd.industry;
+        } catch (_) {}
+        if (!sector) sector = 'Other';
+        const created = await addStockApi({ symbol: sym, name, sector, yahooSymbol: sym, industry: industry || null });
+        const cd = created && created.data ? created.data : created;
+        stockId = cd && cd.id != null ? Number(cd.id) : Number(cd.stockId);
+        if (!stockId) throw new Error('Failed to create stock: no id returned');
+        // Cache new stock for future searches
+        _allStocksCache.push({ id: stockId, stockId, symbol: sym, name, sector, industry });
+        state.priceMap[stockId] = price;
+      }
+
+      await recordTransaction(portfolioId, {
+        stockId,
+        type: 'BUY',
+        quantity: qty,
+        price,
+        fees,
+        transactionDate: dateVal || undefined,
+        notes: notes || undefined
+      });
+      closeBuyModal();
+      showToast(`Bought ${qty} × ${_selectedBuyStock.symbol}`, 'success');
+      await loadAll();
+    } catch (err) {
+      errEl.textContent = err.message || 'Failed to record buy transaction';
+      errEl.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Confirm Buy';
+    }
+    return false;
+  }
+
   // ─── PAGINATION ───
   function prevPage() {
     if (state.currentPage > 1) {
@@ -699,7 +950,8 @@ const PortfolioTransactions = (() => {
 
   // Public API
   return { init, sortBy, prevPage, nextPage, goToPage, changePageSize, clearFilters, exportCSV,
-           toggleExpand, openSellModal, closeSellModal, submitSell, deleteSell };
+           toggleExpand, openSellModal, closeSellModal, submitSell, deleteSell,
+           openBuyModal, closeBuyModal, submitBuy, clearSelectedBuyStock, selectBuyStock, selectBuyStockEncoded };
 })();
 
 document.addEventListener('DOMContentLoaded', PortfolioTransactions.init);

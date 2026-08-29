@@ -1,0 +1,1443 @@
+[0m
+> build · agnes-2.5-flash
+[0m
+[0m→ [0mRead .full-cycle/plan.md
+[0m→ [0mRead docs/PROJECT_MANIFEST.md
+[0m→ [0mRead src/main/java/org/example/controller/PortfolioManagementController.java
+[0m→ [0mRead src/main/java/org/example/service/PortfolioTransactionService.java
+[0m→ [0mRead src/main/java/org/example/service/PortfolioService.java
+[0m→ [0mRead src/main/java/org/example/service/StockService.java
+[0m→ [0mRead src/main/java/org/example/controller/StartupTaskController.java
+[0m→ [0mRead src/main/java/org/example/service/PortfolioSnapshotService.java
+[0m→ [0mRead src/main/java/org/example/entity/PortfolioTransaction.java
+[0m→ [0mRead src/main/java/org/example/entity/PortfolioHolding.java
+[0m✱ [0mGlob "**/*.java"[90m in src/main/java/org/example/startup · 7 matches[0m
+[0m✱ [0mGlob "**/PortfolioTransactionService*.java"[90m in src/test · 1 match[0m
+[0m✱ [0mGlob "**/PortfolioService*.java"[90m in src/test · 1 match[0m
+[0m→ [0mRead src/main/resources/static/js/stock-management.js[90m [limit=100][0m
+[0m✱ [0mGrep "importCsv|handleCsv|parseCsv|csvImport|skipped|skippedRecords"[90m in src/main/resources/static/js/stock-management.js · 11 matches[0m
+[0m→ [0mRead src/main/java/org/example/startup/StartupTask.java
+[0m→ [0mRead src/main/java/org/example/startup/PortfolioSnapshotStartupTask.java
+[0m→ [0mRead src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+[0m→ [0mRead src/main/resources/static/js/stock-management.js[90m [limit=120, offset=560][0m
+[0m✱ [0mGlob "*.java"[90m in src/main/java/org/example/startup · 7 matches[0m
+[0m✱ [0mGlob "**/PortfolioManagementController*.java"[90m in src/test/java/org/example/controller · 1 match[0m
+[0m→ [0mRead src/test/java/org/example/service/PortfolioServiceTest.java
+[0m→ [0mRead src/test/java/org/example/controller/PortfolioManagementControllerIntegrationTest.java
+[0m→ [0mRead src/main/resources/static/js/stock-management.js[90m [limit=80, offset=680][0m
+[0m✱ [0mGlob "*.java"[90m in src/main/java/org/example/startup · 7 matches[0m
+[0m✱ [0mGlob "CsvImport*.java"[90m in src/main/java/org/example/dto · 1 match[0m
+[0m→ [0mRead src/main/java/org/example/dto/CsvImportRequest.java
+[0m✱ [0mGrep "csvImport|CsvImport|import.*csv|skippedRecords"[90m in src/main/java/org/example/controller/StockController.java · 2 matches[0m
+[0m✱ [0mGrep "CacheEvict|CacheConfig|cacheNames"[90m in src/main/java/org/example · 32 matches[0m
+[0m✱ [0mGlob "**/CacheConfig*.java"[90m in src/main/java/org/example · 1 match[0m
+[0m→ [0mRead src/main/java/org/example/CacheConfig.java
+[0m→ [0mRead src/main/java/org/example/controller/StockController.java[90m [limit=80, offset=95][0m
+[0m→ [0mRead src/main/java/org/example/startup/PortfolioMigrationStartupTask.java
+[0m→ [0mRead src/main/java/org/example/dto
+[0m✱ [0mGlob "CreateTransactionRequest.java"[90m in src/main/java/org/example/dto · 1 match[0m
+[0m✱ [0mGrep "signalDto|cache.*name"[90m in src/main/resources · 1 match[0m
+[0m✱ [0mGrep "signalDto"[90m in src/main/java/org/example · 0 matches[0m
+[0m→ [0mRead src/main/java/org/example/dto/CreateTransactionRequest.java
+[0m→ [0mRead src/main/java/org/example/dto/AddHoldingRequest.java
+[0m✱ [0mGlob "Rebuild*.java"[90m in src/main/java/org/example/dto · 0 matches[0m
+[0m✱ [0mGrep "lastManualEditAt|manualEdit"[90m in src/main/java/org/example · 0 matches[0m
+[0m→ [0mRead src/main/resources/application.properties
+[0m→ [0mRead src/main/java/org/example/repository/PortfolioHoldingRepository.java
+[0m✱ [0mGrep "ddl-auto|hbm2ddl|schema"[90m in src/main/resources · 3 matches[0m
+[0m✱ [0mGlob "*.java"[90m in src/test/java/org/example/service · 58 matches[0m
+[0m✱ [0mGrep "CacheEvict|Cacheable|signalDto"[90m in src/main/java/org/example/service/SignalService.java · 37 matches[0m
+[0m✱ [0mGrep "signalDto|CacheEvict|CacheConfig"[90m in src/main/java/org/example/service/PortfolioTransactionService.java · 20 matches[0m
+[0m
+[0m# [0mTodos
+[•] Phase A: Create PortfolioPositionReplayer.java + tests
+[ ] Phase B: Rewrite PortfolioTransactionService with replayer, REQUIRES_NEW writer, cache evict
+[ ] Phase C: Fix removeHolding/removeHoldingByStockId; add PATCH + rebuild endpoints
+[ ] Phase D: Create heal-portfolio-holdings StartupTask
+[ ] Phase E: CSV import skip date-less rows + frontend skipped UI
+[ ] Phase F: Run mvn test + verify
+[0m
+[0m→ [0mRead src/main/java/org/example/repository/PortfolioTransactionRepository.java
+[0m→ [0mRead src/main/java/org/example/entity/Portfolio.java
+[0m→ [0mRead src/main/java/org/example/entity/Stock.java
+[0m
+[0m← [0mWrite src/main/java/org/example/service/PortfolioPositionReplayer.java
+Wrote file successfully.
+[0m
+[0m← [0mWrite src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+Wrote file successfully.
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioPositionReplayerTest -q 2>&1 | tail -30
+[ERROR] COMPILATION ERROR : 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java:[94,74] incompatible types: java.time.Instant cannot be converted to java.time.chrono.ChronoLocalDateTime<?>
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project stockmarket: Compilation failure
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java:[94,74] incompatible types: java.time.Instant cannot be converted to java.time.chrono.ChronoLocalDateTime<?>
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -20
+[ERROR] COMPILATION ERROR : 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java:[94,74] incompatible types: java.time.Instant cannot be converted to java.time.chrono.ChronoLocalDateTime<?>
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project stockmarket: Compilation failure
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java:[94,74] incompatible types: java.time.Instant cannot be converted to java.time.chrono.ChronoLocalDateTime<?>
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioPositionReplayer.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java
+@@ -80,12 +80,12 @@
+  * returning the resulting position state.
+  *
+  * @param portfolioId the portfolio
+  * @param stockId     the stock
+- * @param upTo        replay only transactions with recordedAt <= upTo
++ * @param upTo        replay only transactions with createdAt <= upTo
+  * @return position state at that point in time, or null if no position existed
+  */
+-public PositionState historicalStateAt(Long portfolioId, Long stockId, Instant upTo) {
++public PositionState historicalStateAt(Long portfolioId, Long stockId, java.time.LocalDateTime upTo) {
+     List<PortfolioTransaction> txns = transactionRepository
+             .findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(portfolioId, stockId);
+ 
+     PositionState state = PositionState.EMPTY;
+
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioPositionReplayer.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioPositionReplayer.java
+@@ -7,9 +7,9 @@
+ import org.springframework.stereotype.Service;
+ 
+ import java.math.BigDecimal;
+ import java.math.RoundingMode;
+-import java.time.Instant;
++import java.time.LocalDateTime;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
+ 
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+@@ -206,10 +206,10 @@
+ sell.setCreatedAt(java.time.LocalDateTime.of(2024, 1, 2, 10, 0));
+ when(transactionRepository.findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(10L, 1L))
+         .thenReturn(List.of(buy, sell));
+ 
+-var state1 = replayer.historicalStateAt(10L, 1L, java.time.Instant.parse("2024-01-01T10:00:00Z"));
+-var state2 = replayer.historicalStateAt(10L, 1L, java.time.Instant.parse("2024-01-01T10:00:00Z"));
++var state1 = replayer.historicalStateAt(10L, 1L, java.time.LocalDateTime.of(2024, 1, 1, 10, 0));
++var state2 = replayer.historicalStateAt(10L, 1L, java.time.LocalDateTime.of(2024, 1, 1, 10, 0));
+ 
+ assertNotNull(state1);
+ assertNotNull(state2);
+ assertEquals(state1, state2);
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+@@ -225,14 +225,14 @@
+             .thenReturn(List.of(buy, sell));
+ 
+     // Before sell: should show 10 qty
+     var beforeSell = replayer.historicalStateAt(10L, 1L,
+-            java.time.Instant.parse("2024-01-01T23:59:59Z"));
++            java.time.LocalDateTime.of(2024, 1, 1, 23, 59, 59));
+     assertEquals(new BigDecimal("10"), beforeSell.quantity());
+ 
+     // After sell: should show 6 qty
+     var afterSell = replayer.historicalStateAt(10L, 1L,
+-            java.time.Instant.parse("2024-01-03T00:00:00Z"));
++            java.time.LocalDateTime.of(2024, 1, 3, 0, 0, 0));
+     assertEquals(new BigDecimal("6"), afterSell.quantity());
+ }
+ 
+ @Test
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+@@ -239,9 +239,9 @@
+ void historicalStateAt_NoPosition_ReturnsNull() {
+     when(transactionRepository.findByPortfolioIdAndStockIdOrderByTransactionDateAscIdAsc(10L, 1L))
+             .thenReturn(List.of());
+ 
+-    assertNull(replayer.historicalStateAt(10L, 1L, java.time.Instant.now()));
++    assertNull(replayer.historicalStateAt(10L, 1L, java.time.LocalDateTime.now()));
+ }
+ 
+ // ─── helpers ──────────────────────────────────────────────────────────
+ 
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioPositionReplayerTest -q 2>&1 | tail -20
+at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:531)
+	at org.example.service.PortfolioPositionReplayerTest.replay_MultipleStocks_IndependentState(PortfolioPositionReplayerTest.java:194)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+
+[ERROR] Failures: 
+[ERROR]   PortfolioPositionReplayerTest.replay_MultipleStocks_IndependentState:194 expected: <2> but was: <1>
+[ERROR] Tests run: 14, Failures: 1, Errors: 0, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioPositionReplayerTest.java
+@@ -183,18 +183,25 @@
+ }
+ 
+ @Test
+ void replay_MultipleStocks_IndependentState() {
++    Stock stock2 = new Stock();
++    stock2.setId(2L);
++    stock2.setSymbol("TEST2.NS");
++    stock2.setName("Test Stock 2");
++
+     PortfolioTransaction buy1 = makeTxn(1L, TransactionType.BUY, 10, new BigDecimal("100.00"), BigDecimal.ZERO);
++    buy1.setStock(stock);
+     PortfolioTransaction buy2 = makeTxn(2L, TransactionType.BUY, 5, new BigDecimal("200.00"), BigDecimal.ZERO);
++    buy2.setStock(stock2);
+     when(transactionRepository.findByPortfolioIdOrderByTransactionDateAscIdAsc(10L))
+             .thenReturn(List.of(buy1, buy2));
+ 
+     Map<Long, PortfolioPositionReplayer.PositionState> result = replayer.replay(10L);
+ 
+     assertEquals(2, result.size());
+-    assertEquals(new BigDecimal("10"), result.get(1L).quantity());
+-    assertEquals(new BigDecimal("5"), result.get(2L).quantity());
++    assertEquals(new BigDecimal("10"), result.get(stock.getId()).quantity());
++    assertEquals(new BigDecimal("5"), result.get(stock2.getId()).quantity());
+ }
+ 
+ // ─── historicalStateAt ────────────────────────────────────────────────
+ 
+
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioPositionReplayerTest -q 2>&1 | tail -10
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+[0m
+[0m# [0mTodos
+[✓] Phase A: Create PortfolioPositionReplayer.java + tests
+[•] Phase B: Rewrite PortfolioTransactionService with replayer, REQUIRES_NEW writer, cache evict
+[ ] Phase C: Fix removeHolding/removeHoldingByStockId; add PATCH + rebuild endpoints
+[ ] Phase D: Create heal-portfolio-holdings StartupTask
+[ ] Phase E: CSV import skip date-less rows + frontend skipped UI
+[ ] Phase F: Run mvn test + verify
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioPositionReplayerTest 2>&1 | grep -E "Tests run|BUILD"
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.868 s -- in org.example.service.PortfolioPositionReplayerTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[0m
+[0m← [0mWrite src/main/java/org/example/service/PortfolioSnapshotWriter.java
+Wrote file successfully.
+[0m
+[0m→ [0mRead src/main/java/org/example/entity/PortfolioHolding.java
+[0m
+[0m← [0mEdit src/main/java/org/example/entity/PortfolioHolding.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/entity/PortfolioHolding.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/entity/PortfolioHolding.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/entity/PortfolioHolding.java
+@@ -50,8 +50,16 @@
+ @UpdateTimestamp
+ @Column(name = "updated_at")
+ private LocalDateTime updatedAt;
+ 
++/**
++ * Timestamp of the most recent manual edit (via PATCH endpoint).
++ * The consistency healer skips rows with a non-null value to avoid
++ * overwriting user-corrected positions.
++ */
++@Column(name = "last_manual_edit_at")
++private LocalDateTime lastManualEditAt;
++
+ // ── Computed fields (not persisted) ──────────────────────────────────
+ 
+ @Transient
+ private BigDecimal investment;
+
+[0m
+[0m→ [0mRead src/main/java/org/example/service/PortfolioTransactionService.java
+[0m
+[0m← [0mWrite src/main/java/org/example/service/PortfolioTransactionService.java
+Wrote file successfully.
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest,PortfolioPositionReplayerTest -q 2>&1 | tail -30
+[ERROR] COMPILATION ERROR : 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java:[473,21] void cannot be dereferenced
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project stockmarket: Compilation failure
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java:[473,21] void cannot be dereferenced
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -20
+[ERROR] COMPILATION ERROR : 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java:[473,21] void cannot be dereferenced
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project stockmarket: Compilation failure
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java:[473,21] void cannot be dereferenced
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m→ [0mRead src/main/java/org/example/service/PortfolioTransactionService.java[90m [limit=30, offset=460][0m
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioTransactionService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java
+@@ -465,20 +465,19 @@
+     PortfolioPositionReplayer.PositionState state = entry.getValue();
+     if (state.quantity() == null || state.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+         continue;
+     }
+-    holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
+-            .ifPresent(h ->
+-                    portfolioService.updateHolding(portfolioId, h.getId(),
+-                            state.quantity().intValue(), state.avgCost()))
+-            .orElseGet(() -> {
+-                Stock stock = stockRepository.findById(stockId).orElse(null);
+-                if (stock != null) {
+-                    portfolioService.addHolding(portfolioId, stockId,
+-                            state.quantity().intValue(), state.avgCost());
+-                }
+-                return null;
+-            });
++    Optional<PortfolioHolding> existing = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId);
++    if (existing.isPresent()) {
++        portfolioService.updateHolding(portfolioId, existing.get().getId(),
++                state.quantity().intValue(), state.avgCost());
++    } else {
++        Stock stock = stockRepository.findById(stockId).orElse(null);
++        if (stock != null) {
++            portfolioService.addHolding(portfolioId, stockId,
++                    state.quantity().intValue(), state.avgCost());
++        }
++    }
+ }
+ 
+ // Delete ghost holdings: rows in DB but not in replay (qty=0 or fully sold)
+ List<PortfolioHolding> dbHoldings = holdingRepository.findByPortfolioId(portfolioId);
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+[ERROR]   symbol:   class Optional
+[ERROR]   location: class org.example.service.PortfolioTransactionService
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioTransactionService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioTransactionService.java
+@@ -22,8 +22,9 @@
+ import java.time.LocalDate;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Optional;
+ import java.util.stream.Collectors;
+ 
+ /**
+  * Records buy/sell transactions as an immutable ledger and derives holding state
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest,PortfolioPositionReplayerTest -q 2>&1 | tail -20
+[ERROR]   PortfolioTransactionServiceTest.deleteTransaction_OnlyBuyRemoved_ResetsStockToZero:193 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.deleteTransaction_RecomputesHoldingFromRemainingLedger:175 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_AlreadyHasHolding_BlendsAvgCost:243 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_CsvLoadedHoldingNullAvgPrice_UsesTxnPriceAsCostBasis:231 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_ExistingHolding_BlendsAvgCost:83 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddHoldingWithPerShareFee:94 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding:129 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   PortfolioTransactionServiceTest.recordSell_PartialSell_RetainsAvgAndCapturesRealizedPnl:143 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR] Tests run: 25, Failures: 0, Errors: 9, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: 
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m← [0mWrite src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Wrote file successfully.
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest,PortfolioPositionReplayerTest -q 2>&1 | tail -15
+For more info see javadoc for Matchers class.
+
+[ERROR] Tests run: 25, Failures: 3, Errors: 1, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest 2>&1 | grep -E "FAILURE|ERROR|Tests run" | head -20
+[ERROR] Tests run: 11, Failures: 3, Errors: 1, Skipped: 0, Time elapsed: 1.451 s <<< FAILURE! -- in org.example.service.PortfolioTransactionServiceTest
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordSellAgainstLot_MissingHolding_ThrowsResourceNotFound -- Time elapsed: 0.019 s <<< FAILURE!
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding -- Time elapsed: 0.016 s <<< FAILURE!
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddsHoldingViaReplay -- Time elapsed: 0.009 s <<< ERROR!
+[ERROR] org.example.service.PortfolioTransactionServiceTest.deleteTransaction_OnlyBuyRemoved_ResetsStockToZero -- Time elapsed: 0.004 s <<< FAILURE!
+[ERROR] Failures: 
+[ERROR]   PortfolioTransactionServiceTest.deleteTransaction_OnlyBuyRemoved_ResetsStockToZero:197 
+[ERROR]   PortfolioTransactionServiceTest.recordSellAgainstLot_MissingHolding_ThrowsResourceNotFound:249 Unexpected exception type thrown, expected: <org.example.exception.ResourceNotFoundException> but was: <java.lang.NullPointerException>
+[ERROR]   PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding:139 
+[ERROR] Errors: 
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddsHoldingViaReplay:92 » InvalidUseOfMatchers 
+[ERROR] Tests run: 11, Failures: 3, Errors: 1, Skipped: 0
+[INFO] BUILD FAILURE
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest 2>&1 | grep -A 5 "Failed"
+org.opentest4j.AssertionFailedError: Unexpected exception type thrown, expected: <org.example.exception.ResourceNotFoundException> but was: <java.lang.NullPointerException>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:67)
+	at org.junit.jupiter.api.AssertThrows.assertThrows(AssertThrows.java:35)
+	at org.junit.jupiter.api.Assertions.assertThrows(Assertions.java:3115)
+	at org.example.service.PortfolioTransactionServiceTest.recordSellAgainstLot_MissingHolding_ThrowsResourceNotFound(PortfolioTransactionServiceTest.java:249)
+--
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR]
+[0m
+[0m→ [0mRead src/test/java/org/example/service/PortfolioTransactionServiceTest.java[90m [limit=60, offset=125][0m
+[0m→ [0mRead src/test/java/org/example/service/PortfolioTransactionServiceTest.java[90m [limit=40, offset=180][0m
+[0m→ [0mRead src/test/java/org/example/service/PortfolioTransactionServiceTest.java[90m [limit=50, offset=80][0m
+[0m→ [0mRead src/test/java/org/example/service/PortfolioTransactionServiceTest.java[90m [limit=30, offset=240][0m
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+@@ -79,8 +79,9 @@
+ 
+ @Test
+ void recordBuy_NoExistingHolding_AddsHoldingViaReplay() {
+     stubPortfolioAndStock();
++    when(holdingRepository.findByPortfolioId(10L)).thenReturn(List.of());
+     when(replayer.replay(10L)).thenReturn(Map.of(1L,
+             new PortfolioPositionReplayer.PositionState(new BigDecimal("10"), new BigDecimal("202.00"))));
+ 
+     transactionService.recordBuy(10L, 1L, 10, new BigDecimal("200.00"),
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+@@ -131,8 +131,9 @@
+ @Test
+ void recordSell_FullSell_RemovesHolding() {
+     stubPortfolioAndStock();
+     when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.of(holding));
++    when(holdingRepository.findByPortfolioId(10L)).thenReturn(List.of(holding));
+     when(replayer.replay(10L)).thenReturn(Map.of());
+ 
+     transactionService.recordSell(10L, 1L, 10, new BigDecimal("150.00"),
+             new BigDecimal("10.00"), LocalDate.now(), null);
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+@@ -191,8 +191,9 @@
+         .thenReturn(List.of());
+ when(replayer.replay(10L)).thenReturn(Map.of());
+ when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.of(holding));
+ when(holdingRepository.findByStockId(1L)).thenReturn(List.of());
++when(holdingRepository.findByPortfolioId(10L)).thenReturn(List.of(holding));
+ 
+ transactionService.deleteTransaction(5L);
+ 
+ verify(transactionRepository).delete(toDelete);
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+@@ -245,9 +245,12 @@
+ stubPortfolioAndStock();
+ PortfolioTransaction buyTx = new PortfolioTransaction();
+ buyTx.setId(1L); buyTx.setType(TransactionType.BUY); buyTx.setQuantity(10);
+ buyTx.setPortfolio(portfolio); buyTx.setStock(stock);
++buyTx.setPrice(new BigDecimal("100.00"));
+ when(transactionRepository.findById(1L)).thenReturn(Optional.of(buyTx));
++when(transactionRepository.findByLinkedBuyIdOrderByTransactionDateAscIdAsc(1L))
++        .thenReturn(List.of());
+ when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.empty());
+ 
+ assertThrows(ResourceNotFoundException.class,
+         () -> transactionService.recordSellAgainstLot(10L, 1L, 5,
+
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest -q 2>&1 | tail -15
+For more info see javadoc for Matchers class.
+
+[ERROR] Tests run: 11, Failures: 0, Errors: 2, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: 
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest 2>&1 | grep -B2 "InvalidUseOfMatchers\|NullPointer\|Exception" | head -30
+[ERROR] Tests run: 11, Failures: 0, Errors: 2, Skipped: 0, Time elapsed: 1.432 s <<< FAILURE! -- in org.example.service.PortfolioTransactionServiceTest
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding -- Time elapsed: 0.020 s <<< ERROR!
+org.mockito.exceptions.misusing.InvalidUseOfMatchersException: 
+--
+
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddsHoldingViaReplay -- Time elapsed: 0.006 s <<< ERROR!
+org.mockito.exceptions.misusing.InvalidUseOfMatchersException: 
+--
+[INFO] 
+[ERROR] Errors: 
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddsHoldingViaReplay:93 » InvalidUseOfMatchers 
+--
+For more info see javadoc for Matchers class.
+
+[ERROR]   PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding:142 » InvalidUseOfMatchers 
+--
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest 2>&1 | grep -E "ERROR|Error|FAILED" | head -20
+[ERROR] Tests run: 11, Failures: 0, Errors: 2, Skipped: 0, Time elapsed: 1.454 s <<< FAILURE! -- in org.example.service.PortfolioTransactionServiceTest
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding -- Time elapsed: 0.018 s <<< ERROR!
+[ERROR] org.example.service.PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddsHoldingViaReplay -- Time elapsed: 0.004 s <<< ERROR!
+[ERROR] Errors: 
+[ERROR]   PortfolioTransactionServiceTest.recordBuy_NoExistingHolding_AddsHoldingViaReplay:93 » InvalidUseOfMatchers 
+[ERROR]   PortfolioTransactionServiceTest.recordSell_FullSell_RemovesHolding:142 » InvalidUseOfMatchers 
+[ERROR] Tests run: 11, Failures: 0, Errors: 2, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: 
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+@@ -89,9 +89,9 @@
+ 
+     verify(transactionRepository).save(argThat(tx ->
+             tx.getType() == TransactionType.BUY && tx.getQuantity() == 10));
+     verify(portfolioService).addHolding(eq(10L), eq(1L), eq(10), eq(new BigDecimal("202.00")));
+-    verify(snapshotWriter).saveSnapshots(stock, any(LocalDate.class));
++    verify(snapshotWriter).saveSnapshots(eq(stock), any(LocalDate.class));
+ }
+ 
+ @Test
+ void recordBuy_ExistingHolding_BlendsAvgCost() {
+
+[0m
+[0m← [0mEdit src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/test/java/org/example/service/PortfolioTransactionServiceTest.java
+@@ -138,9 +138,9 @@
+     transactionService.recordSell(10L, 1L, 10, new BigDecimal("150.00"),
+             new BigDecimal("10.00"), LocalDate.now(), null);
+ 
+     verify(portfolioService).removeHolding(10L, 100L);
+-    verify(snapshotWriter).saveSnapshots(stock, any(LocalDate.class));
++    verify(snapshotWriter).saveSnapshots(eq(stock), any(LocalDate.class));
+ }
+ 
+ @Test
+ void recordSell_PartialSell_RetainsAvg() {
+
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest,PortfolioPositionReplayerTest -q 2>&1 | tail -10
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+[0m
+[0m# [0mTodos
+[✓] Phase A: Create PortfolioPositionReplayer.java + tests
+[✓] Phase B: Rewrite PortfolioTransactionService with replayer, REQUIRES_NEW writer, cache evict
+[•] Phase C: Fix removeHolding/removeHoldingByStockId; add PATCH + rebuild endpoints
+[ ] Phase D: Create heal-portfolio-holdings StartupTask
+[ ] Phase E: CSV import skip date-less rows + frontend skipped UI
+[ ] Phase F: Run mvn test + verify
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioTransactionServiceTest,PortfolioPositionReplayerTest 2>&1 | grep -E "Tests run|BUILD"
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.138 s -- in org.example.service.PortfolioTransactionServiceTest
+[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.030 s -- in org.example.service.PortfolioPositionReplayerTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[0m
+[0m→ [0mRead src/main/java/org/example/service/PortfolioService.java[90m [limit=40, offset=140][0m
+[0m✱ [0mGlob "Rebuild*.java"[90m in src/main/java/org/example/dto · 0 matches[0m
+[0m✱ [0mGrep "deleteByPortfolioId"[90m in src/main/java/org/example/repository/PortfolioHoldingRepository.java · 4 matches[0m
+[0m→ [0mRead src/main/java/org/example/controller/PortfolioManagementController.java[90m [limit=50, offset=105][0m
+[0m→ [0mRead src/main/java/org/example/dto/AddHoldingRequest.java
+[0m✱ [0mGlob "UpdateHolding*.java"[90m in src/main/java/org/example/dto · 0 matches[0m
+[0m
+[0m← [0mWrite src/main/java/org/example/dto/UpdateHoldingRequest.java
+Wrote file successfully.
+[0m
+[0m← [0mWrite src/main/java/org/example/dto/RebuildHoldingsResponseDTO.java
+Wrote file successfully.
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+@@ -144,28 +144,16 @@
+             .orElseThrow(() -> new ResourceNotFoundException("Holding not found: " + holdingId));
+     if (!holding.getPortfolio().getId().equals(portfolioId)) {
+         throw new IllegalArgumentException("Holding does not belong to this portfolio");
+     }
+-    Long stockId = holding.getStock().getId();
+-    Stock stock = holding.getStock();
+-    Portfolio portfolio = holding.getPortfolio();
+-
+-    // Capture a final snapshot with the current position BEFORE deletion.
+-    // This preserves the stock's historical contribution in the portfolio trend chart.
+-    // Previously we deleted ALL snapshots here, which made the chart "go to the bottom"
+-    // by removing all historical value from the sold stock.
+-    // NOTE: Snapshot is now handled by PortfolioTransactionService to avoid duplicates.
++    holdingRepository.deleteById(holdingId);
+ }
+ 
+ public void removeHoldingByStockId(Long portfolioId, Long stockId) {
+     PortfolioHolding holding = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
+             .orElseThrow(() -> new ResourceNotFoundException(
+                     "Holding not found for portfolio " + portfolioId + " and stock " + stockId));
+-    Stock stock = holding.getStock();
+-    Portfolio portfolio = holding.getPortfolio();
+-
+-    // Capture a final snapshot before deletion (preserves chart history)
+-    // NOTE: Snapshot is now handled by PortfolioTransactionService to avoid duplicates.
++    holdingRepository.deleteById(holding.getId());
+ }
+ 
+ @Transactional(readOnly = true)
+ public HoldingDTO getHolding(Long portfolioId, Long stockId) {
+
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+@@ -227,8 +227,46 @@
+     }
+     return getHoldingsInternal(portfolioId);
+ }
+ 
++/**
++ * Rebuilds all holdings for a portfolio from the transaction ledger.
++ * Truncates existing holdings then re-inserts from replay.
++ * Returns a diff summary.
++ */
++@org.springframework.cache.annotation.CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
++public RebuildHoldingsResponseDTO rebuildHoldings(Long portfolioId) {
++    if (!portfolioRepository.existsById(portfolioId)) {
++        throw new ResourceNotFoundException("Portfolio not found: " + portfolioId);
++    }
++    int beforeCount = (int) holdingRepository.countByPortfolioId(portfolioId);
++    holdingRepository.deleteByPortfolioId(portfolioId);
++
++    Map<Long, PortfolioPositionReplayer.PositionState> states = replayer.replay(portfolioId);
++    int added = 0, updated = 0, deleted = 0;
++    for (Map.Entry<Long, PortfolioPositionReplayer.PositionState> entry : states.entrySet()) {
++        Long stockId = entry.getKey();
++        PortfolioPositionReplayer.PositionState state = entry.getValue();
++        if (state.quantity() == null || state.quantity().compareTo(BigDecimal.ZERO) <= 0) {
++            deleted++;
++            continue;
++        }
++        Stock stock = stockRepository.findById(stockId).orElse(null);
++        if (stock != null) {
++            addHolding(portfolioId, stockId, state.quantity().intValue(), state.avgCost());
++            added++;
++        }
++    }
++    int afterCount = (int) holdingRepository.countByPortfolioId(portfolioId);
++    return RebuildHoldingsResponseDTO.builder()
++            .beforeCount(beforeCount)
++            .afterCount(afterCount)
++            .added(added)
++            .updated(0)
++            .deleted(deleted)
++            .build();
++}
++
+ private List<HoldingDTO> getHoldingsInternal(Long portfolioId) {
+     return holdingRepository.findHoldingsOrderBySymbol(portfolioId).stream()
+             .map(this::computeHoldingDTO)
+             .collect(Collectors.toList());
+
+[0m
+[0m→ [0mRead src/main/java/org/example/service/PortfolioService.java[90m [limit=30, offset=1][0m
+[0m✱ [0mGrep "import.*Map|import.*BigDecimal|import.*RebuildHoldings|import.*PositionState|import.*StockRepository|import.*CacheEvict"[90m in src/main/java/org/example/service/PortfolioService.java · 100 matches[0m
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+@@ -18,9 +18,11 @@
+ 
+ import java.math.BigDecimal;
+ import java.math.RoundingMode;
+ import java.time.LocalDate;
++import java.util.LinkedHashMap;
+ import java.util.List;
++import java.util.Map;
+ import java.util.stream.Collectors;
+ 
+ @Service
+ @RequiredArgsConstructor
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -20
+[ERROR] COMPILATION ERROR : 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java:[246,69] cannot find symbol
+  symbol:   variable replayer
+  location: class org.example.service.PortfolioService
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project stockmarket: Compilation failure
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java:[246,69] cannot find symbol
+[ERROR]   symbol:   variable replayer
+[ERROR]   location: class org.example.service.PortfolioService
+[ERROR] 
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m→ [0mRead src/main/java/org/example/service/PortfolioService.java[90m [limit=15, offset=25][0m
+[0m→ [0mRead src/main/java/org/example/service/PortfolioService.java[90m [limit=15, offset=30][0m
+[0m
+[0m← [0mEdit src/main/java/org/example/service/PortfolioService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/PortfolioService.java
+@@ -34,8 +34,9 @@
+ private final PortfolioHoldingRepository holdingRepository;
+ private final StockRepository stockRepository;
+ private final DailyPriceRepository dailyPriceRepository;
+ private final PortfolioSnapshotService snapshotService;
++private final PortfolioPositionReplayer replayer;
+ 
+ // ═══════════════════════════════════════════════════════════════════
+ // Portfolio CRUD
+ // ═══════════════════════════════════════════════════════════════════
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m→ [0mRead src/main/java/org/example/controller/PortfolioManagementController.java
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/PortfolioManagementController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+@@ -8,8 +8,9 @@
+ import org.example.entity.PortfolioHolding;
+ import org.example.repository.PortfolioHoldingRepository;
+ import org.example.service.PortfolioService;
+ import org.example.service.PortfolioTransactionService;
++import org.springframework.cache.annotation.CacheEvict;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+ import org.springframework.web.bind.annotation.*;
+ 
+
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/PortfolioManagementController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+@@ -106,45 +106,25 @@
+             .body(ApiResponse.success("Holding added", dto));
+ }
+ 
+ @PatchMapping("/{portfolioId}/holdings/{holdingId}")
++@CacheEvvin(cacheNames = {"signals", "signalDto"}, allEntries = true)
+ public ResponseEntity<ApiResponse<HoldingDTO>> updateHolding(
+         @PathVariable Long portfolioId,
+         @PathVariable Long holdingId,
+-        @RequestBody AddHoldingRequest request) {
+-    // First, get the current holding via repository to know old values
++        @RequestBody UpdateHoldingRequest request) {
+     PortfolioHolding holding = holdingRepository.findById(holdingId)
+             .orElseThrow(() -> new ResourceNotFoundException("Holding not found: " + holdingId));
+     if (!holding.getPortfolio().getId().equals(portfolioId)) {
+         throw new IllegalArgumentException("Holding does not belong to this portfolio");
+     }
+-    
+-    Integer oldQty = holding.getQuantity();
+-    BigDecimal oldAvg = holding.getAvgPrice();
+-    Long stockId = holding.getStock().getId();
+ 
+-    HoldingDTO updated = portfolioService.updateHolding(portfolioId, holdingId,
+-            request.getQuantity(), request.getAvgPrice());
++    Integer quantity = request.getQuantity() != null ? request.getQuantity() : holding.getQuantity();
++    BigDecimal avgPrice = request.getAvgPrice() != null ? request.getAvgPrice() : holding.getAvgPrice();
+ 
+-    // Record transaction for quantity changes if oldQty exists
+-    if (oldQty != null && request.getQuantity() != null) {
+-        int qtyDiff = request.getQuantity() - oldQty;
+-        if (qtyDiff > 0) {
+-            // Buy increase
+-            BigDecimal priceToUse = request.getAvgPrice() != null ? request.getAvgPrice() : oldAvg;
+-            if (priceToUse != null) {
+-                transactionService.recordBuy(portfolioId, stockId, qtyDiff, priceToUse,
+-                        BigDecimal.ZERO, LocalDate.now(), "Auto - quantity increase");
+-            }
+-        } else if (qtyDiff < 0) {
+-            // Sell reduction
+-            int sellQty = Math.abs(qtyDiff);
+-            if (oldAvg != null) {
+-                transactionService.recordSell(portfolioId, stockId, sellQty, oldAvg,
+-                        BigDecimal.ZERO, LocalDate.now(), "Auto - quantity reduction");
+-            }
+-        }
+-    }
++    HoldingDTO updated = portfolioService.updateHolding(portfolioId, holdingId, quantity, avgPrice);
++    holding.setLastManualEditAt(java.time.LocalDateTime.now());
++    holdingRepository.save(holding);
+ 
+     return ResponseEntity.ok(ApiResponse.success("Holding updated", updated));
+ }
+ 
+
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/PortfolioManagementController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+@@ -131,9 +131,8 @@
+ @DeleteMapping("/{portfolioId}/holdings/{holdingId}")
+ public ResponseEntity<ApiResponse<String>> removeHolding(
+         @PathVariable Long portfolioId,
+         @PathVariable Long holdingId) {
+-    // Fetch holding details before deletion to record sell transaction
+     PortfolioHolding holding = holdingRepository.findById(holdingId)
+             .orElseThrow(() -> new ResourceNotFoundException("Holding not found: " + holdingId));
+     if (!holding.getPortfolio().getId().equals(portfolioId)) {
+         throw new IllegalArgumentException("Holding does not belong to this portfolio");
+@@ -142,17 +141,16 @@
+     Long stockId = holding.getStock().getId();
+     Integer quantity = holding.getQuantity();
+     BigDecimal avgPrice = holding.getAvgPrice();
+ 
+-    // Record sell transaction before removal
++    // Record sell transaction before removal — this also syncs the holding projection
+     if (quantity != null && quantity > 0 && avgPrice != null) {
+         transactionService.recordSell(portfolioId, stockId, quantity, avgPrice,
+                 BigDecimal.ZERO, LocalDate.now(), "Auto - position removed");
++    } else {
++        portfolioService.removeHolding(portfolioId, holdingId);
+     }
+ 
+-    // Now let Service handle deletion (including snapshot before delete)
+-    portfolioService.removeHolding(portfolioId, holdingId);
+-
+     return ResponseEntity.ok(ApiResponse.success("Holding removed"));
+ }
+ 
+ @GetMapping("/{portfolioId}/holdings/stock/{stockId}")
+
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/PortfolioManagementController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+@@ -164,25 +164,23 @@
+ @DeleteMapping("/{portfolioId}/holdings/stock/{stockId}")
+ public ResponseEntity<ApiResponse<String>> removeHoldingByStockId(
+         @PathVariable Long portfolioId,
+         @PathVariable Long stockId) {
+-    // Fetch holding details before deletion to record sell transaction
+     PortfolioHolding holding = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
+             .orElseThrow(() -> new ResourceNotFoundException(
+                     "Holding not found for portfolio " + portfolioId + " and stock " + stockId));
+ 
+     Integer quantity = holding.getQuantity();
+     BigDecimal avgPrice = holding.getAvgPrice();
+ 
+-    // Record sell transaction before removal
++    // Record sell transaction before removal — this also syncs the holding projection
+     if (quantity != null && quantity > 0 && avgPrice != null) {
+         transactionService.recordSell(portfolioId, stockId, quantity, avgPrice,
+                 BigDecimal.ZERO, LocalDate.now(), "Auto - position removed");
++    } else {
++        portfolioService.removeHoldingByStockId(portfolioId, stockId);
+     }
+ 
+-    // Now let Service handle deletion (including snapshot before delete)
+-    portfolioService.removeHoldingByStockId(portfolioId, stockId);
+-
+     return ResponseEntity.ok(ApiResponse.success("Holding removed"));
+ }
+ 
+ @PostMapping("/{id}/recalculate")
+
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/PortfolioManagementController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+@@ -188,8 +188,15 @@
+     int count = portfolioService.recalculatePortfolio(id);
+     return ResponseEntity.ok(ApiResponse.success("Recalculated " + count + " holdings"));
+ }
+ 
++@PostMapping("/{id}/rebuild-holdings")
++@CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
++public ResponseEntity<ApiResponse<RebuildHoldingsResponseDTO>> rebuildHoldings(@PathVariable Long id) {
++    RebuildHoldingsResponseDTO result = portfolioService.rebuildHoldings(id);
++    return ResponseEntity.ok(ApiResponse.success("Holdings rebuilt", result));
++}
++
+ // ──────────────────────────────────────────────────────────────
+ // Transactions (ledger)
+ // ──────────────────────────────────────────────────────────────
+ 
+
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/PortfolioManagementController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/PortfolioManagementController.java
+@@ -106,9 +106,9 @@
+             .body(ApiResponse.success("Holding added", dto));
+ }
+ 
+ @PatchMapping("/{portfolioId}/holdings/{holdingId}")
+-@CacheEvvin(cacheNames = {"signals", "signalDto"}, allEntries = true)
++@CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
+ public ResponseEntity<ApiResponse<HoldingDTO>> updateHolding(
+         @PathVariable Long portfolioId,
+         @PathVariable Long holdingId,
+         @RequestBody UpdateHoldingRequest request) {
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -15
+(no output)
+[0m
+[0m# [0mTodos
+[✓] Phase A: Create PortfolioPositionReplayer.java + tests
+[✓] Phase B: Rewrite PortfolioTransactionService with replayer, REQUIRES_NEW writer, cache evict
+[✓] Phase C: Fix removeHolding/removeHoldingByStockId; add PATCH + rebuild endpoints
+[•] Phase D: Create heal-portfolio-holdings StartupTask
+[ ] Phase E: CSV import skip date-less rows + frontend skipped UI
+[ ] Phase F: Run mvn test + verify
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioServiceTest,PortfolioManagementControllerIntegrationTest -q 2>&1 | tail -20
+[ERROR] Failures: 
+[ERROR]   PortfolioManagementControllerIntegrationTest.recordTransaction_SellWithoutHolding_ThrowsResourceNotFound:277 Unexpected exception type thrown, expected: <org.example.exception.ResourceNotFoundException> but was: <java.lang.IllegalArgumentException>
+[ERROR] Errors: 
+[ERROR]   PortfolioManagementControllerIntegrationTest.deleteTransaction_RemovesRow:258 » IllegalArgument Cannot find cache named 'signalDto' for Builder[public org.example.dto.TransactionDTO org.example.service.PortfolioTransactionService.recordBuy(java.lang.Long,java.lang.Long,java.lang.Integer,java.math.BigDecimal,java.math.BigDecimal,java.time.LocalDate,java.lang.String)] caches=[signals, signalDto] | key='' | keyGenerator='' | cacheManager='' | cacheResolver='' | condition='',true,false
+[ERROR]   PortfolioManagementControllerIntegrationTest.getTransactions_AfterBuy_ReturnsListWithOneRow:222 » IllegalArgument Cannot find cache named 'signalDto' for Builder[public org.example.dto.TransactionDTO org.example.service.PortfolioTransactionService.recordBuy(java.lang.Long,java.lang.Long,java.lang.Integer,java.math.BigDecimal,java.math.BigDecimal,java.time.LocalDate,java.lang.String)] caches=[signals, signalDto] | key='' | keyGenerator='' | cacheManager='' | cacheResolver='' | condition='',true,false
+[ERROR]   PortfolioManagementControllerIntegrationTest.getTransactions_WithStockIdFilter_ReturnsFiltered:241 » IllegalArgument Cannot find cache named 'signalDto' for Builder[public org.example.dto.TransactionDTO org.example.service.PortfolioTransactionService.recordBuy(java.lang.Long,java.lang.Long,java.lang.Integer,java.math.BigDecimal,java.math.BigDecimal,java.time.LocalDate,java.lang.String)] caches=[signals, signalDto] | key='' | keyGenerator='' | cacheManager='' | cacheResolver='' | condition='',true,false
+[ERROR]   PortfolioManagementControllerIntegrationTest.recordTransaction_Buy_CreatesHoldingAndReturnsDto:199 » IllegalArgument Cannot find cache named 'signalDto' for Builder[public org.example.dto.TransactionDTO org.example.service.PortfolioTransactionService.recordBuy(java.lang.Long,java.lang.Long,java.lang.Integer,java.math.BigDecimal,java.math.BigDecimal,java.time.LocalDate,java.lang.String)] caches=[signals, signalDto] | key='' | keyGenerator='' | cacheManager='' | cacheResolver='' | condition='',true,false
+[ERROR] Tests run: 18, Failures: 1, Errors: 4, Skipped: 0
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m→ [0mRead src/main/java/org/example/CacheConfig.java
+[0m→ [0mRead src/test/java/org/example/controller/PortfolioManagementControllerIntegrationTest.java[90m [limit=30, offset=268][0m
+[0m
+[0m← [0mEdit src/main/java/org/example/CacheConfig.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/CacheConfig.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/CacheConfig.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/CacheConfig.java
+@@ -21,8 +21,8 @@
+         manager.setCaffeine(Caffeine.newBuilder()
+                 .expireAfterWrite(15, TimeUnit.MINUTES)
+                 .maximumSize(500));
+         // Configure for indicatorHistory cache
+-        manager.setCacheNames(java.util.Arrays.asList("latestIndicators", "indicatorHistory", "stockHistory", "signals", "supportResistanceLevels", "institutionalScores", "smcPatterns"));
++        manager.setCacheNames(java.util.Arrays.asList("latestIndicators", "indicatorHistory", "stockHistory", "signals", "signalDto", "supportResistanceLevels", "institutionalScores", "smcPatterns"));
+         return manager;
+     }
+ }
+\ No newline at end of file
+
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioManagementControllerIntegrationTest -q 2>&1 | tail -15
+(no output)
+
+<shell_metadata>
+shell tool terminated command after exceeding timeout 120000 ms. If this command is expected to take longer and is not waiting for interactive input, retry with a larger timeout value in milliseconds.
+</shell_metadata>
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m$ [0mmvn test -Dtest=PortfolioManagementControllerIntegrationTest 2>&1 | grep -E "Tests run|BUILD|ERROR" | head -20
+2026-08-23T13:03:03.616+05:30 ERROR 73364 --- [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Lock wait timeout exceeded; try restarting transaction
+2026-08-23T13:03:54.034+05:30 ERROR 73364 --- [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Lock wait timeout exceeded; try restarting transaction
+2026-08-23T13:04:45.348+05:30 ERROR 73364 --- [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Lock wait timeout exceeded; try restarting transaction
+2026-08-23T13:05:36.689+05:30 ERROR 73364 --- [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Lock wait timeout exceeded; try restarting transaction
+2026-08-23T13:06:28.168+05:30 ERROR 73364 --- [           main] o.h.engine.jdbc.spi.SqlExceptionHelper   : Lock wait timeout exceeded; try restarting transaction
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 267.6 s -- in org.example.controller.PortfolioManagementControllerIntegrationTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+[0m
+[0m← [0mWrite src/main/java/org/example/startup/PortfolioHealingStartupTask.java
+Wrote file successfully.
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -20
+[ERROR] COMPILATION ERROR : 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/startup/PortfolioHealingStartupTask.java:[150,47] cannot find symbol
+  symbol:   class context
+  location: package org.springframework
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/startup/PortfolioHealingStartupTask.java:[150,17] cannot infer type for local variable stockOpt
+  (variable initializer is 'null')
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project stockmarket: Compilation failure: Compilation failure: 
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/startup/PortfolioHealingStartupTask.java:[150,47] cannot find symbol
+[ERROR]   symbol:   class context
+[ERROR]   location: package org.springframework
+[ERROR] /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/startup/PortfolioHealingStartupTask.java:[150,17] cannot infer type for local variable stockOpt
+[ERROR]   (variable initializer is 'null')
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m
+[0m← [0mWrite src/main/java/org/example/startup/PortfolioHealingStartupTask.java
+Wrote file successfully.
+[0m
+[0m# [0mTodos
+[✓] Phase A: Create PortfolioPositionReplayer.java + tests
+[✓] Phase B: Rewrite PortfolioTransactionService with replayer, REQUIRES_NEW writer, cache evict
+[✓] Phase C: Fix removeHolding/removeHoldingByStockId; add PATCH + rebuild endpoints
+[✓] Phase D: Create heal-portfolio-holdings StartupTask
+[•] Phase E: CSV import skip date-less rows + frontend skipped UI
+[ ] Phase F: Run mvn test + verify
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m✱ [0mGrep "csvImport|skippedRecords"[90m in src/main/resources/static/js/api.js · 6 matches[0m
+[0m→ [0mRead src/main/java/org/example/controller/StockController.java[90m [limit=30, offset=1][0m
+[0m✱ [0mGlob "CsvImport*.java"[90m in src/main/java/org/example/dto · 1 match[0m
+[0m→ [0mRead src/main/resources/static/js/api.js[90m [limit=15, offset=95][0m
+[0m→ [0mRead src/main/java/org/example/controller/StockController.java[90m [limit=30, offset=100][0m
+[0m→ [0mRead src/main/java/org/example/dto/CsvImportRequest.java
+[0m
+[0m← [0mWrite src/main/java/org/example/dto/SkippedRecordDTO.java
+Wrote file successfully.
+[0m
+[0m← [0mWrite src/main/java/org/example/dto/CsvImportResultDTO.java
+Wrote file successfully.
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/StockController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/StockController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/StockController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/StockController.java
+@@ -100,11 +100,27 @@
+     return ResponseEntity.ok(ApiResponse.success(results));
+ }
+ 
+ @PostMapping("/csv-import")
+-public ResponseEntity<ApiResponse<List<StockDTO>>> csvImport(@RequestBody List<CsvImportRequest> requests) {
+-    List<StockDTO> results = requests.stream().map(req -> {
++public ResponseEntity<ApiResponse<CsvImportResultDTO>> csvImport(@RequestBody List<CsvImportRequest> requests) {
++    List<StockDTO> results = new java.util.ArrayList<>();
++    List<SkippedRecordDTO> skipped = new java.util.ArrayList<>();
++
++    for (int i = 0; i < requests.size(); i++) {
++        CsvImportRequest req = requests.get(i);
+         String trimmedSymbol = req.getSymbol() != null ? req.getSymbol().trim() : null;
++
++        // Skip rows without valid purchase data (quantity set but no avgPrice / cost basis)
++        if ((req.getQuantity() == null || req.getQuantity() <= 0)
++                && (req.getAvgPrice() == null || req.getAvgPrice().compareTo(java.math.BigDecimal.ZERO) <= 0)) {
++            skipped.add(SkippedRecordDTO.builder()
++                    .rowIndex(i + 1)
++                    .symbol(trimmedSymbol != null ? trimmedSymbol : "(empty)")
++                    .reason("No valid purchase data: quantity and avgPrice are missing or zero")
++                    .build());
++            continue;
++        }
++
+         boolean isNew = trimmedSymbol != null && !stockRepository.existsBySymbol(trimmedSymbol);
+         Stock stock = stockService.getOrCreateStock(req.getSymbol(), req.getName(), req.getSector(), req.getIndustry());
+         stock.setQuantity(req.getQuantity());
+         stock.setAvgPrice(req.getAvgPrice());
+@@ -115,11 +131,18 @@
+         stockService.syncPortfolioHoldings(stock);
+         if (isNew) {
+             applicationEventPublisher.publishEvent(new StockCreatedEvent(this, stock.getId()));
+         }
+-        return stockService.getStockDTO(stock);
+-    }).collect(Collectors.toList());
+-    return ResponseEntity.ok(ApiResponse.success(results));
++        results.add(stockService.getStockDTO(stock));
++    }
++
++    CsvImportResultDTO result = CsvImportResultDTO.builder()
++            .results(results)
++            .skippedRecords(skipped)
++            .totalProcessed(results.size())
++            .totalSkipped(skipped.size())
++            .build();
++    return ResponseEntity.ok(ApiResponse.success("CSV import complete", result));
+ }
+ 
+ @GetMapping("/{id}/daily-prices")
+ public ResponseEntity<ApiResponse<List<DailyPriceDTO>>> getDailyPrices(
+
+[0m
+[0m→ [0mRead src/main/java/org/example/dto/ApiResponse.java
+[0m→ [0mRead src/main/resources/static/js/stock-management.js[90m [limit=60, offset=694][0m
+[0m
+[0m← [0mEdit src/main/resources/static/js/stock-management.js
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/resources/static/js/stock-management.js
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/resources/static/js/stock-management.js
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/resources/static/js/stock-management.js
+@@ -713,15 +713,19 @@
+     const res = await csvImportApi(payload);
+     const resultDiv = document.getElementById('csvImportResult');
+     resultDiv.style.display = 'block';
+ 
++    const body = res.data || {};
++    const skipped = body.skippedRecords || [];
++    const results = body.results || [];
++
+     // If a portfolio is selected, upsert each imported stock as a holding
+-    if (currentPortfolioId) {
++    let holdingCount = 0;
++    let updateCount = 0;
++    if (currentPortfolioId && results.length > 0) {
+         const allStocksRes = await getAllStocks();
+         const allExisting = allStocksRes.data || [];
+-        let holdingCount = 0;
+-        let updateCount = 0;
+-        for (const r of parsedCsvData) {
++        for (const r of results) {
+             const match = allExisting.find(s => s.symbol.toUpperCase() === (r.symbol || '').toUpperCase());
+             if (match && (r.quantity != null || r.avgPrice != null)) {
+                 try {
+                     const existing = await getPortfolioHoldingByStock(currentPortfolioId, match.id);
+@@ -734,13 +738,29 @@
+                     } catch (__) {}
+                 }
+             }
+         }
+-        resultDiv.innerHTML = `<div class="alert alert-success mb-0">✅ ${res.message} (${holdingCount} added, ${updateCount} updated in portfolio)</div>`;
+-    } else {
+-        resultDiv.innerHTML = `<div class="alert alert-success mb-0">✅ ${res.message}</div>`;
+     }
+ 
++    let html = `<div class="alert alert-success mb-0">✅ ${res.message} (${results.length} processed`;
++    if (skipped.length > 0) {
++        html += `, ${skipped.length} skipped`;
++    }
++    if (currentPortfolioId) {
++        html += `, ${holdingCount} added, ${updateCount} updated in portfolio`;
++    }
++    html += `)</div>`;
++
++    if (skipped.length > 0) {
++        html += `<div class="alert alert-warning mt-2 mb-0">`;
++        html += `<strong>Skipped records (${skipped.length}):</strong><ul class="mb-0 mt-1">`;
++        for (const s of skipped) {
++            html += `<li class="text-danger">Row ${s.rowIndex}: ${escHtml(s.symbol || '(empty)')} — ${escHtml(s.reason)}</li>`;
++        }
++        html += `</ul></div>`;
++    }
++    resultDiv.innerHTML = html;
++
+     document.getElementById('csvPreviewSection').style.display = 'none';
+     btn.style.display = 'none';
+     loadStocks();
+ } catch (e) {
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m→ [0mRead src/main/java/org/example/service/StockService.java[90m [limit=30, offset=328][0m
+[0m→ [0mRead src/main/java/org/example/controller/StartupTaskController.java[90m [limit=20, offset=40][0m
+[0m→ [0mRead src/main/java/org/example/service/StockService.java[90m [limit=20, offset=1][0m
+[0m✱ [0mGrep "import.*PortfolioTransaction|import.*PortfolioPosition"[90m in src/main/java/org/example/service/StockService.java · 4 matches[0m
+[0m
+[0m# [0mTodos
+[✓] Phase A: Create PortfolioPositionReplayer.java + tests
+[✓] Phase B: Rewrite PortfolioTransactionService with replayer, REQUIRES_NEW writer, cache evict
+[✓] Phase C: Fix removeHolding/removeHoldingByStockId; add PATCH + rebuild endpoints
+[✓] Phase D: Create heal-portfolio-holdings StartupTask
+[✓] Phase E: CSV import skip date-less rows + frontend skipped UI
+[•] Phase F: Run mvn test + verify
+[0m
+[0m← [0mEdit src/main/java/org/example/service/StockService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/StockService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/StockService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/StockService.java
+@@ -50,8 +50,9 @@
+ private final InstitutionalHoldingRepository institutionalHoldingRepository;
+ private final WatchlistItemRepository watchlistItemRepository;
+ private final SignalRecordRepository signalRecordRepository;
+ private final TechnicalIndicatorRepository technicalIndicatorRepository;
++private final PortfolioTransactionService portfolioTransactionService;
+ 
+ public Stock addStock(Stock stock) {
+     if (stockRepository.existsBySymbol(stock.getSymbol())) {
+         throw new IllegalArgumentException("Stock with symbol " + stock.getSymbol() + " already exists");
+
+[0m
+[0m← [0mEdit src/main/java/org/example/controller/StartupTaskController.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/StartupTaskController.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/StartupTaskController.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/controller/StartupTaskController.java
+@@ -43,8 +43,9 @@
+ private static final List<String> EXECUTION_ORDER = List.of(
+         "portfolio-migration",
+         "portfolio-snapshot",
+         "sell-lot-backfill",
++        "heal-portfolio-holdings",
+         "strategy-conditions",
+         "score-params",
+         "data-sync",
+         "fundamental-data",
+
+[0m
+[0m← [0mEdit src/main/java/org/example/service/StockService.java
+Index: /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/StockService.java
+===================================================================
+--- /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/StockService.java
++++ /Users/sibanandasahoo/Documents/projects/stockmarket/src/main/java/org/example/service/StockService.java
+@@ -326,30 +326,38 @@
+     return stocks.size();
+ }
+ 
+ /**
+- * Syncs the Stock entity's quantity/avgPrice to all PortfolioHolding records
+- * for this stock. This keeps the stocks table and portfolio_holdings table
+- * in sync when portfolio data is updated via the stock management page.
++ * Syncs the Stock entity's quantity/avgPrice to the default PortfolioHolding record
++ * by recording a BUY transaction through the ledger engine. This ensures the
++ * transaction ledger remains the single source of truth for holding state.
+  */
+ public void syncPortfolioHoldings(Stock stock) {
+-    // Only sync to the default portfolio — prevents overwriting
+-    // portfolio-specific holdings in custom portfolios.
+     Portfolio defaultPort = portfolioRepository.findByIsDefaultTrue().orElse(null);
+     if (defaultPort == null) return;
+ 
+-    PortfolioHolding holding = portfolioHoldingRepository
+-            .findByPortfolioIdAndStockId(defaultPort.getId(), stock.getId())
+-            .orElseGet(() -> {
+-                PortfolioHolding h = new PortfolioHolding();
+-                h.setPortfolio(defaultPort);
+-                h.setStock(stock);
+-                return h;
+-            });
++    PortfolioHolding existing = portfolioHoldingRepository
++            .findByPortfolioIdAndStockId(defaultPort.getId(), stock.getId()).orElse(null);
+ 
+-    holding.setQuantity(stock.getQuantity());
+-    holding.setAvgPrice(stock.getAvgPrice());
+-    portfolioHoldingRepository.save(holding);
++    // If holding is new or has invalid/zero state, record a fresh BUY transaction
++    // so the replayer derives the correct avg cost from the ledger.
++    if (existing == null
++            || existing.getQuantity() == null || existing.getQuantity() == 0
++            || existing.getAvgPrice() == null) {
++        if (stock.getQuantity() != null && stock.getQuantity() > 0
++                && stock.getAvgPrice() != null && stock.getAvgPrice().compareTo(BigDecimal.ZERO) > 0) {
++            portfolioTransactionService.recordBuy(
++                    defaultPort.getId(), stock.getId(), stock.getQuantity(),
++                    stock.getAvgPrice(), BigDecimal.ZERO, LocalDate.now(), "CSV sync");
++        }
++        return;
++    }
++
++    // For existing valid holdings, update quantity/avgPrice directly
++    // (preserves manual edits that weren't done via transactions)
++    existing.setQuantity(stock.getQuantity());
++    existing.setAvgPrice(stock.getAvgPrice());
++    portfolioHoldingRepository.save(existing);
+     log.debug("Synced holding for stock {} in default portfolio (id={})",
+             stock.getSymbol(), defaultPort.getId());
+ }
+ 
+
+[0m
+[0m$ [0mmvn compile -q 2>&1 | tail -10
+(no output)
+[0m
+[0m$ [0mmvn test -q 2>&1 | tail -40
+[ERROR]   RsiStrategyTest.testRsiHold_NeutralLow:62 expected: <0.5> but was: <0.45>
+[ERROR]   VolumeStrategyTest.testClosePosition_StrongAccumulation:182 expected: <0.75> but was: <0.7>
+[ERROR]   VolumeStrategyTest.testClosePosition_StrongDistribution:195 expected: <SELL> but was: <BUY>
+[ERROR]   VolumeStrategyTest.testObvDownWithSpike_Sell:249 expected: <SELL> but was: <BUY>
+[ERROR]   VolumeStrategyTest.testVolumeSell_SpikeWithFallingPrice:61 expected: <SELL> but was: <BUY>
+[ERROR]   VolumeStrategyTest.testZeroRangeDay_Neutral:212 expected: <true> but was: <false>
+[ERROR] Errors: 
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioChartControllerIntegrationTest.setUp:83->clearAllData:61 » DataIntegrityViolation StatementCallback; SQL [DELETE FROM portfolios]; Cannot delete or update a parent row: a foreign key constraint fails (`stockmarket`.`portfolio_transactions`, CONSTRAINT `FK4p31v7t6wgnx2qgx8o9f9rpax` FOREIGN KEY (`portfolio_id`) REFERENCES `portfolios` (`id`))
+[ERROR]   PortfolioLotSellServiceTest.deleteTransaction_BuyWithoutLinkedSells_Deletes:264 » NullPointer Cannot invoke "org.example.service.PortfolioPositionReplayer.replay(java.lang.Long)" because "this.replayer" is null
+[ERROR]   StrategyConditionServiceTest.testBuildVolumeConditionsReadsSpikeFactorProperty:119 » NoSuchMethod org.example.service.StrategyConditionService.buildVolumeConditions()
+[ERROR]   StrategyConditionServiceTest.testBuildVolumeConditions_DefaultSpikeFactor:139 » NoSuchMethod org.example.service.StrategyConditionService.buildVolumeConditions()
+[ERROR]   MultiStrategySignalEngineTest.testEvaluate_EmptyActiveSet_PassedThroughToAggregator:186 » ResourceNotFound No price data found for stock 1
+[ERROR]   MultiStrategySignalEngineTest.testEvaluate_NoIndicators_FallsBackToComputation:118 » ResourceNotFound No price data found for stock 1
+[ERROR]   MultiStrategySignalEngineTest.testEvaluate_NullActiveSet_UsesDbState:162 » ResourceNotFound No price data found for stock 1
+[ERROR]   MultiStrategySignalEngineTest.testEvaluate_Success:84 » ResourceNotFound No price data found for stock 1
+[ERROR]   MultiStrategySignalEngineTest.testEvaluate_WithActiveSet_PassesToAggregator:140 » ResourceNotFound No price data found for stock 1
+[ERROR] Tests run: 950, Failures: 9, Errors: 21, Skipped: 2
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.1.2:test (default-test) on project stockmarket: There are test failures.
+[ERROR] 
+[ERROR] Please refer to /Users/sibanandasahoo/Documents/projects/stockmarket/target/surefire-reports for the individual test results.
+[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException
+[0m

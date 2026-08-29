@@ -98,20 +98,8 @@
         "nvidia/llama-3.1-nemoguard-8b-content-safety": {
           "name": "Llama 3 1 Nemoguard 8b Content Safety"
         },
-        "nvidia/llama-3.1-nemoguard-8b-topic-control": {
-          "name": "Llama 3 1 Nemoguard 8b Topic Control"
-        },
-        "nvidia/llama-3.1-nemotron-nano-vl-8b-v1": {
-          "name": "Llama 3 1 Nemotron Nano Vl 8b V1"
-        },
         "nvidia/llama-3.1-nemotron-safety-guard-8b-v3": {
           "name": "Llama 3 1 Nemotron Safety Guard 8b V3"
-        },
-        "nvidia/llama-3.3-nemotron-super-49b-v1": {
-          "name": "Llama 3 3 Nemotron Super 49b V1"
-        },
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5": {
-          "name": "Llama 3 3 Nemotron Super 49b V1 5"
         },
         "nvidia/nemotron-3-nano-30b-a3b": {
           "name": "Nemotron 3 Nano 30b A3b"
@@ -131,12 +119,6 @@
         "nvidia/nemotron-3.5-lightning-30b-a3b": {
           "name": "Nemotron 3 5 Lightning 30b A3b"
         },
-        "nvidia/nemotron-mini-4b-instruct": {
-          "name": "Nemotron Mini 4b Instruct"
-        },
-        "nvidia/nvidia-nemotron-nano-9b-v2": {
-          "name": "Nvidia Nemotron Nano 9b V2"
-        },
         "nvidia/riva-translate-4b-instruct-v1.1": {
           "name": "Riva Translate 4b Instruct V1 1"
         },
@@ -150,19 +132,13 @@
       "whitelist": [
         "nvidia/ising-calibration-1.5-31b",
         "nvidia/llama-3.1-nemoguard-8b-content-safety",
-        "nvidia/llama-3.1-nemoguard-8b-topic-control",
-        "nvidia/llama-3.1-nemotron-nano-vl-8b-v1",
         "nvidia/llama-3.1-nemotron-safety-guard-8b-v3",
-        "nvidia/llama-3.3-nemotron-super-49b-v1",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
         "nvidia/nemotron-3-nano-30b-a3b",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
         "nvidia/nemotron-3-super-120b-a12b",
         "nvidia/nemotron-3-ultra-550b-a55b",
         "nvidia/nemotron-3.5-content-safety",
         "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-mini-4b-instruct",
-        "nvidia/nvidia-nemotron-nano-9b-v2",
         "nvidia/riva-translate-4b-instruct-v1.1",
         "nvidia/riva-translate-4b-instruct-v2"
       ]
@@ -177,8 +153,14 @@
         "dots-studio/dots-3-note-preview:free": {
           "name": "Dots 3 Note Preview"
         },
-        "liquid/lfm-2.5-2.6b:free": {
-          "name": "Lfm 2 5 2 6b"
+        "inclusionai/ling-3.0-flash-fin:free": {
+          "name": "Ling 3 0 Flash Fin"
+        },
+        "minimax/minimax-m2.7:free": {
+          "name": "Minimax M2 7"
+        },
+        "minimax/minimax-m3:free": {
+          "name": "Minimax M3"
         },
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
           "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
@@ -195,14 +177,11 @@
         "nvidia/nemotron-3.5-lightning:free": {
           "name": "Nemotron 3 5 Lightning"
         },
+        "openrouter/free": {
+          "name": "Free"
+        },
         "poolside/laguna-s-2.1:free": {
           "name": "Laguna S 2 1"
-        },
-        "poolside/laguna-xs-2.1:free": {
-          "name": "Laguna Xs 2 1"
-        },
-        "stealth/ox-alpha": {
-          "name": "Ox Alpha"
         }
       },
       "options": {
@@ -211,15 +190,16 @@
       "whitelist": [
         "cohere/north-mini-code:free",
         "dots-studio/dots-3-note-preview:free",
-        "liquid/lfm-2.5-2.6b:free",
+        "inclusionai/ling-3.0-flash-fin:free",
+        "minimax/minimax-m2.7:free",
+        "minimax/minimax-m3:free",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
         "nvidia/nemotron-3.5-content-safety:free",
         "nvidia/nemotron-3.5-lightning:free",
-        "poolside/laguna-s-2.1:free",
-        "poolside/laguna-xs-2.1:free",
-        "stealth/ox-alpha"
+        "openrouter/free",
+        "poolside/laguna-s-2.1:free"
       ]
     },
     "google": {
@@ -247,11 +227,11 @@
         "gemini-3.5-flash-lite": {
           "name": "Gemini 3 5 Flash Lite"
         },
+        "gemini-3.5-transcribe": {
+          "name": "Gemini 3 5 Transcribe"
+        },
         "gemini-3.6-flash": {
           "name": "Gemini 3 6 Flash"
-        },
-        "gemini-3.7-flash": {
-          "name": "Gemini 3 7 Flash"
         },
         "gemini-flash-latest": {
           "name": "Gemini Flash Latest"
@@ -283,8 +263,8 @@
         "gemini-3.1-flash-lite-preview",
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
+        "gemini-3.5-transcribe",
         "gemini-3.6-flash",
-        "gemini-3.7-flash",
         "gemini-flash-latest",
         "gemini-flash-lite-latest",
         "gemini-robotics-er-1.6-preview",
@@ -303,22 +283,23 @@
       "whitelist": [
         "cohere/north-mini-code:free",
         "dots-studio/dots-3-note-preview:free",
+        "inclusionai/ling-3.0-flash-fin:free",
         "kilo-auto/free",
         "kilo-auto/small",
         "liquid/lfm-2.5-2.6b:free",
         "meituan/longcat-2.0-free",
+        "minimax/minimax-m2.7:free",
+        "minimax/minimax-m3:free",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         "nvidia/nemotron-3-super-120b-a12b:free",
         "nvidia/nemotron-3-ultra-550b-a55b:free",
+        "nvidia/nemotron-3.5-content-safety:free",
         "nvidia/nemotron-3.5-lightning:free",
         "openrouter/free",
         "poolside/laguna-s-2.1:free",
         "poolside/laguna-xs-2.1:free",
-        "stealth/ox-alpha",
         "stepfun/step-3.7-flash:free",
-        "tencent/hy3:free",
-        "thinkingmachines/inkling-small:free",
-        "thinkingmachines/inkling:free"
+        "tencent/hy3:free"
       ],
       "models": {
         "cohere/north-mini-code:free": {
@@ -326,6 +307,9 @@
         },
         "dots-studio/dots-3-note-preview:free": {
           "name": "Dots 3 Note Preview"
+        },
+        "inclusionai/ling-3.0-flash-fin:free": {
+          "name": "Ling 3 0 Flash Fin"
         },
         "kilo-auto/free": {
           "name": "Free"
@@ -339,6 +323,12 @@
         "meituan/longcat-2.0-free": {
           "name": "Longcat 2 0 Free"
         },
+        "minimax/minimax-m2.7:free": {
+          "name": "Minimax M2 7"
+        },
+        "minimax/minimax-m3:free": {
+          "name": "Minimax M3"
+        },
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
           "name": "Nemotron 3 Nano Omni 30b A3b Reasoning"
         },
@@ -347,6 +337,9 @@
         },
         "nvidia/nemotron-3-ultra-550b-a55b:free": {
           "name": "Nemotron 3 Ultra 550b A55b"
+        },
+        "nvidia/nemotron-3.5-content-safety:free": {
+          "name": "Nemotron 3 5 Content Safety"
         },
         "nvidia/nemotron-3.5-lightning:free": {
           "name": "Nemotron 3 5 Lightning"
@@ -360,20 +353,11 @@
         "poolside/laguna-xs-2.1:free": {
           "name": "Laguna Xs 2 1"
         },
-        "stealth/ox-alpha": {
-          "name": "Ox Alpha"
-        },
         "stepfun/step-3.7-flash:free": {
           "name": "Step 3 7 Flash"
         },
         "tencent/hy3:free": {
           "name": "Hy3"
-        },
-        "thinkingmachines/inkling-small:free": {
-          "name": "Inkling Small"
-        },
-        "thinkingmachines/inkling:free": {
-          "name": "Inkling"
         }
       }
     }
