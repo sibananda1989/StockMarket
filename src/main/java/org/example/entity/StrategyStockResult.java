@@ -52,6 +52,12 @@ public class StrategyStockResult {
     @Column(name = "snapshot_date", nullable = false)
     private LocalDate snapshotDate;
 
+    /**
+     * Date of the underlying signal event (e.g. the EMA cross day); null for state-based strategies.
+     */
+    @Column(name = "event_date")
+    private LocalDate eventDate;
+
     @Column(name = "computed_at")
     private LocalDateTime computedAt;
 }

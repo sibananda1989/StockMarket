@@ -2,6 +2,8 @@ package org.example.strategy.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.time.LocalDate;
+
 /**
  * Immutable result from a single strategy evaluation.
  *
@@ -14,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * @param latestVolume    latest trading volume (for volume strategy tooltip)
  * @param avgVolume       average trading volume over the lookback period (for volume strategy tooltip)
  * @param spikeThreshold  volume spike threshold (VOLUME_SPIKE_FACTOR * avgVolume) (for volume strategy tooltip)
+ * @param eventDate       date of the underlying signal event (e.g. the EMA cross day); null for state-based strategies
  */
 public record StrategyResult(
         StrategySignal signal,
@@ -24,7 +27,8 @@ public record StrategyResult(
         double contribution,
         Long latestVolume,
         Double avgVolume,
-        Double spikeThreshold
+        Double spikeThreshold,
+        LocalDate eventDate
 ) {
 
     /**
@@ -36,7 +40,7 @@ public record StrategyResult(
             String reason,
             String strategyName,
             int priority) {
-        return new StrategyResult(signal, confidence, reason, strategyName, priority, 0.0, null, null, null);
+        return new StrategyResult(signal, confidence, reason, strategyName, priority, 0.0, null, null, null, null);
     }
 
     /**
@@ -51,6 +55,20 @@ public record StrategyResult(
             Long latestVolume,
             Double avgVolume,
             Double spikeThreshold) {
-        return new StrategyResult(signal, confidence, reason, strategyName, priority, 0.0, latestVolume, avgVolume, spikeThreshold);
+        return new StrategyResult(signal, confidence, reason, strategyName, priority, 0.0, latestVolume, avgVolume, spikeThreshold, null);
+    }
+
+    /**
+     * Creates a StrategyResult without contribution, carrying the date of the signal event
+     * (e.g. the day an EMA-20/50 cross occurred).
+     */
+    public static StrategyResult withoutContributionWithEventDate(
+            StrategySignal signal,
+            double confidence,
+            String reason,
+            String strategyName,
+            int priority,
+            LocalDate eventDate) {
+        return new StrategyResult(signal, confidence, reason, strategyName, priority, 0.0, null, null, null, eventDate);
     }
 }

@@ -31,10 +31,11 @@ class VolumeStrategyTest {
     @BeforeEach
     void setUp() {
         strategy = new VolumeStrategy(5, 1.5);
+        // Ascending order (oldest first) — VolumeStrategy reads the LAST bar as the latest
         prices = List.of(
-                bar(105.00, 100.00, 110.00, 95.00, 15000L, 0),
+                bar(95.00, 90.00, 100.00, 85.00, 10000L, 2),
                 bar(100.00, 95.00, 105.00, 90.00, 10000L, 1),
-                bar(95.00, 90.00, 100.00, 85.00, 10000L, 2)
+                bar(105.00, 100.00, 110.00, 95.00, 15000L, 0)
         );
         indicators = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now())
@@ -54,8 +55,8 @@ class VolumeStrategyTest {
     @Test
     void testVolumeSell_SpikeWithFallingPrice() {
         prices = List.of(
-                bar(95.00, 100.00, 105.00, 90.00, 15000L, 0),
-                bar(100.00, 95.00, 105.00, 90.00, 10000L, 1)
+                bar(100.00, 95.00, 105.00, 90.00, 10000L, 1),
+                bar(95.00, 100.00, 105.00, 90.00, 15000L, 0)
         );
         StrategyResult result = strategy.evaluate(1L, indicators, prices);
         assertEquals(StrategySignal.SELL, result.signal());
@@ -73,8 +74,8 @@ class VolumeStrategyTest {
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.00"), LocalDate.now())
         );
         prices = List.of(
-                bar(105.00, 100.00, 110.00, 95.00, 10000L, 0),
-                bar(100.00, 95.00, 105.00, 90.00, 10000L, 1)
+                bar(100.00, 95.00, 105.00, 90.00, 10000L, 1),
+                bar(105.00, 100.00, 110.00, 95.00, 10000L, 0)
         );
         StrategyResult result = strategy.evaluate(1L, normalIndicators, prices);
         assertEquals(StrategySignal.HOLD, result.signal());
@@ -116,8 +117,8 @@ class VolumeStrategyTest {
         // Exactly at threshold → 0.7
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()));
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         // close pos = (105-95)/(110-95) = 0.667 → mild accumulation, no boost
         assertEquals(0.7, r.confidence(), 0.0001);
@@ -128,8 +129,8 @@ class VolumeStrategyTest {
         // Math.log is natural log: 0.7 * (ln(2.15)/ln(1.5)) = 0.7 * 1.888 ≈ 1.32 → capped at 1.0
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("2.15"), LocalDate.now()));
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         // close pos (105-95)/(110-95)=0.667 → mild, no position boost
         assertEquals(1.0, r.confidence(), 0.0001);
@@ -140,8 +141,8 @@ class VolumeStrategyTest {
         // Very high spike → near cap
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("5.00"), LocalDate.now()));
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         // 0.7 * (log(5)/log(1.5)) = 0.7 * 1.797 ≈ 1.258 → capped at 1.0
         assertEquals(1.0, r.confidence(), 0.0001);
@@ -155,8 +156,8 @@ class VolumeStrategyTest {
         // ratio 1.8 < 2.0 spike factor → should be HOLD, not BUY
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.80"), LocalDate.now()));
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = custom.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.HOLD, r.signal());
 
@@ -174,8 +175,8 @@ class VolumeStrategyTest {
         // close=109, open=100, high=110, low=95 → (109-95)/(110-95)=0.933 → strong accumulation +0.05
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()));
-        prices = List.of(bar(109.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(109.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.BUY, r.signal());
         // 0.7 + 0.05 = 0.75
@@ -189,8 +190,8 @@ class VolumeStrategyTest {
         // close=96, open=100, high=110, low=95 → (96-95)/(110-95)=0.067 → strong distribution +0.05
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()));
-        prices = List.of(bar(96.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(96.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.SELL, r.signal());
         // 0.7 + 0.05 = 0.75
@@ -203,8 +204,8 @@ class VolumeStrategyTest {
         // high == low → close position neutral (0.5), no accumulation/distribution boost
         List<TechnicalIndicator> ind = List.of(
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()));
-        prices = List.of(bar(100.0, 99.0, 100.0, 100.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(100.0, 99.0, 100.0, 100.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.BUY, r.signal());
         // close > open → BUY; zero range → neutral, no position boost → 0.7
@@ -226,8 +227,8 @@ class VolumeStrategyTest {
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()),
                 obv(200.0, 0), obv(190.0, 1), obv(180.0, 2), obv(170.0, 3), obv(160.0, 4), obv(150.0, 5)
         );
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.BUY, r.signal());
         // 0.7 + 0.1 (close pos mild) ... actually close pos 0.667 mild, no boost;
@@ -243,8 +244,8 @@ class VolumeStrategyTest {
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()),
                 obv(100.0, 0), obv(110.0, 1), obv(120.0, 2), obv(130.0, 3), obv(140.0, 4), obv(150.0, 5)
         );
-        prices = List.of(bar(96.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(96.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.SELL, r.signal());
         // 0.7 + 0.05 (strong distribution close pos) + 0.1 (OBV down boost) = 0.85
@@ -259,8 +260,8 @@ class VolumeStrategyTest {
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()),
                 obv(100.0, 0), obv(110.0, 1), obv(120.0, 2), obv(130.0, 3), obv(140.0, 4), obv(150.0, 5)
         );
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.BUY, r.signal());
         // 0.7 (no boost: close pos mild) * 0.85 (divergence) = 0.595
@@ -270,8 +271,8 @@ class VolumeStrategyTest {
     @Test
     void testObvAbsentFallsBack() {
         // No OBV in indicators → volume-only logic, no OBV in reason
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, indicators, prices);
         assertEquals(StrategySignal.BUY, r.signal());
         assertEquals(0.7, r.confidence(), 0.0001);
@@ -285,8 +286,8 @@ class VolumeStrategyTest {
                 new TechnicalIndicator(null, IndicatorType.VOLUME_RATIO, new BigDecimal("1.50"), LocalDate.now()),
                 obv(200.0, 0)
         );
-        prices = List.of(bar(105.0, 100.0, 110.0, 95.0, 15000L, 0),
-                bar(100.0, 95.0, 105.0, 90.0, 10000L, 1));
+        prices = List.of(bar(100.0, 95.0, 105.0, 90.0, 10000L, 1),
+                bar(105.0, 100.0, 110.0, 95.0, 15000L, 0));
         StrategyResult r = strategy.evaluate(1L, ind, prices);
         assertEquals(StrategySignal.BUY, r.signal());
         assertEquals(0.7, r.confidence(), 0.0001);

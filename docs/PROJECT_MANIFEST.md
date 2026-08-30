@@ -4,7 +4,7 @@
 
 ---
 
-## CONTROLLERS (27) — `src/main/java/org/example/controller/` — ~153 @Mapping annotations
+## CONTROLLERS (28) — `src/main/java/org/example/controller/` — ~154 @Mapping annotations
 
 | File | Base Path | Key Endpoints |
 |------|-----------|---------------|
@@ -34,9 +34,10 @@
 | ScoreParameterController.java | `/api/score-parameters` | Toggle scoring factors |
 | StrategyConfigController.java | `/api/strategy-config` | Strategy priority/enable |
 | StrategyDailyWeightController.java | `/api/strategy-daily-weights` | Daily weight adj |
-| StrategyResultsController.java | `/api/strategy-results` | Strategy run results + refresh |
+| StrategyResultsController.java | `/api/strategy-results` | Strategy run results + refresh (rows carry `eventDate`, e.g. EMA cross day) |
+| EmaCrossScreenerController.java | `/api/screener/ema-cross` | EMA-20↑50 cross within N days (cached) |
 
-## SERVICES (37) — `src/main/java/org/example/service/`
+## SERVICES (38) — `src/main/java/org/example/service/`
 
 | File | Size | Purpose |
 |------|------|---------|
@@ -71,6 +72,7 @@
 | TechnicalAnalysisUtils.java | - | RSI calc + divergence detection |
 | StockSplitDetector.java | - | Split detection + price adj |
 | PriceAggregationService.java | - | Weekly/monthly aggregation |
+| EmaCrossScreenerService.java | - | EMA-20↑50 cross screener (batched, on-the-fly, cached) |
 | ApiRateLimiter.java | - | In-memory rate limiter |
 
 ### Calculators (34) — `src/main/java/org/example/service/calculator/`
@@ -90,9 +92,9 @@
 | model/StrategySignal.java | Enum: STRONG_BUY/BUY/HOLD/SELL/STRONG_SELL |
 | engine/MultiStrategySignalEngine.java | Entry: evaluate(stockId), evaluateWithHistory(days) |
 | aggregator/StrategySignalAggregator.java | Weighted agg + confidence + categorization + fail-safe |
-| config/StrategyConfig.java | Spring beans for 10 strategies |
-| impl/ | 10 strategies: Rsi, Macd, MovingAverageCrossover, BollingerBand, Volume, Breakout, CandlestickPattern, CandlestickContext, Sma44PullbackBounce, Liquidity |
+| config/StrategyConfig.java | Spring beans for 12 strategy instances (11 classes) |
 
+| impl/ | 11 strategy classes (12 beans): Rsi, Macd, MovingAverageCrossover, BollingerBand, Volume, Breakout, CandlestickPattern, CandlestickContext(×2), Sma44PullbackBounce, Liquidity, EmaCrossover |
 ## ENTITIES (29) — `src/main/java/org/example/entity/`
 
 | Entity | Key Fields |
@@ -124,7 +126,7 @@
 | ShadowSignalRecord.java | A/B comparison record |
 | FVGPattern.java | Fair Value Gap / Order Block |
 
-## FRONTEND (14 HTML + 15 JS) — `src/main/resources/static/`
+## FRONTEND (15 HTML + 16 JS) — `src/main/resources/static/`
 
 | Page | JS File | Size | Purpose |
 |------|---------|------|---------|
@@ -142,6 +144,7 @@
 | history-summary.html | history-summary.js | - | Batch Yahoo history summary |
 | strategy-results.html | (inline/api) | - | Strategy run results |
 | watchlist-opportunities.html | watchlist-opportunities.js | - | Watchlist opportunities |
+| ema-cross-screener.html | ema-cross-screener.js | - | EMA-20↑50 cross screener |
 | **Shared**: js/api.js (~150+ funcs), js/navigation.js, css/theme.css, css/styles.css + vendor: chartjs-adapter, chartjs-plugin-annotation |
 
 ### Notable API Wrappers in js/api.js
@@ -181,7 +184,7 @@
 | Signal thresholds | SignalThresholds.java | SBUY≥7, BUY≥3, HOLD=-3~2, SELL≤-4, SSELL≤-7 |
 | ADX multiplier | SignalService.adxMultiplier() | <15→0.3, 15-25→0.5-0.7, 25-35→0.7-1.0, ≥35→1.0 |
 | Bearish discount | SignalThresholds.BEARISH_TREND_DISCOUNT | 0.85 (with reversal exceptions) |
-| Strategy priorities | application.properties | strategy.*.priority (1-10) — 10 strategies configured |
-| Cache names | CacheConfig.java | latestIndicators, indicatorHistory, stockHistory, signals, supportResistanceLevels, institutionalScores, smcPatterns (app props: signals, signalDto, latestIndicators, indicatorHistory, supportResistanceLevels) |
+| Strategy priorities | application.properties | strategy.*.priority (1-10) — 12 strategies configured (incl. strategy.ema-crossover.priority=7) |
+| Cache names | CacheConfig.java | latestIndicators, indicatorHistory, stockHistory, signals, signalDto, portfolioHistory, supportResistanceLevels, institutionalScores, smcPatterns, emaCross (app props: signals, signalDto, latestIndicators, indicatorHistory, supportResistanceLevels, emaCross) |
 | API base | js/api.js | `API_BASE_URL = '/api'` |
 | Test count | — | 81 test files (unit + integration) |

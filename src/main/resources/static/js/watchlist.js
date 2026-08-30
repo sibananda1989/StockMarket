@@ -218,17 +218,38 @@ return;
 }
 }
 
-// Add to watchlist
+// Add to watchlist (sync is now synchronous so data is available immediately)
 try {
-await addStockToWatchlist(watchlistId, localStock.id);
-    showToast(stock.symbol + ' added to watchlist', 'success');
+    // Show loading state on button
+    const btn = document.getElementById('addStockBtn');
+    const btnText = document.getElementById('addStockBtnText');
+    const btnIcon = document.getElementById('addStockBtnIcon');
+    const btnSpinner = document.getElementById('addStockBtnSpinner');
+    btn.disabled = true;
+    btnText.textContent = 'Syncing 90 days...';
+    btnIcon.className = 'fas fa-spinner fa-spin mr-1';
+    btnSpinner.classList.remove('hidden');
+
+    await addStockToWatchlist(watchlistId, localStock.id);
+
     closeModal('addStockModal');
+    showToast(stock.symbol + ' added to watchlist', 'success');
     await selectWatchlist(watchlistId);
     const res = await getWatchlists();
     allWatchlists = res.data || [];
     renderWatchlists();
 } catch (e) {
-showToast(e.message || 'Failed to add stock', 'error');
+    showToast(e.message || 'Failed to add stock', 'error');
+} finally {
+    // Reset button state
+    const btn = document.getElementById('addStockBtn');
+    const btnText = document.getElementById('addStockBtnText');
+    const btnIcon = document.getElementById('addStockBtnIcon');
+    const btnSpinner = document.getElementById('addStockBtnSpinner');
+    if (btn) { btn.disabled = false; }
+    if (btnText) { btnText.textContent = 'Add to Watchlist'; }
+    if (btnIcon) { btnIcon.className = 'fas fa-plus mr-1'; }
+    if (btnSpinner) { btnSpinner.classList.add('hidden'); }
 }
 }
 

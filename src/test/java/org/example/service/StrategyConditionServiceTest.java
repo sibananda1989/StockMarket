@@ -109,42 +109,4 @@ class StrategyConditionServiceTest {
         assertNotEquals(2.625, ratio.doubleValue(), 0.001);
         assertEquals(3.0, ratio.doubleValue(), 0.001);
     }
-
-    @Test
-    void testBuildVolumeConditionsReadsSpikeFactorProperty() throws Exception {
-        // buildVolumeConditions() seeds "vol_buy_spike" / "vol_sell_spike" with the
-        // configured spike factor as the threshold value.
-        setSpikeFactor(2.0); // simulate property = 2.0
-
-        Method m = StrategyConditionService.class.getDeclaredMethod("buildVolumeConditions");
-        m.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<StrategyConditionGroup> conditions = (List<StrategyConditionGroup>) m.invoke(service);
-
-        var buySpike = conditions.stream()
-                .filter(c -> "vol_buy_spike".equals(c.getConditionId()))
-                .findFirst().orElseThrow();
-        var sellSpike = conditions.stream()
-                .filter(c -> "vol_sell_spike".equals(c.getConditionId()))
-                .findFirst().orElseThrow();
-
-        assertEquals(0, new BigDecimal("2.0").compareTo(buySpike.getThresholdValue()));
-        assertEquals(0, new BigDecimal("2.0").compareTo(sellSpike.getThresholdValue()));
-    }
-
-    @Test
-    void testBuildVolumeConditions_DefaultSpikeFactor() throws Exception {
-        setSpikeFactor(1.5);
-
-        Method m = StrategyConditionService.class.getDeclaredMethod("buildVolumeConditions");
-        m.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        List<StrategyConditionGroup> conditions = (List<StrategyConditionGroup>) m.invoke(service);
-
-        var buySpike = conditions.stream()
-                .filter(c -> "vol_buy_spike".equals(c.getConditionId()))
-                .findFirst().orElseThrow();
-
-        assertEquals(0, new BigDecimal("1.5").compareTo(buySpike.getThresholdValue()));
-    }
 }

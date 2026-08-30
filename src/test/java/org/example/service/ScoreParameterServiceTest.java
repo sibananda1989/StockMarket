@@ -71,7 +71,7 @@ class ScoreParameterServiceTest {
             return c;
         });
 
-        // Seed the 31-row SEED_LIST so every test starts from a populated store.
+        // Seed the 35-row SEED_LIST so every test starts from a populated store.
         service.seedIfEmpty();
     }
 
@@ -80,12 +80,12 @@ class ScoreParameterServiceTest {
         // The seed already ran once in setUp; calling it again must NOT duplicate rows.
         service.seedIfEmpty();
 
-        assertEquals(31, repository.count(), "store should contain exactly the 31 seeded rows");
+        assertEquals(35, repository.count(), "store should contain exactly the 35 seeded rows");
         verify(repository, times(1)).saveAll(anyList());
 
         // No duplicate paramKeys.
-        assertEquals(31, store.keySet().size());
-        assertEquals(31, store.values().stream()
+        assertEquals(35, store.keySet().size());
+        assertEquals(35, store.values().stream()
                 .map(ScoreParameterConfig::getParamKey)
                 .distinct()
                 .count());

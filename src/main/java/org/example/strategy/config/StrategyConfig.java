@@ -5,6 +5,7 @@ import org.example.strategy.impl.BollingerBandStrategy;
 import org.example.strategy.impl.BreakoutStrategy;
 import org.example.strategy.impl.CandlestickContextStrategy;
 import org.example.strategy.impl.CandlestickPatternStrategy;
+import org.example.strategy.impl.EmaCrossoverStrategy;
 import org.example.strategy.impl.LiquidityStrategy;
 import org.example.strategy.impl.MacdStrategy;
 import org.example.strategy.impl.MovingAverageCrossoverStrategy;
@@ -63,6 +64,9 @@ public class StrategyConfig {
     @Value("${strategy.sma44-pullback.priority:8}")
     private int sma44PullbackPriority;
 
+    @Value("${strategy.ema-crossover.priority:7}")
+    private int emaCrossoverPriority;
+
     /**
      * Creates the list of active strategies with configurable priorities.
      * Spring will auto-collect beans of type {@link TradingStrategy}
@@ -85,7 +89,8 @@ public class StrategyConfig {
                 new CandlestickContextStrategy(atSupportPriority, supportResistanceService, true),
                 new CandlestickContextStrategy(atResistancePriority, supportResistanceService, false),
                 new BreakoutStrategy(breakoutPriority, breakoutDetector),
-                new Sma44PullbackBounceStrategy(sma44PullbackPriority, supportResistanceService)
+                new Sma44PullbackBounceStrategy(sma44PullbackPriority, supportResistanceService),
+                new EmaCrossoverStrategy(emaCrossoverPriority)
         );
     }
 }

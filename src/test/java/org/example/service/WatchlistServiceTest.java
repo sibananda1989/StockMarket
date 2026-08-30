@@ -23,7 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executor;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -50,16 +50,8 @@ class WatchlistServiceTest {
     @Mock
     private TechnicalIndicatorRepository technicalIndicatorRepository;
 
-    @Mock
-    private Executor syncExecutor;
-
     @InjectMocks
     private WatchlistService watchlistService;
-
-    @BeforeEach
-    void setUp() {
-        watchlistService.setSyncExecutor(syncExecutor);
-    }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -228,9 +220,7 @@ class WatchlistServiceTest {
         when(stockService.getStockById(10L)).thenReturn(stock);
         when(watchlistItemRepository.save(any(WatchlistItem.class)))
                 .thenReturn(new WatchlistItem(watchlist, stock));
-        // Mock syncExecutor to run the Runnable synchronously
-        doAnswer(invocation -> { ((Runnable) invocation.getArgument(0)).run(); return null; })
-                .when(syncExecutor).execute(any(Runnable.class));
+        when(stockSyncService.syncStockHistory(eq(10L), eq(90))).thenReturn(64L);
 
         // When
         WatchlistItem item = watchlistService.addStockToWatchlist(1L, 10L);
@@ -240,6 +230,7 @@ class WatchlistServiceTest {
         assertEquals(watchlist, item.getWatchlist());
         assertEquals(stock, item.getStock());
         verify(watchlistItemRepository, times(1)).save(any(WatchlistItem.class));
+        verify(stockSyncService, times(1)).syncStockHistory(10L, 90);
     }
 
     @Test

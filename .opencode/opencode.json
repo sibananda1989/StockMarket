@@ -19,37 +19,59 @@
       "name": "NaraRouter",
       "options": {
         "baseURL": "https://router.bynara.id/v1",
-        "apiKey": "sk-nry-kO9TT4DdO9SQbRuyrrtYM482CajIjcU26KdnZPeG_6U"
+        "apiKey": "sk-nry-E2_HNlDySZ6uT4pbcM1YUprM4K-aYmsLtgrAX5V5B6k"
       },
       "models": {
-        "laguna-s-2.1": {
-          "name": "Laguna s 2.1 Free"
-        },
         "agnes-2.0-flash": {
-          "name": "Agnes 2.0 flash free"
+          "name": "Agnes 2.0 Flash Free"
         },
         "agnes-2.5-flash": {
-          "name": "Agnes 2.5 flash free"
+          "name": "Agnes 2.5 Flash Free"
         },
-        "ling-3.0-flash-free": {
-          "name": "Ling 3.0 flash Free"
+        "glm-5.3-flash-free": {
+          "name": "GLM 5.3 Flash Free"
+        },
+        "laguna-s-2.1": {
+          "name": "Laguna S 2.1 Free"
+        },
+        "minimax-m3-free": {
+          "name": "MiniMax M3 Free"
         },
         "mistral-large": {
-          "name": "Mistral large"
+          "name": "Mistral Large"
         },
         "mistral-medium-3-5": {
-          "name": "Mistral medium 3.5"
+          "name": "Mistral Medium 3.5"
+        },
+        "nemotron-3-ultra": {
+          "name": "Nemotron 3 Ultra"
+        },
+        "qwen3.8-27b": {
+          "name": "Qwen3.8 27B"
+        },
+        "stepfun-3.7-flash": {
+          "name": "StepFun 3.7 Flash"
         },
         "tencent-hy3-free": {
-          "name": "Tencent hy3 Free"
+          "name": "Tencent HY3 Free"
+        },
+        "deepseek-v4-flash": {
+          "name": "DeepSeek V4 Flash"
         }
       },
       "whitelist": [
-        "stepfun-3.7-flash",
         "agnes-2.0-flash",
-        "grok-4.5-free",
+        "agnes-2.5-flash",
+        "glm-5.3-flash-free",
+        "laguna-s-2.1",
+        "minimax-m3-free",
         "mistral-large",
-        "mistral-medium-3-5"
+        "mistral-medium-3-5",
+        "nemotron-3-ultra",
+        "qwen3.8-27b",
+        "stepfun-3.7-flash",
+        "tencent-hy3-free",
+        "deepseek-v4-flash"
       ]
     },
     "agnes": {
@@ -156,6 +178,9 @@
         "inclusionai/ling-3.0-flash-fin:free": {
           "name": "Ling 3 0 Flash Fin"
         },
+        "liquid/lfm-2.5-2.6b:free": {
+          "name": "Lfm 2 5 2 6b"
+        },
         "minimax/minimax-m2.7:free": {
           "name": "Minimax M2 7"
         },
@@ -182,6 +207,9 @@
         },
         "poolside/laguna-s-2.1:free": {
           "name": "Laguna S 2 1"
+        },
+        "poolside/laguna-xs-2.1:free": {
+          "name": "Laguna Xs 2 1"
         }
       },
       "options": {
@@ -191,6 +219,7 @@
         "cohere/north-mini-code:free",
         "dots-studio/dots-3-note-preview:free",
         "inclusionai/ling-3.0-flash-fin:free",
+        "liquid/lfm-2.5-2.6b:free",
         "minimax/minimax-m2.7:free",
         "minimax/minimax-m3:free",
         "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
@@ -199,7 +228,8 @@
         "nvidia/nemotron-3.5-content-safety:free",
         "nvidia/nemotron-3.5-lightning:free",
         "openrouter/free",
-        "poolside/laguna-s-2.1:free"
+        "poolside/laguna-s-2.1:free",
+        "poolside/laguna-xs-2.1:free"
       ]
     },
     "google": {
@@ -233,8 +263,8 @@
         "gemini-3.6-flash": {
           "name": "Gemini 3 6 Flash"
         },
-        "gemini-flash-latest": {
-          "name": "Gemini Flash Latest"
+        "gemini-3.7-flash": {
+          "name": "Gemini 3 7 Flash"
         },
         "gemini-flash-lite-latest": {
           "name": "Gemini Flash Lite Latest"
@@ -265,7 +295,7 @@
         "gemini-3.5-flash-lite",
         "gemini-3.5-transcribe",
         "gemini-3.6-flash",
-        "gemini-flash-latest",
+        "gemini-3.7-flash",
         "gemini-flash-lite-latest",
         "gemini-robotics-er-1.6-preview",
         "gemini-robotics-er-2-preview",
@@ -297,7 +327,6 @@
         "nvidia/nemotron-3.5-lightning:free",
         "openrouter/free",
         "poolside/laguna-s-2.1:free",
-        "poolside/laguna-xs-2.1:free",
         "stepfun/step-3.7-flash:free",
         "tencent/hy3:free"
       ],
@@ -349,9 +378,6 @@
         },
         "poolside/laguna-s-2.1:free": {
           "name": "Laguna S 2 1"
-        },
-        "poolside/laguna-xs-2.1:free": {
-          "name": "Laguna Xs 2 1"
         },
         "stepfun/step-3.7-flash:free": {
           "name": "Step 3 7 Flash"

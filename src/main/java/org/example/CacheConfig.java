@@ -22,7 +22,7 @@ public class CacheConfig {
                 .expireAfterWrite(15, TimeUnit.MINUTES)
                 .maximumSize(500));
         // Configure for indicatorHistory cache
-        manager.setCacheNames(java.util.Arrays.asList("latestIndicators", "indicatorHistory", "stockHistory", "signals", "signalDto", "portfolioHistory", "supportResistanceLevels", "institutionalScores", "smcPatterns"));
+        manager.setCacheNames(java.util.Arrays.asList("latestIndicators", "indicatorHistory", "stockHistory", "signals", "signalDto", "portfolioHistory", "supportResistanceLevels", "institutionalScores", "smcPatterns", "emaCross"));
         return manager;
     }
 }

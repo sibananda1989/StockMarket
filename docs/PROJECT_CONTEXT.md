@@ -29,7 +29,7 @@ stockmarket/
 │   ├── service/calculator/        # 34 indicator calculators (32 + interface + orchestration)
 │   ├── service/institutional/     # 8 institutional activity services
 │   ├── service/smc/               # 6 SMC services (SwingDetector, ZoneDetector, BOS etc.)
-│   ├── strategy/                  # Multi-strategy signal engine (10 strategies)
+│   ├── strategy/                  # Multi-strategy signal engine (12 strategies)
 │   ├── entity/                    # 29 JPA entities
 │   ├── repository/                # 26 Spring Data repos
 │   ├── dto/                       # 59 DTO classes

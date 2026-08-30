@@ -123,7 +123,7 @@ class StrategyConfigServiceTest {
     }
 
     @Test
-    void testInit_FreshDb_SeedsAllElevenStrategies() {
+    void testInit_FreshDb_SeedsAllTwelveStrategies() {
         when(repository.findAll()).thenReturn(List.of());
 
         service.init();
@@ -133,10 +133,10 @@ class StrategyConfigServiceTest {
         List<String> seededNames = captor.getValue().stream()
                 .map(StrategyConfig::getStrategyName)
                 .toList();
-        assertEquals(11, seededNames.size());
+        assertEquals(12, seededNames.size());
         assertEquals(new HashSet<>(Set.of("RSI", "MACD", "MA_CROSSOVER", "BOLLINGER", "VOLUME",
                 "CANDLESTICK_AT_SUPPORT", "CANDLESTICK_AT_RESISTANCE", "BREAKOUT",
-                "CANDLESTICK_PATTERN", "LIQUIDITY", "SMA44_PULLBACK")), new HashSet<>(seededNames));
+                "CANDLESTICK_PATTERN", "LIQUIDITY", "SMA44_PULLBACK", "EMA_CROSSOVER")), new HashSet<>(seededNames));
     }
 
     @Test
@@ -155,9 +155,9 @@ class StrategyConfigServiceTest {
         List<String> inserted = captor.getValue().stream()
                 .map(StrategyConfig::getStrategyName)
                 .toList();
-        assertEquals(6, inserted.size());
+        assertEquals(7, inserted.size());
         assertEquals(new HashSet<>(Set.of("CANDLESTICK_AT_SUPPORT", "CANDLESTICK_AT_RESISTANCE",
-                "BREAKOUT", "CANDLESTICK_PATTERN", "LIQUIDITY", "SMA44_PULLBACK")), new HashSet<>(inserted));
+                "BREAKOUT", "CANDLESTICK_PATTERN", "LIQUIDITY", "SMA44_PULLBACK", "EMA_CROSSOVER")), new HashSet<>(inserted));
         // Existing rows untouched: never saved, never re-enabled.
         verify(repository, never()).save(rsi);
         verify(repository, never()).save(macd);
@@ -168,7 +168,7 @@ class StrategyConfigServiceTest {
     }
 
     @Test
-    void testInit_AllElevenPresent_NoInserts() {
+    void testInit_AllTwelvePresent_NoInserts() {
         when(repository.findAll()).thenReturn(allCanonicalConfigs());
 
         service.init();
@@ -188,7 +188,8 @@ class StrategyConfigServiceTest {
                 new StrategyConfig("BREAKOUT", true, "Breakout Strategy", 5),
                 new StrategyConfig("CANDLESTICK_PATTERN", true, "Candlestick Patterns", 4),
                 new StrategyConfig("LIQUIDITY", true, "Liquidity Assessment", 4),
-                new StrategyConfig("SMA44_PULLBACK", true, "SMA44 Pullback Bounce", 8)
+                new StrategyConfig("SMA44_PULLBACK", true, "SMA44 Pullback Bounce", 8),
+                new StrategyConfig("EMA_CROSSOVER", true, "EMA Crossover", 7)
         );
     }
 

@@ -156,7 +156,8 @@ result = new StrategyResult(
                                 0.0,
                                 result.latestVolume(),
                                 result.avgVolume(),
-                                result.spikeThreshold()
+                                result.spikeThreshold(),
+                                null // user override replaces the market event — no event date
                         );
                             break;
                         }
@@ -191,7 +192,8 @@ result = new StrategyResult(
                     adjustedContribution,
                     adjustedResult.latestVolume(),
                     adjustedResult.avgVolume(),
-                    adjustedResult.spikeThreshold()
+                    adjustedResult.spikeThreshold(),
+                    adjustedResult.eventDate()
                 );
                 
                 breakdown.add(resultWithContribution);
@@ -331,7 +333,8 @@ result = new StrategyResult(
         }
 
         return new StrategyResult(result.signal(), confidence, reason, result.strategyName(),
-                result.priority(), 0.0, result.latestVolume(), result.avgVolume(), result.spikeThreshold());
+                result.priority(), 0.0, result.latestVolume(), result.avgVolume(), result.spikeThreshold(),
+                result.eventDate());
     }
 
     // ── Regime filter constants ──

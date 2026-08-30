@@ -147,7 +147,8 @@ public class VolumeStrategy extends TradingStrategy {
                 0.0, // contribution will be calculated by engine
                 latestVolume,
                 avgVolume,
-                spikeThreshold
+                spikeThreshold,
+                null
         );
     }
 
@@ -211,6 +212,7 @@ public class VolumeStrategy extends TradingStrategy {
                 getName(),
                 getPriority(),
                 0.0,
+                null,
                 null,
                 null,
                 null

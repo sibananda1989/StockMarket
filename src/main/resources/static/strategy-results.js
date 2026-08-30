@@ -100,6 +100,9 @@
                      (r.confidence != null
                          ? '<span class="text-xs text-gray-500 w-16 text-right">' + Math.round(r.confidence * 100) + '%</span>'
                          : '<span class="text-xs text-gray-600 w-16 text-right">—</span>') +
+                     (r.eventDate
+                         ? '<span class="text-xs text-gray-400 w-24 whitespace-nowrap" title="Signal event date">' + escapeHtml(r.eventDate) + '</span>'
+                         : '') +
                      '<span class="text-xs text-gray-400 flex-1">' + escapeHtml(r.reason || '') + '</span>';
                 ul.appendChild(li);
             });

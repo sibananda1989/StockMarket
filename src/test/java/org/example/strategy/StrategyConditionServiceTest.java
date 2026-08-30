@@ -61,18 +61,20 @@ class StrategyConditionServiceTest {
     }
 
     @Test
-    void testSeedDefaultConditions_Inserts31Conditions() {
+    void testSeedDefaultConditions_SeedsEmptyByDefault() {
+        // Default conditions were retired — seeding now persists an empty list
+        // (conditions are user-managed via saveConditions).
         when(conditionRepository.count()).thenReturn(0L);
 
         service.seedDefaultConditions();
 
         verify(conditionRepository).saveAll(conditionCaptor.capture());
-        assertEquals(31, conditionCaptor.getValue().size());
+        assertEquals(0, conditionCaptor.getValue().size());
     }
 
     @Test
     void testSeedDefaultConditions_Idempotent() {
-        when(conditionRepository.count()).thenReturn(31L);
+        when(conditionRepository.count()).thenReturn(35L);
 
         service.seedDefaultConditions();
 

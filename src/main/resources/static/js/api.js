@@ -774,3 +774,9 @@ async function updateVolumeSpikeFactor(factor) {
 async function getSMCPatterns(stockId, lookbackDays = 365) {
     return apiCall(`/smc/${stockId}?lookbackDays=${lookbackDays}`);
 }
+
+// ─── EMA Cross Screener API ─────────────────────────────────────────────────
+
+async function getEmaCrossSignals(days = 5) {
+    return apiCall(`/screener/ema-cross?days=${days}`);
+}

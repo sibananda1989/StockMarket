@@ -69,6 +69,7 @@ public class StrategyResultsService {
                     row.setConfidence(sr.confidence());
                     row.setPriority(sr.priority());
                     row.setSnapshotDate(today);
+                    row.setEventDate(sr.eventDate());
                     row.setComputedAt(now);
                     rows.add(row);
                 }
@@ -134,7 +135,8 @@ public class StrategyResultsService {
                         symbolById.getOrDefault(row.getStockId(), ""),
                         row.getSignalType(),
                         row.getConfidence(),
-                        row.getReason()))
+                        row.getReason(),
+                        row.getEventDate()))
                 .collect(Collectors.toList());
     }
 }

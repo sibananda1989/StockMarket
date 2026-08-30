@@ -130,6 +130,7 @@ class StrategyResultsServiceTest {
         c.setConfidence(r.getConfidence());
         c.setPriority(r.getPriority());
         c.setSnapshotDate(r.getSnapshotDate());
+        c.setEventDate(r.getEventDate());
         c.setComputedAt(r.getComputedAt());
         return c;
     }
@@ -149,7 +150,7 @@ class StrategyResultsServiceTest {
 
         stocks.add(stock(1, "RELIANCE"));
         when(engine.evaluate(1L)).thenReturn(agg(
-                StrategyResult.withoutContribution(StrategySignal.BUY, 0.9, "RSI oversold", "RSI", 7),
+                StrategyResult.withoutContributionWithEventDate(StrategySignal.BUY, 0.9, "RSI oversold", "RSI", 7, LocalDate.of(2026, 8, 27)),
                 StrategyResult.withoutContribution(StrategySignal.SELL, 0.6, "MACD bearish", "MACD", 5)));
 
         service.refreshAll();
@@ -165,7 +166,9 @@ class StrategyResultsServiceTest {
                     && list.get(1).getSignalType().equals("SELL")
                     && list.get(0).getStrategyName().equals("RSI")
                     && list.get(0).getStockId() == 1L
-                    && LocalDate.now().equals(list.get(0).getSnapshotDate());
+                    && LocalDate.now().equals(list.get(0).getSnapshotDate())
+                    && LocalDate.of(2026, 8, 27).equals(list.get(0).getEventDate())
+                    && list.get(1).getEventDate() == null; // state-based strategy carries no event date
         }));
 
         // Prior-day row retained; today's rows present exactly once each (no accumulation)
@@ -238,7 +241,9 @@ class StrategyResultsServiceTest {
         LocalDate yesterday = LocalDate.now().minusDays(1);
         store.put("1|RSI|" + yesterday, row(1, "RSI", "SELL", yesterday));
         store.put("1|RSI|" + LocalDate.now(), row(1, "RSI", "BUY", LocalDate.now()));
-        store.put("2|RSI|" + LocalDate.now(), row(2, "RSI", "HOLD", LocalDate.now()));
+        StrategyStockResult withEvent = row(2, "RSI", "HOLD", LocalDate.now());
+        withEvent.setEventDate(LocalDate.of(2026, 8, 27));
+        store.put("2|RSI|" + LocalDate.now(), withEvent);
 
         stocks.add(stock(1, "RELIANCE"));
         stocks.add(stock(2, "TCS"));
@@ -252,6 +257,9 @@ class StrategyResultsServiceTest {
         assertEquals("RELIANCE", buy.symbol());
         StrategyStockResultDTO hold = rows.stream().filter(r -> r.signal().equals("HOLD")).findFirst().orElseThrow();
         assertEquals("TCS", hold.symbol());
+        // eventDate round-trips from the snapshot row into the DTO
+        assertEquals(LocalDate.of(2026, 8, 27), hold.eventDate());
+        assertNull(buy.eventDate()); // rows without an event date map to null
         assertFalse(rows.stream().anyMatch(r -> r.symbol().isEmpty()), "all symbols resolved from stock repo");
     }
 

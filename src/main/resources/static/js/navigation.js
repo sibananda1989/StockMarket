@@ -18,6 +18,7 @@ const DROPDOWN_ITEMS = [
   { href: 'history-summary.html', label: 'History Summary', icon: 'fas fa-file-alt' },
   { href: 'institutional-dashboard.html', label: 'Institutional', icon: 'fas fa-building-columns' },
   { href: 'fundamentals-screener.html', label: 'Fundamentals', icon: 'fas fa-filter' },
+  { href: 'ema-cross-screener.html', label: 'EMA Cross', icon: 'fas fa-arrow-trend-up' },
   { href: '#', label: 'Fill RSI Gaps', icon: 'fas fa-magic', onclick: 'handleFillRsiGapsFromNav()' }
 ];
 

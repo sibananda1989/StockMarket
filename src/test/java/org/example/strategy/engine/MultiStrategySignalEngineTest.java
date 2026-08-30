@@ -77,7 +77,7 @@ class MultiStrategySignalEngineTest {
                 0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
-        when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
+        when(dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId)).thenReturn(prices);
         when(technicalIndicatorRepository.findLatestForStock(stockId)).thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(eq(stockId), anyList(), eq(prices), eq(ALL_ACTIVE))).thenReturn(mockResult);
 
@@ -90,7 +90,7 @@ class MultiStrategySignalEngineTest {
     @Test
     void testEvaluate_NoPriceData_ThrowsException() {
         Long stockId = 1L;
-        when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(List.of());
+        when(dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId)).thenReturn(List.of());
 
         assertThrows(ResourceNotFoundException.class, () -> engine.evaluate(stockId));
     }
@@ -109,7 +109,7 @@ class MultiStrategySignalEngineTest {
                 0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
-        when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
+        when(dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId)).thenReturn(prices);
         when(technicalIndicatorRepository.findLatestForStock(stockId)).thenReturn(List.of());
         when(indicatorComputationService.computeIndicators(eq(stockId), any(LocalDate.class), eq(prices)))
                 .thenReturn(computed);
@@ -133,7 +133,7 @@ class MultiStrategySignalEngineTest {
                 0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
-        when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
+        when(dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId)).thenReturn(prices);
         when(technicalIndicatorRepository.findLatestForStock(stockId)).thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(eq(stockId), anyList(), eq(prices), eq(active))).thenReturn(mockResult);
 
@@ -155,7 +155,7 @@ class MultiStrategySignalEngineTest {
                 0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
-        when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
+        when(dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId)).thenReturn(prices);
         when(technicalIndicatorRepository.findLatestForStock(stockId)).thenReturn(SOME_INDICATORS);
         when(aggregator.aggregate(eq(stockId), anyList(), eq(prices), eq(ALL_ACTIVE))).thenReturn(mockResult);
 
@@ -178,7 +178,7 @@ class MultiStrategySignalEngineTest {
                 0.0, List.of(), List.of(), Map.of(), Map.of()
         );
 
-        when(dailyPriceRepository.findByStockIdOrderByPriceDateDesc(stockId)).thenReturn(prices);
+        when(dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId)).thenReturn(prices);
         when(technicalIndicatorRepository.findLatestForStock(stockId)).thenReturn(SOME_INDICATORS);
         // Mock the aggregator with empty set (not ALL_ACTIVE)
         when(aggregator.aggregate(eq(stockId), anyList(), eq(prices), eq(Set.of()))).thenReturn(mockResult);

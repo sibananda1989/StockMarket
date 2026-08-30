@@ -66,6 +66,9 @@ public class StrategyConfigService {
     @Value("${strategy.sma44-pullback.priority:8}")
     private int sma44PullbackPriority;
 
+    @Value("${strategy.ema-crossover.priority:7}")
+    private int emaCrossoverPriority;
+
     @PostConstruct
     public void init() {
         reconcileSeeds();
@@ -95,7 +98,8 @@ public class StrategyConfigService {
                 new StrategyConfig("BREAKOUT", true, "Breakout Strategy", breakoutPriority),
                 new StrategyConfig("CANDLESTICK_PATTERN", true, "Candlestick Patterns", candlestickPatternPriority),
                 new StrategyConfig("LIQUIDITY", true, "Liquidity Assessment", liquidityPriority),
-                new StrategyConfig("SMA44_PULLBACK", true, "SMA44 Pullback Bounce", sma44PullbackPriority)
+                new StrategyConfig("SMA44_PULLBACK", true, "SMA44 Pullback Bounce", sma44PullbackPriority),
+                new StrategyConfig("EMA_CROSSOVER", true, "EMA Crossover", emaCrossoverPriority)
         );
 
         Set<String> existing = repository.findAll().stream()

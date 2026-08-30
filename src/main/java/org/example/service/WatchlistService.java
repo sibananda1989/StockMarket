@@ -16,17 +16,13 @@ import org.example.repository.DailyPriceRepository;
 import org.example.repository.TechnicalIndicatorRepository;
 import org.example.repository.WatchlistItemRepository;
 import org.example.repository.WatchlistRepository;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Service
@@ -41,14 +37,6 @@ public class WatchlistService {
     private final StockSyncService stockSyncService;
     private final DailyPriceRepository dailyPriceRepository;
     private final TechnicalIndicatorRepository technicalIndicatorRepository;
-
-    private Executor syncExecutor;
-
-    @Autowired
-    @Qualifier("syncExecutor")
-    public void setSyncExecutor(Executor syncExecutor) {
-        this.syncExecutor = syncExecutor;
-    }
 
     // ─── Watchlist CRUD ─────────────────────────────────────────────────────
 
@@ -146,10 +134,24 @@ public class WatchlistService {
         WatchlistItem item = new WatchlistItem(watchlist, stock);
         WatchlistItem saved = watchlistItemRepository.save(item);
 
-        // Trigger background history sync
-        triggerBackgroundSync(stockId);
+        // Sync history synchronously so caller gets fresh data immediately
+        syncStockHistoryForWatchlist(stockId);
 
         return saved;
+    }
+
+    /**
+     * Synchronously sync stock history when added to watchlist.
+     * This ensures price data is available immediately after adding.
+     */
+    private void syncStockHistoryForWatchlist(Long stockId) {
+        try {
+            log.info("Syncing history for watchlist stock {}", stockId);
+            long saved = stockSyncService.syncStockHistory(stockId, 90);
+            log.info("Synced {} records for watchlist stock {}", saved, stockId);
+        } catch (Exception e) {
+            log.warn("Failed to sync history for watchlist stock {}: {}", stockId, e.getMessage());
+        }
     }
 
     public void removeStockFromWatchlist(Long watchlistId, Long stockId) {
@@ -169,8 +171,8 @@ public class WatchlistService {
                 .map(stock -> watchlistItemRepository.save(new WatchlistItem(watchlist, stock)))
                 .collect(Collectors.toList());
 
-        // Trigger background history sync for each added stock
-        saved.forEach(item -> triggerBackgroundSync(item.getStock().getId()));
+        // Sync history synchronously for each added stock
+        saved.forEach(item -> syncStockHistoryForWatchlist(item.getStock().getId()));
 
         return saved;
     }
@@ -194,20 +196,6 @@ public class WatchlistService {
     @Transactional(readOnly = true)
     public long getWatchlistItemCount(Long watchlistId) {
         return watchlistItemRepository.countByWatchlistId(watchlistId);
-    }
-
-    // ─── Background Sync ────────────────────────────────────────────────────
-
-    private void triggerBackgroundSync(Long stockId) {
-        syncExecutor.execute(() -> {
-            try {
-                log.info("Starting background history sync for stock {}", stockId);
-                stockSyncService.syncStockHistory(stockId, 90);
-                log.info("Background history sync completed for stock {}", stockId);
-            } catch (Exception e) {
-                log.warn("Background sync failed for stock {}: {}", stockId, e.getMessage());
-            }
-        });
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────

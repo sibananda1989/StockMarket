@@ -330,8 +330,10 @@ class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium tra
 Cancel
 </button>
 <button id="addStockBtn" onclick="confirmAddSingleStock()"
-class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors" disabled>
-<i class="fas fa-plus mr-1"></i>Add to Watchlist
+class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+<i id="addStockBtnIcon" class="fas fa-plus mr-1"></i>
+<span id="addStockBtnText">Add to Watchlist</span>
+<span id="addStockBtnSpinner" class="hidden ml-2"><i class="fas fa-spinner fa-spin"></i></span>
 </button>
 </div>
 </div>

@@ -98,10 +98,10 @@ class StrategyDailyWeightServiceTest {
 
         StrategyResult volumeResult = new StrategyResult(
                 StrategySignal.BUY, 0.85, "Volume spike", "VOLUME", 5, 4.25,
-                1500000L, 800000.0, 1200000.0);
+                1500000L, 800000.0, 1200000.0, null);
         StrategyResult rsiResult = new StrategyResult(
                 StrategySignal.HOLD, 0.5, "RSI neutral", "RSI", 7, 0.0,
-                null, null, null);
+                null, null, null, null);
 
         AggregatedSignalResult aggResult = new AggregatedSignalResult(
                 StrategySignal.BUY, 4.25, List.of(volumeResult, rsiResult),
