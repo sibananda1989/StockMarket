@@ -6,6 +6,7 @@ public enum IndicatorType {
     SMA_20(true),
     SMA_50(true),
     SMA_200(true),
+    SMA_44(true),
     EMA_20(true),
     MACD_LINE(true),
     MACD_SIGNAL(true),
@@ -30,7 +31,14 @@ public enum IndicatorType {
     BOLLINGER_UPPER(false),
     BOLLINGER_LOWER(false),
     ATR(false),
-    ADX(false);
+    ADX(false),
+
+    // Volume-based indicators
+    VOLUME_RATIO(false),
+
+    // Liquidity indicators
+    AMIHUD_ILLIQUIDITY(false),  // Price impact (lower = more liquid)
+    DOLLAR_VOLUME(false);       // Close × Volume (higher = more liquid)
 
     private final boolean directional;
 

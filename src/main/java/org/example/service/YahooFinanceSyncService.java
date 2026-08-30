@@ -6,11 +6,15 @@ import org.example.dto.StockHistoryDTO;
 import org.example.entity.DailyPrice;
 import org.example.entity.Stock;
 import org.example.repository.DailyPriceRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +25,10 @@ public class YahooFinanceSyncService {
     private final DailyPriceRepository dailyPriceRepository;
     private final StockService stockService;
     private final StockSplitDetector splitDetector;
+
+    @Lazy
+    @Autowired
+    private PortfolioSnapshotService snapshotService;
     // Intentionally NOT injecting TechnicalAnalysisService to avoid a circular
     // dependency (TechnicalAnalysisService depends on this service for auto-backfill).
     // Instead, callers of syncHistory() trigger indicator recalculation themselves.
@@ -52,6 +60,21 @@ public class YahooFinanceSyncService {
 
             dailyPriceRepository.save(price);
             savedCount++;
+        }
+
+        if (savedCount > 0) {
+            try {
+                List<LocalDate> syncedDates = history.stream()
+                        .map(StockHistoryDTO::getDate)
+                        .distinct()
+                        .collect(Collectors.toList());
+                for (LocalDate date : syncedDates) {
+                    snapshotService.saveOrUpdate(stock, date);
+                }
+                log.info("Created/updated portfolio snapshots for {} synced dates for {}", syncedDates.size(), stock.getSymbol());
+            } catch (Exception e) {
+                log.warn("Snapshot creation failed after sync for {}: {}", stock.getSymbol(), e.getMessage());
+            }
         }
 
         log.info("Successfully synced {} records for {}", savedCount, stock.getSymbol());

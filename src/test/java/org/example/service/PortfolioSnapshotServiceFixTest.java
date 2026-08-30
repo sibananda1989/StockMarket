@@ -93,7 +93,7 @@ class PortfolioSnapshotServiceFixTest {
         assertEquals(historicalDate, result.getSnapshotDate());
         assertEquals(stock.getQuantity(), result.getQuantity()); // 100 shares
         assertEquals(stock.getAvgPrice(), result.getAvgPrice()); // 50.00 avg price
-        assertEquals(stock.getLastTradedPrice(), result.getLastTradedPrice()); // 60.00 current price
+        assertEquals(historicalPrice.getClosingPrice(), result.getLastTradedPrice()); // historical price (70.00 from DB)
 
         // THE KEY ASSERTIONS - Verify historical values are calculated correctly:
         // Investment = avgPrice * quantity = 50.00 * 100 = 5000 (cost basis)

@@ -12,10 +12,11 @@
 <script defer src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script defer src="js/chartjs-plugin-annotation.min.js"></script>
-<script defer src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+<script defer src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
     <link rel="stylesheet" href="css/theme.css">
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+    <script>window._appVer = 'v20260808_avgcost1';</script>
     <style>
         .stat-card { position: relative; overflow: hidden; }
         .stat-card::before {
@@ -39,73 +40,51 @@
         .signal-hold { background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); }
         .card-hover { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px -8px rgba(0,0,0,0.5); }
+        .enhanced-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .enhanced-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 24px -8px rgba(0,0,0,0.5), 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .section-header {
+            background: linear-gradient(90deg, rgba(var(--accent-color), 0.1), transparent);
+            border-left: 3px solid rgb(var(--accent-color));
+            margin-bottom: 1.5rem;
+        }
+    </style>
+    <!-- WCAG AA color contrast overrides (must be last to beat Tailwind CDN) -->
+    <style>
+        .dark .bg-blue-600 { background-color: #2563eb !important; }
+        .dark .hover\:bg-blue-700:hover { background-color: #1d4ed8 !important; }
+        .dark .bg-cyan-600 { background-color: #0e7490 !important; }
+        .dark .hover\:bg-cyan-700:hover { background-color: #155e75 !important; }
+        .dark .bg-indigo-600 { background-color: #4338ca !important; }
+        .dark .hover\:bg-indigo-700:hover { background-color: #3730a3 !important; }
+        .dark .bg-green-600 { background-color: #166534 !important; }
+        .dark .text-green-500 { color: #4ade80 !important; }
+        .dark .text-red-500 { color: #f87171 !important; }
     </style>
 </head>
-<body class="dark min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-7xl">
+<body class="dark">
+    <div class="container mx-auto px-4 pt-5 pb-10 max-w-7xl">
         <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-6">
             <div>
                 <div class="flex items-center gap-2 mb-1">
                     <span class="px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold uppercase rounded">Portfolio Analysis</span>
-                    <h1 class="text-3xl font-extrabold tracking-tight">Stock Tracker</h1>
+                    <h1 class="text-2xl font-extrabold tracking-tight">Stock Tracker</h1>
                 </div>
                 <p class="text-secondary text-sm">Deep dive into stock performance and signal analysis</p>
             </div>
-            <button onclick="toggleTheme()" class="p-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-all duration-200 shadow-sm border border-gray-700 active:scale-95">
+            <button onclick="toggleTheme()" class="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl transition-all duration-200 shadow-sm border border-gray-700 active:scale-95">
                 <i class="fas fa-moon" id="themeIcon"></i>
             </button>
         </div>
 
         <!-- Navigation - injected by navigation.js -->
-        <div id="navigation" class="mb-8"></div>
-
-        <!-- Stock Detail Header -->
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <div class="flex items-center gap-4">
-                <a href="stocks.html" class="group px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-all duration-200 border border-gray-700 flex items-center gap-2">
-                    <i class="fas fa-arrow-left transition-transform group-hover:-translate-x-1"></i>Back
-                </a>
-                <div>
-                    <h1 class="text-3xl font-bold leading-tight" id="stockTitle">Loading...</h1>
-                    <p class="text-secondary font-medium" id="stockSubtitle"></p>
-                </div>
-            </div>
-            <div class="flex flex-wrap gap-2 items-center">
-                <div class="relative" id="watchlistBtnContainer">
-                    <button id="watchlistToggle" onclick="toggleWatchlistDropdown()"
-                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md text-sm flex items-center gap-2 active:scale-95">
-                        <i class="fas fa-eye"></i>Watchlist
-                    </button>
-                    <div id="watchlistDropdown" class="absolute right-0 mt-2 w-64 bg-gray-800 rounded-xl shadow-2xl hidden z-50 border border-gray-700 overflow-hidden">
-                        <div class="p-3 bg-gray-700/50 border-b border-gray-700">
-                            <p class="text-sm font-bold">Add to Watchlist</p>
-                        </div>
-                        <div id="watchlistDropdownItems" class="max-h-48 overflow-y-auto p-2">
-                            <p class="text-xs text-secondary text-center py-2">Loading...</p>
-                        </div>
-                        <div class="p-2 border-t border-gray-700 bg-gray-700/30">
-                            <a href="watchlist.html" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 py-1 font-medium transition-colors">
-                                 <i class="fas fa-plus mr-1"></i>Manage Watchlists
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <a href="#" id="historyBtn" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md flex items-center gap-2 active:scale-95">
-                    <i class="fas fa-chart-line"></i>History
-                </a>
-                <div class="relative">
-                    <select id="dayRange" onchange="loadAll()"
-                            class="pl-4 pr-10 py-2 rounded-lg border border-gray-600 bg-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none cursor-pointer">
-                        <option value="30">30 days</option>
-                        <option value="60">60 days</option>
-                        <option value="90">90 days</option>
-                        <option value="180" selected>180 days</option>
-                        <option value="365">1 year</option>
-                    </select>
-                </div>
-            </div>
-        </div>
+        <div id="navigation" class="mb-6"></div>
 
         <!-- FII/DII Status Bar -->
         <div class="card rounded-xl p-4 shadow-md mb-6 flex flex-wrap items-center justify-between gap-4 border-l-4 border-blue-500 bg-gradient-to-r from-gray-800 to-gray-900" id="fiidiiBar">
@@ -163,59 +142,165 @@
             </div>
         </div>
 
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" id="kpiRow">
-            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
-                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">LTP</div>
-                <div class="text-xl font-bold tracking-tight" id="kpiLtp">--</div>
+        <!-- Action Toolbar -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5 bg-gray-800/30 rounded-xl p-4 border border-gray-700 enhanced-card section-header" style="--accent-color: #3b82f6">
+            <div class="flex items-center gap-4">
+                <a href="stocks.html" class="group px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-all duration-200 border border-gray-700 flex items-center gap-2">
+                    <i class="fas fa-arrow-left transition-transform group-hover:-translate-x-1"></i>Back
+                </a>
             </div>
-            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700" id="kpiPnlCard">
-                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">P&L</div>
-                <div class="text-xl font-bold tracking-tight" id="kpiPnl">--</div>
-            </div>
-            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700" id="kpiPnlPctCard">
-                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">P&L %</div>
-                <div class="text-xl font-bold tracking-tight" id="kpiPnlPct">--</div>
-            </div>
-            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
-                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">Investment</div>
-                <div class="text-xl font-bold tracking-tight" id="kpiInv">--</div>
-            </div>
-            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
-                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">Curr Value</div>
-                <div class="text-xl font-bold tracking-tight" id="kpiCurr">--</div>
-            </div>
-            <div class="card stat-card card-hover rounded-xl p-4 shadow-sm border border-gray-700">
-                <div class="text-secondary text-[11px] uppercase font-bold tracking-wider mb-1">RSI 14</div>
-                <div class="text-xl font-bold tracking-tight" id="kpiRsi">--</div>
+            <div class="flex flex-wrap gap-2 items-center">
+                <div class="relative" id="watchlistBtnContainer">
+                    <button id="watchlistToggle" onclick="toggleWatchlistDropdown()"
+                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md text-sm flex items-center gap-2 active:scale-95">
+                        <i class="fas fa-eye"></i>Watchlist
+                    </button>
+                    <div id="watchlistDropdown" class="absolute right-0 mt-2 w-64 bg-gray-800 rounded-xl shadow-2xl hidden z-50 border border-gray-700 overflow-hidden">
+                        <div class="p-3 bg-gray-700/50 border-b border-gray-700">
+                            <p class="text-sm font-bold">Add to Watchlist</p>
+                        </div>
+                        <div id="watchlistDropdownItems" class="max-h-48 overflow-y-auto p-2">
+                            <p class="text-xs text-secondary text-center py-2">Loading...</p>
+                        </div>
+                        <div class="p-2 border-t border-gray-700 bg-gray-700/30">
+                            <a href="watchlist.html" class="block text-center text-xs text-indigo-400 hover:text-indigo-300 py-1 font-medium transition-colors">
+                                  <i class="fas fa-plus mr-1"></i>Manage Watchlists
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <a href="#" id="historyBtn" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md flex items-center gap-2 active:scale-95">
+                    <i class="fas fa-chart-line"></i>History
+                </a>
+                <div class="relative">
+                    <label for="dayRange" class="sr-only">Date range</label>
+                    <select id="dayRange" onchange="loadAll()"
+                            class="pl-4 pr-10 py-2 rounded-lg border border-gray-600 bg-gray-800 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all appearance-none cursor-pointer">
+                        <option value="365" selected>1 year</option>
+                    </select>
+                </div>
             </div>
         </div>
 
-        <!-- Main Content Grid -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            <!-- Fundamentals -->
-            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold flex items-center gap-2">
-                        <div class="p-2 bg-emerald-500/10 rounded-lg">
-                            <i class="fas fa-file-invoice-dollar text-emerald-400"></i>
+<!-- Hero Summary Section -->
+        <div id="heroSummary" class="card rounded-xl shadow-lg mb-8 border border-gray-700 card-hover bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm overflow-hidden enhanced-card" style="--accent-color: #3b82f6">
+            <div class="p-6 md:p-8">
+                <!-- Stock Info Header -->
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                    <div class="flex items-center gap-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-blue-600/20 to-blue-700/20 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-chart-line text-blue-400 text-xl"></i>
                         </div>
-                        Fundamentals
-                    </h3>
-                    <div class="flex items-center gap-3">
-                        <span id="fundFetchedDate" class="text-[11px] text-secondary font-medium"></span>
-                        <button id="fundRefreshBtn" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
-                            <i class="fas fa-sync-alt mr-1"></i>Refresh
-                        </button>
+                        <div>
+                            <div class="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-1">Equity Analysis</div>
+                            <h1 class="text-3xl md:text-4xl font-bold leading-tight" id="stockTitle">Loading...</h1>
+                            <p class="text-secondary font-medium mt-1" id="stockSubtitle"></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Current Recommendation Badge -->
+                    <div class="flex items-center gap-4">
+                        <div id="heroSignalBadge" class="px-5 py-3 rounded-xl font-bold text-white shadow-lg flex items-center gap-3 min-w-[140px] justify-center transition-all duration-300 enhanced-card" style="--accent-color: #22c55e">
+                            <i class="fas fa-circle text-sm"></i>
+                            <span id="heroSignalText">Loading...</span>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-secondary uppercase tracking-wider mb-1">Composite Score</div>
+                            <div class="text-3xl font-extrabold text-white" id="heroCompositeScore">--</div>
+                        </div>
                     </div>
                 </div>
-                <div id="fundamentalsContent" class="min-h-[100px]">
-                    <p class="text-secondary text-center py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Loading fundamentals...</p>
+
+                <!-- Key Stats Row -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="group bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:bg-gray-700/50 transition-all duration-300 enhanced-card" style="--accent-color: #3b82f6">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="p-2 bg-blue-500/10 rounded-lg">
+                                <i class="fas fa-coins text-blue-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">LTP</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="heroKpiLtp">--</div>
+                        <div class="text-xs text-secondary mt-1">Live Price</div>
+                    </div>
+                    
+                    <div class="group bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:bg-gray-700/50 transition-all duration-300 enhanced-card" id="heroKpiPnlCard" style="--accent-color: #22c55e">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="p-2 bg-green-500/10 rounded-lg">
+                                <i class="fas fa-arrow-trend-up text-green-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">P&L</div>
+                        </div>
+                        <div class="text-2xl font-bold text-green-400" id="heroKpiPnl">--</div>
+                        <div class="text-xs text-secondary mt-1">Profit/Loss</div>
+                    </div>
+                    
+                    <div class="group bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:bg-gray-700/50 transition-all duration-300 enhanced-card" id="heroKpiPnlPctCard" style="--accent-color: #a855f7">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="p-2 bg-purple-500/10 rounded-lg">
+                                <i class="fas fa-chart-pie text-purple-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">P&L %</div>
+                        </div>
+                        <div class="text-2xl font-bold text-purple-400" id="heroKpiPnlPct">--</div>
+                        <div class="text-xs text-secondary mt-1">Percentage</div>
+                    </div>
+                    
+                    <div class="group bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:bg-gray-700/50 transition-all duration-300 enhanced-card" style="--accent-color: #f97316">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="p-2 bg-orange-500/10 rounded-lg">
+                                <i class="fas fa-wave-square text-orange-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">RSI(14)</div>
+                        </div>
+                        <div class="text-2xl font-bold text-orange-400" id="heroKpiRsi">--</div>
+                        <div class="text-xs text-secondary mt-1">Momentum</div>
+                    </div>
+                    
+                    <div class="group bg-gray-800/50 rounded-xl p-4 border border-gray-700 hover:bg-gray-700/50 transition-all duration-300 enhanced-card" style="--accent-color: #06b6d4">
+                        <div class="flex items-center gap-3 mb-2">
+                            <div class="p-2 bg-cyan-500/10 rounded-lg">
+                                <i class="fas fa-database text-cyan-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Records</div>
+                        </div>
+                        <div class="text-2xl font-bold text-cyan-400" id="heroKpiRecords">--</div>
+                        <div class="text-xs text-secondary mt-1">Price Records</div>
+                    </div>
+                </div>
+
+                <!-- Holding Details (only when quantity > 0) -->
+                <div id="holdingDetails" hidden class="mt-6 pt-6 border-t border-gray-700">
+                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <div class="p-2 bg-purple-500/10 rounded-lg">
+                            <i class="fas fa-briefcase text-purple-400"></i>
+                        </div>
+                        Holding Details
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-600">
+                                    <th class="px-4 py-3 text-left">Date</th>
+                                    <th class="px-4 py-3 text-left">Type</th>
+                                    <th class="px-4 py-3 text-right">Qty</th>
+                                    <th class="px-4 py-3 text-right">Price</th>
+                                    <th class="px-4 py-3 text-right">Fees</th>
+                                    <th class="px-4 py-3 text-right">Value</th>
+                                    <th class="px-4 py-3 text-right">Realized P&L</th>
+                                    <th class="px-4 py-3 text-left">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="holdingDetailsContent">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Candlestick Chart (full width) -->
+        <!-- Candlestick Chart (full width) -->
             <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <h3 class="text-lg font-bold flex items-center gap-2">
@@ -229,6 +314,11 @@
                             <input type="checkbox" id="toggleSma20" onchange="toggleChartOverlays()"
                                     class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500">
                             <span class="text-secondary hover:text-white font-medium">SMA20</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+                            <input type="checkbox" id="toggleSma44" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-yellow-500">
+                            <span class="text-secondary hover:text-white font-medium">SMA44</span>
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
                             <input type="checkbox" id="toggleSma50" onchange="toggleChartOverlays()"
@@ -245,19 +335,38 @@
                                     class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-yellow-500 focus:ring-yellow-500">
                             <span class="text-secondary hover:text-white font-medium">S/R</span>
                         </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+                             <input type="checkbox" id="toggleFvg" onchange="toggleChartOverlays()"
+                                     class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-emerald-500 focus:ring-emerald-500">
+                            <span class="text-secondary hover:text-white font-medium">FVG</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+<input type="checkbox" id="toggleBuyArrows" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-green-500 focus:ring-green-500">
+                            <span class="text-secondary hover:text-white font-medium">Buy ▲</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer select-none px-2 py-1 rounded-md hover:bg-gray-700 transition-colors">
+<input type="checkbox" id="toggleSellArrows" onchange="toggleChartOverlays()"
+                                    class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-700 text-red-500 focus:ring-red-500">
+                            <span class="text-secondary hover:text-white font-medium">Sell ▼</span>
+                        </label>
                     </div>
                 </div>
-                <div class="relative h-96 md:h-[28rem] lg:h-[32rem] bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                <!-- Active Strategies Badge -->
+                <div id="activeStrategiesBadge" class="flex flex-wrap items-center gap-1.5 mb-3"></div>
+                <div class="relative h-[32rem] md:h-[36rem] lg:h-[40rem] bg-gray-900/50 rounded-lg overflow-visible border border-gray-800">
                     <div id="chartCandlestick" class="w-full h-full relative"></div>
                     <div id="candlestickSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden"><svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V4a8 8 0 018 8h-2a6 6 0 00-6-6V4a6 6 0 00-6 6h2a6 6 0 006 6V4"></path></svg></div>
                 </div>
             </div>
 
-            <!-- RSI Chart -->
-            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold flex items-center gap-2">
-                        <div class="p-2 bg-pink-500/10 rounded-lg">
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 mt-8">
+            <!-- RSI Chart and P&L Trend in same row -->
+            <div class="rounded-xl shadow-md p-4 border border-gray-700 card-hover">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold flex items-center gap-2">
+                        <div class="p-1.5 bg-pink-500/10 rounded-lg">
                             <i class="fas fa-chart-area text-pink-400"></i>
                         </div>
                         RSI(14)
@@ -268,17 +377,36 @@
                         </button>
                     </h3>
                 </div>
-                <p class="text-sm text-secondary mb-4 font-medium">Relative Strength Index (14-day). Overbought &gt;70, Oversold &lt;30.</p>
-                <div class="relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                <p class="text-xs text-secondary mb-2 font-medium">Relative Strength Index (14-day). Overbought &gt;70, Oversold &lt;30.</p>
+                <div class="relative h-48 md:h-56 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
                     <canvas id="chartRsi" class="w-full h-full" aria-label="RSI(14) chart"></canvas>
                 </div>
             </div>
 
-            <!-- Support & Resistance Levels -->
-            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-lg font-bold flex items-center gap-2">
-                        <div class="p-2 bg-green-500/10 rounded-lg">
+            <div class="rounded-xl shadow-md p-4 border border-gray-700 card-hover">
+                <h3 class="text-base font-bold mb-4 flex items-center gap-2">
+                    <div class="p-1.5 bg-purple-500/10 rounded-lg">
+                        <i class="fas fa-money-bill-trend-up text-purple-400"></i>
+                    </div>
+                    P&L Trend
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="md:col-span-2 relative h-48 md:h-56 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                        <canvas id="chartPnl" class="w-full h-full"></canvas>
+                    </div>
+                    <div class="relative h-48 md:h-56 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                        <canvas id="chartPnlBar" class="w-full h-full"></canvas>
+                    </div>
+                </div>
+
+</div>
+            </div>
+
+            <!-- Support & Resistance Levels (full width) -->
+            <div class="rounded-xl shadow-md p-4 lg:col-span-2 border border-gray-700 card-hover mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold flex items-center gap-2">
+                        <div class="p-1.5 bg-green-500/10 rounded-lg">
                             <i class="fas fa-layer-group text-green-400"></i>
                         </div>
                         Support & Resistance
@@ -288,11 +416,11 @@
                             <i class="fas fa-info-circle text-sm"></i>
                         </button>
                     </h3>
-                    <button id="srRefreshBtn" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
+                    <button id="srRefreshBtn" class="text-xs px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
                         <i class="fas fa-sync-alt mr-1"></i>Refresh
                     </button>
                 </div>
-                <div class="relative h-64 md:h-80 mb-6 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                <div class="relative h-56 md:h-64 mb-5 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
                     <canvas id="chartSupportResistance" class="w-full h-full" aria-label="Support and Resistance chart"></canvas>
                     <div id="srSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden">
                         <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -301,184 +429,440 @@
                         </svg>
                     </div>
                 </div>
-                <div id="srLevelContent" class="min-h-[60px]">
-                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading S/R levels...</p>
-                </div>
-            </div>
-
-            <!-- Signal Analysis -->
-            <div class="card rounded-xl p-6 shadow-md border border-gray-700 card-hover" id="recommendationCard">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <div class="p-2 bg-blue-500/10 rounded-lg">
-                        <i class="fas fa-chart-simple text-blue-400"></i>
-                    </div>
-                    Signal Analysis
-                </h3>
-                <div id="recommendationContent" class="min-h-[60px]">
-                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading signal...</p>
-                </div>
-                <div id="scoreBreakdownContent" class="mt-6"></div>
-                <div id="signalTimeline" class="mt-6"></div>
-            </div>
-
-            <!-- Technical Indicators -->
-            <div class="card rounded-xl p-6 shadow-md border border-gray-700 card-hover">
-                <h3 class="text-lg font-bold mb-6 flex items-center justify-between">
-                    <span class="flex items-center gap-2">
-                        <div class="p-2 bg-purple-500/10 rounded-lg">
-                            <i class="fas fa-chart-bar text-purple-400"></i>
-                        </div>
-                        Technical Indicators
-                    </span>
-                    <div class="flex gap-2">
-                        <button id="fillRsiGapsBtn" onclick="fillRsiGaps()" class="text-xs px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all active:scale-95 border border-indigo-500">
-                            <i class="fas fa-magic mr-1"></i>Fill Gaps
-                        </button>
-                        <button id="refreshIndicatorsBtn" onclick="refreshIndicators()" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
-                            <i class="fas fa-sync-alt mr-1"></i>Refresh
-                        </button>
-                    </div>
-                </h3>
-                <div id="indicatorsContent" class="min-h-[100px]">
-                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading indicators...</p>
+                <div id="srLevelContent" class="min-h-[50px]">
+                    <p class="text-secondary text-center py-3"><i class="fas fa-spinner fa-spin mr-2"></i>Loading S/R levels...</p>
                 </div>
             </div>
 
             <!-- Price Movement Chart (full width) -->
-            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <div class="p-2 bg-blue-500/10 rounded-lg">
+            <div class="rounded-xl shadow-md p-4 lg:col-span-2 border border-gray-700 card-hover mb-8">
+                <h3 class="text-base font-bold mb-4 flex items-center gap-2">
+                    <div class="p-1.5 bg-blue-500/10 rounded-lg">
                         <i class="fas fa-chart-line text-blue-400"></i>
                     </div>
                     Price Movement
                 </h3>
-                <div class="relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                <div class="relative h-48 md:h-60 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
                     <canvas id="chartLtp" class="w-full h-full"></canvas>
                     <div id="ltpSpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden"><svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg></div>
                 </div>
             </div>
 
             <!-- Price Analysis (full width) -->
-            <div class="card rounded-xl p-6 shadow-md lg:col-span-2 border border-gray-700 card-hover">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <div class="p-2 bg-green-500/10 rounded-lg">
+            <div class="rounded-xl p-4 shadow-md lg:col-span-2 border border-gray-700 card-hover mb-8">
+                <h3 class="text-base font-bold mb-4 flex items-center gap-2">
+                    <div class="p-1.5 bg-green-500/10 rounded-lg">
                         <i class="fas fa-chart-line text-green-400"></i>
                     </div>
                     Price Analysis
                 </h3>
-                <div id="priceAnalysisContent" class="min-h-[60px]">
-                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading analysis...</p>
+                <div id="priceAnalysisContent" class="min-h-[50px]">
+                    <p class="text-secondary text-center py-3"><i class="fas fa-spinner fa-spin mr-2"></i>Loading analysis...</p>
                 </div>
             </div>
 
             <!-- Risk Assessment (full width) -->
-            <div class="card rounded-xl p-6 shadow-md lg:col-span-2 border border-gray-700 card-hover">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <div class="p-2 bg-yellow-500/10 rounded-lg">
+            <div class="rounded-xl p-4 shadow-md lg:col-span-2 border border-gray-700 card-hover mb-8">
+                <h3 class="text-base font-bold mb-4 flex items-center gap-2">
+                    <div class="p-1.5 bg-yellow-500/10 rounded-lg">
                         <i class="fas fa-shield-alt text-yellow-400"></i>
                     </div>
                     Risk Assessment
                 </h3>
-                <div id="riskContent" class="min-h-[60px]">
-                    <p class="text-secondary text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Loading risk assessment...</p>
+                <div id="riskContent" class="min-h-[50px]">
+                    <p class="text-secondary text-center py-3"><i class="fas fa-spinner fa-spin mr-2"></i>Loading risk assessment...</p>
                 </div>
             </div>
 
-            <!-- Institutional Activity -->
-            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
+            <!-- Enhanced Backtest Results -->
+            <div class="rounded-xl shadow-md p-6 lg:col-span-2" id="backtestSection">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-lg font-bold flex items-center gap-2">
-                        <div class="p-2 bg-indigo-500/10 rounded-lg">
-                            <i class="fas fa-building-columns text-indigo-400"></i>
+                        <div class="p-2 bg-blue-500/10 rounded-lg">
+                            <i class="fas fa-calculator text-blue-400"></i>
                         </div>
-                        Institutional Activity
+                        Backtest Results
+                        <span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full ml-2">Enhanced</span>
                     </h3>
-                    <button id="instRefreshBtn" class="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 border border-gray-700">
-                        <i class="fas fa-sync-alt mr-1"></i>Refresh
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="text-secondary">Risk-free rate:</span>
+                            <input type="number" id="riskFreeRateInputCfg" value="2" step="0.5"
+                                class="w-16 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                            <span class="text-secondary">% annual</span>
+                        </div>
+                        <button onclick="runBacktestWithParameters()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md text-sm flex items-center gap-2 active:scale-95">
+                            <i class="fas fa-play"></i>Run Custom Backtest
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div id="backtestLoadingSection" class="hidden rounded-xl p-8 text-center bg-gray-800/30">
+                    <div class="inline-flex items-center gap-3 mb-4">
+                        <svg class="animate-spin h-8 w-8 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V4a8 8 0 018 8h-2a6 6 0 00-6-6V4a6 6 0 00-6 6h2a6 6 0 006 6V4"></path>
+                        </svg>
+                        <span class="text-lg font-medium">Calculating backtest with enhanced metrics...</span>
+                    </div>
+                    <div class="w-full max-w-md mx-auto bg-gray-700 rounded-full h-2.5">
+                        <div class="bg-blue-600 h-2.5 rounded-full animate-pulse" style="width: 60%"></div>
+                    </div>
+                    <p class="text-secondary text-sm mt-4">Running event-driven simulation with Sharpe ratio, Calmar ratio, and detailed trade analysis...</p>
+                </div>
+
+                <!-- Results Grid -->
+                <div id="backtestResultsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <!-- Basic Metrics -->
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-blue-500/10 rounded-lg">
+                                <i class="fas fa-coins text-blue-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Total Return</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btTotalReturn">--</div>
+                        <div class="text-xs text-green-400 mt-1"><span id="btTotalReturnTrend">--</span></div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-purple-500/10 rounded-lg">
+                                <i class="fas fa-percentage text-purple-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Win Rate</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btWinRate">--</div>
+                        <div class="text-xs text-purple-400 mt-1">Trades: <span id="btTradeCount">0</span></div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-orange-500/10 rounded-lg">
+                                <i class="fas fa-exclamation-triangle text-orange-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Max Drawdown</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btMaxDrawdown">--</div>
+                        <div class="text-xs text-orange-400 mt-1">Long drawdown: <span id="btLongestDrawdownDays">0</span> days</div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-green-500/10 rounded-lg">
+                                <i class="fas fa-chart-line text-green-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Sharpe Ratio</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btSharpeRatio">--</div>
+                        <div class="text-xs text-green-400 mt-1">Risk-adjusted return</div>
+                    </div>
+
+                    <!-- Advanced Metrics -->
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-cyan-500/10 rounded-lg">
+                                <i class="fas fa-calculator text-cyan-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Calmar Ratio</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btCalmarRatio">--</div>
+                        <div class="text-xs text-cyan-400 mt-1">Return per unit of drawdown</div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-red-500/10 rounded-lg">
+                                <i class="fas fa-exclamation-circle text-red-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Sortino Ratio</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btSortinoRatio">--</div>
+                        <div class="text-xs text-red-400 mt-1">Downside risk adjusted</div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-emerald-500/10 rounded-lg">
+                                <i class="fas fa-coins text-emerald-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Profit Factor</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btProfitFactor">--</div>
+                        <div class="text-xs text-emerald-400 mt-1">Gross profit / Gross loss</div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-amber-500/10 rounded-lg">
+                                <i class="fas fa-star text-amber-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Avg Win Trade</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btAvgWinningTrade">--</div>
+                        <div class="text-xs text-amber-400 mt-1">Average winning trade</div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-rose-500/10 rounded-lg">
+                                <i class="fas fa-times-circle text-rose-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Avg Loss Trade</div>
+                        </div>
+                        <div class="text-2xl font-bold text-white" id="btAvgLosingTrade">--</div>
+                        <div class="text-xs text-rose-400 mt-1">Average losing trade</div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-indigo-500/10 rounded-lg">
+                                <i class="fas fa-chart-pie text-indigo-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Largest Win</div>
+                        </div>
+                        <div class="text-2xl font-bold text-green-400" id="btLargestWinnerTrade">--</div>
+                        <div class="text-xs text-green-400 mt-1">Count: <span id="btLargestWinnerCount">0</span></div>
+                    </div>
+
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700 enhanced-card">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="p-1.5 bg-pink-500/10 rounded-lg">
+                                <i class="fas fa-times text-pink-400"></i>
+                            </div>
+                            <div class="text-xs font-semibold text-secondary uppercase tracking-wider">Largest Loss</div>
+                        </div>
+                        <div class="text-2xl font-bold text-red-400" id="btLargestLoserTrade">--</div>
+                        <div class="text-xs text-red-400 mt-1">Count: <span id="btLargestLoserCount">0</span></div>
+                    </div>
+                </div>
+
+                <!-- Trade Details -->
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+                    <div class="bg-gray-800/30 rounded-lg p-3 border border-gray-700">
+                        <div class="text-xs text-secondary">Winning Trades</div>
+                        <div class="text-lg font-bold text-green-400" id="btWinningTrades">--</div>
+                    </div>
+                    <div class="bg-gray-800/30 rounded-lg p-3 border border-gray-700">
+                        <div class="text-xs text-secondary">Losing Trades</div>
+                        <div class="text-lg font-bold text-red-400" id="btLosingTrades">--</div>
+                    </div>
+                    <div class="bg-gray-800/30 rounded-lg p-3 border border-gray-700">
+                        <div class="text-xs text-secondary">Stopped Out</div>
+                        <div class="text-lg font-bold text-orange-400" id="btStoppedOut">--</div>
+                    </div>
+                    <div class="bg-gray-800/30 rounded-lg p-3 border border-gray-700">
+                        <div class="text-xs text-secondary">Signal Exits</div>
+                        <div class="text-lg font-bold text-blue-400" id="btSignalExits">--</div>
+                    </div>
+                    <div class="bg-gray-800/30 rounded-lg p-3 border border-gray-700">
+                        <div class="text-xs text-secondary">Events Skipped</div>
+                        <div class="text-lg font-bold text-yellow-400" id="btEventsSkipped">--</div>
+                    </div>
+                    <div class="bg-gray-800/30 rounded-lg p-3 border border-gray-700">
+                        <div class="text-xs text-secondary">Final Value</div>
+                        <div class="text-lg font-bold text-white" id="btFinalValue">--</div>
+                    </div>
+                </div>
+
+                <!-- Equity Curve Chart -->
+                <div class="mb-6">
+                    <h4 class="text-base font-bold mb-4 flex items-center gap-2">
+                        <div class="p-1.5 bg-green-500/10 rounded-lg">
+                            <i class="fas fa-chart-line text-green-400"></i>
+                        </div>
+                        Portfolio Value Curve
+                        <button onclick="exportEquityData()" class="ml-auto text-xs px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all">
+                            <i class="fas fa-download mr-1"></i>Export Data
+                        </button>
+                    </h4>
+                    <div class="relative h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
+                        <canvas id="backtestEquityCurve"></canvas>
+                        <div id="backtestEquitySpinner" class="absolute inset-0 flex items-center justify-center bg-gray-800/50 hidden">
+                            <svg class="animate-spin h-8 w-8 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V4a8 8 0 018 8h-2a6 6 0 00-6-6V4a6 6 0 00-6 6h2a6 6 0 006 6V4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trade History Table -->
+                <div>
+                    <h4 class="text-base font-bold mb-4 flex items-center gap-2">
+                        <div class="p-1.5 bg-blue-500/10 rounded-lg">
+                            <i class="fas fa-list-ol text-blue-400"></i>
+                        </div>
+                        Trade History
+                        <span class="text-xs bg-gray-700 text-gray-400 px-2 py-0.5 rounded-full ml-2">Detailed log</span>
+                    </h4>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-gray-600 bg-gray-800/50">
+                                    <th class="px-4 py-3 text-left">Date</th>
+                                    <th class="px-4 py-3 text-left">Action</th>
+                                    <th class="px-4 py-3 text-right">Entry Price</th>
+                                    <th class="px-4 py-3 text-right">Exit Price</th>
+                                    <th class="px-4 py-3 text-right">Quantity</th>
+                                    <th class="px-4 py-3 text-right">P&L</th>
+                                    <th class="px-4 py-3 text-left">Exit Reason</th>
+                                    <th class="px-4 py-3 text-center">Stop Loss</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradeHistoryBody">
+                                <tr>
+                                    <td colspan="8" class="px-4 py-8 text-center text-secondary">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i>No trade history available. Run backtest to see results.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backtest Controls -->
+            <div class="rounded-xl shadow-md p-4 lg:col-span-2 border border-gray-700 bg-gray-800/30">
+                <h4 class="text-base font-bold mb-4 flex items-center gap-2">
+                    <div class="p-1.5 bg-gray-500/10 rounded-lg">
+                        <i class="fas fa-cog text-gray-400"></i>
+                    </div>
+                    Backtest Configuration
+                </h4>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Position Size (% of capital)</label>
+                        <input type="number" id="positionSizeInput" value="2" step="0.5"
+                            class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Trailing Stop (%)</label>
+                        <input type="number" id="trailingStopInput" value="2" step="0.5"
+                            class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Risk-Free Rate (%)</label>
+                         <input type="number" id="riskFreeRateInput" value="2" step="0.5"
+                            class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Days of Data</label>
+                        <select id="backtestDaysInput" class="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="365">1 Year (365)</option>
+                            <option value="730">2 Years (730)</option>
+                            <option value="1825">5 Years (1825)</option>
+                            <option value="3650">10 Years (3650)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button onclick="runBacktestWithParameters()" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md text-sm flex items-center gap-2 active:scale-95">
+                        <i class="fas fa-play"></i>Run Enhanced Backtest
                     </button>
                 </div>
-                <div id="institutionalContent" class="min-h-[100px]">
-                    <p class="text-secondary text-center py-4">Loading institutional data...</p>
-                </div>
             </div>
+        </div>
 
-            <!-- P&L Trend -->
-            <div class="card rounded-xl shadow-md p-6 border border-gray-700 card-hover">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <div class="p-2 bg-purple-500/10 rounded-lg">
-                        <i class="fas fa-money-bill-trend-up text-purple-400"></i>
-                    </div>
-                    P&L Trend
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="md:col-span-2 relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
-                        <canvas id="chartPnl" class="w-full h-full"></canvas>
-                    </div>
-                    <div class="relative h-64 md:h-80 bg-gray-900/50 rounded-lg overflow-hidden border border-gray-800">
-                        <canvas id="chartPnlBar" class="w-full h-full"></canvas>
-                    </div>
+        <!-- Additional Advanced Metrics Section -->
+        <div class="rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 bg-gradient-to-br from-blue-900/20 to-purple-900/20">
+            <h4 class="text-base font-bold mb-4 flex items-center gap-2">
+                <div class="p-1.5 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-lg">
+                    <i class="fas fa-chart-pie text-purple-400"></i>
                 </div>
-            </div>
+                Advanced Risk Metrics
+                <span class="ml-auto text-xs bg-gradient-to-r from-blue-500/20 to-purple-500/20 px-3 py-1 rounded-full">Sharpe, Sortino, Calmar</span>
+            </h4>
 
-            <!-- Screener (full width) -->
-            <div class="card rounded-xl shadow-md p-6 lg:col-span-2 border border-gray-700 card-hover">
-                <h3 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <div class="p-2 bg-cyan-500/10 rounded-lg">
-                        <i class="fas fa-search text-cyan-400"></i>
-                    </div>
-                    Screener
-                </h3>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="card rounded-xl p-4 shadow-sm border border-gray-700 bg-gray-800/50" id="signalCard">
-                        <h6 class="text-secondary text-xs uppercase font-bold tracking-wider mb-4">Signal Summary</h6>
-                        <div id="signalContent" class="text-sm font-medium">Loading...</div>
-                    </div>
-                    <div class="lg:col-span-2 card rounded-xl shadow-sm overflow-hidden border border-gray-700 bg-gray-800/50">
-                        <div class="table-container">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b border-gray-700">
-                                        <th class="px-4 py-3 text-left">Date</th>
-                                        <th class="px-4 py-3 text-right">LTP</th>
-                                        <th class="px-4 py-3 text-right">P&L</th>
-                                        <th class="px-4 py-3 text-right">P&L%</th>
-                                        <th class="px-4 py-3 text-right">Curr Value</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="snapshotTable"></tbody>
-                            </table>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="text-center">
+                    <div class="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Sharpe Ratio Interpretation</div>
+                    <div class="space-y-1 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-red-400">≤ 0.0</span>
+                            <span class="text-gray-400">Poor</span>
                         </div>
-                        <div class="flex justify-between items-center p-4 bg-gray-700/30">
-                            <div id="screenerPageInfo" class="text-xs text-secondary font-medium"></div>
-                            <div class="flex gap-2">
-                                <button id="screenerPrevPage" onclick="previousScreenerPage()"
-                                        class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 text-xs font-medium border border-gray-700">
-                                    Previous
-                                </button>
-                                <button id="screenerNextPage" onclick="nextScreenerPage()"
-                                        class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-all active:scale-95 text-xs font-medium border border-gray-700">
-                                    Next
-                                </button>
-                            </div>
+                        <div class="flex justify-between">
+                            <span class="text-orange-400">0.1 - 0.5</span>
+                            <span class="text-gray-400">Fair</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yellow-400">0.6 - 1.0</span>
+                            <span class="text-gray-400">Good</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-green-400">> 1.0</span>
+                            <span class="text-gray-400">Excellent</span>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Backtest (full width) — DISABLED for performance optimization -->
-            <div class="card rounded-xl shadow-lg p-6 lg:col-span-2 hidden" id="backtestSection">
-                <div class="rounded-xl p-6 text-center">
-                    <i class="fas fa-vial text-2xl text-yellow-400 mb-3"></i>
-                    <p class="text-secondary">Backtest feature is disabled for performance optimization</p>
+                <div class="text-center">
+                    <div class="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Calmar Ratio Interpretation</div>
+                    <div class="space-y-1 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-red-400">≤ 0.0</span>
+                            <span class="text-gray-400">Poor</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-orange-400">0.1 - 0.5</span>
+                            <span class="text-gray-400">Fair</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yellow-400">0.6 - 1.0</span>
+                            <span class="text-gray-400">Good</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-green-400">> 1.0</span>
+                            <span class="text-gray-400">Excellent</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <div class="text-xs font-semibold text-secondary uppercase tracking-wider mb-2">Sortino Ratio Interpretation</div>
+                    <div class="space-y-1 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-red-400">≤ 0.0</span>
+                            <span class="text-gray-400">Poor</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-orange-400">0.1 - 0.5</span>
+                            <span class="text-gray-400">Fair</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-yellow-400">0.6 - 1.0</span>
+                            <span class="text-gray-400">Good</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-green-400">> 1.0</span>
+                            <span class="text-gray-400">Excellent</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-
         </div>
     </div>
+    </div>
 
-    <script>document.write('<script src="js/api.js?_=' + Date.now() + '"><\/script>');</script>
-    <script>document.write('<script src="js/stock-detail.js?_=' + Date.now() + '"><\/script>');</script>
-    <script>document.write('<script src="js/navigation.js?_=' + Date.now() + '"><\/script>');</script>
+    <script src="js/api.js?_=v20260808_avgcost1"></script>
+    <!-- Module dependencies: state first, then charts, data, features, entry point -->
+    <script src="js/modules/state.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/charts/line-charts.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/charts/candlestick.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/data/loading.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/insights/index.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/insights/fundamentals.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/kpi.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/fiidii.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/events.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/components/holding-details.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/backtest/index.js?_=v20260808_avgcost1"></script>
+    <script src="js/modules/watchlist/index.js?_=v20260808_avgcost1"></script>
+    <!-- Main entry point — wires up DOM ready -->
+    <script src="js/stock-detail.js?_=v20260808_avgcost1"></script>
+    <script src="js/navigation.js?_=v20260808_avgcost1"></script>
     <script>
         // Theme toggle
         function toggleTheme() {

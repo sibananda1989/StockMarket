@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,8 +44,9 @@ class MultiStrategySignalControllerTest {
     @Test
     void testGetSignal() {
         Long stockId = 1L;
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, List.of(), 20
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, List.of(), 20,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, null)).thenReturn(mockResult);
 
@@ -58,8 +60,9 @@ class MultiStrategySignalControllerTest {
     void testGetSignal_WithActiveParam() {
         Long stockId = 1L;
         Set<String> active = Set.of("RSI", "MACD");
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 4.0, List.of(), 14
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 4.0, List.of(), 14,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, active)).thenReturn(mockResult);
 
@@ -75,8 +78,9 @@ class MultiStrategySignalControllerTest {
         List<StrategyResult> breakdown = List.of(
                 StrategyResult.withoutContribution(StrategySignal.BUY, 0.85, "RSI oversold", "RSI", 7)
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, breakdown, 20
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, breakdown, 20,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, null)).thenReturn(mockResult);
 
@@ -88,8 +92,9 @@ class MultiStrategySignalControllerTest {
     @Test
     void testCompareSignals() {
         Long stockId = 1L;
-        AggregatedSignalResult multiStrategy = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, List.of(), 20
+        AggregatedSignalResult multiStrategy = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, List.of(), 20,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         SignalDTO existing = new SignalDTO();
         existing.setStockId(stockId);
@@ -108,8 +113,9 @@ class MultiStrategySignalControllerTest {
     void testCompareSignals_WithActiveParam() {
         Long stockId = 1L;
         Set<String> active = Set.of("RSI");
-        AggregatedSignalResult multiStrategy = AggregatedSignalResult.simple(
-                StrategySignal.HOLD, 1.0, List.of(), 7
+        AggregatedSignalResult multiStrategy = new AggregatedSignalResult(
+                StrategySignal.HOLD, 1.0, List.of(), 7,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         SignalDTO existing = new SignalDTO();
         existing.setStockId(stockId);
@@ -168,8 +174,9 @@ class MultiStrategySignalControllerTest {
     @Test
     void testGetBreakdown_Empty() {
         Long stockId = 1L;
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.HOLD, 0.0, List.of(), 0
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.HOLD, 0.0, List.of(), 0,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, null)).thenReturn(mockResult);
 
@@ -186,8 +193,9 @@ class MultiStrategySignalControllerTest {
                 StrategyResult.withoutContribution(StrategySignal.BUY, 0.80, "Buy reason 2", "MACD", 7),
                 StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, "Hold reason", "VOLUME", 5)
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, breakdown, 19
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, breakdown, 19,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, null)).thenReturn(mockResult);
 
@@ -201,8 +209,9 @@ class MultiStrategySignalControllerTest {
     @Test
     void testCompareSignals_NoExistingSignal() {
         Long stockId = 1L;
-        AggregatedSignalResult multiStrategy = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, List.of(), 20
+        AggregatedSignalResult multiStrategy = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, List.of(), 20,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, null)).thenReturn(multiStrategy);
         when(signalService.getComputedSignal(stockId)).thenReturn(null);
@@ -247,8 +256,9 @@ class MultiStrategySignalControllerTest {
         List<StrategyResult> breakdown = List.of(
                 StrategyResult.withoutContribution(StrategySignal.BUY, 0.85, "RSI oversold", "RSI", 7)
         );
-        AggregatedSignalResult mockResult = AggregatedSignalResult.simple(
-                StrategySignal.BUY, 5.0, breakdown, 7
+        AggregatedSignalResult mockResult = new AggregatedSignalResult(
+                StrategySignal.BUY, 5.0, breakdown, 7,
+                0.0, List.of(), List.of(), Map.of(), Map.of()
         );
         when(engine.evaluate(stockId, active)).thenReturn(mockResult);
 

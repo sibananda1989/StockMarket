@@ -50,7 +50,7 @@ class TechnicalAnalysisServiceTest {
     @Test
     void testCalculateIndicatorsForStock_StochasticK() {
         // Given
-        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy");
+        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
         stock.setId(1L);
         List<DailyPrice> prices = new ArrayList<>();
         for (int i = 0; i < 14; i++) {
@@ -78,7 +78,7 @@ class TechnicalAnalysisServiceTest {
     @Test
     void testGetLatestIndicators() {
         // Given
-        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy");
+        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
         stock.setId(1L);
         when(stockService.getStockById(stock.getId())).thenReturn(stock);
 

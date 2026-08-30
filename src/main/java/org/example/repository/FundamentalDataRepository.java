@@ -21,4 +21,7 @@ public interface FundamentalDataRepository extends JpaRepository<FundamentalData
 
     @Query("SELECT DISTINCT f.sector FROM FundamentalData f WHERE f.sector IS NOT NULL ORDER BY f.sector")
     List<String> findDistinctSectors();
+
+    @Query("SELECT COUNT(DISTINCT f.stock.id) FROM FundamentalData f")
+    long countDistinctStocks();
 }

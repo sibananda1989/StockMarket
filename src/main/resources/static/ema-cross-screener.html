@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Tracker - EMA Cross Screener</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .ema-cross-card { border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="dark min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold mb-2"><i class="fas fa-arrow-trend-up text-blue-400 mr-3"></i>EMA-20 ↑ EMA-50 Cross</h1>
+                <p class="text-secondary text-sm" id="lastUpdated">Loading...</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <label for="daysSelect" class="text-sm font-medium text-secondary">Window:</label>
+                <select id="daysSelect" onchange="reloadEmaCross(this.value)"
+                        class="px-3 py-1.5 rounded-lg border border-gray-600 bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="5" selected>Last 5 days</option>
+                    <option value="10">Last 10 days</option>
+                    <option value="20">Last 20 days</option>
+                </select>
+                <button onclick="reloadEmaCross(document.getElementById('daysSelect').value)" id="refreshBtn"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Refresh</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="navigation"></div>
+
+        <!-- Summary Bar -->
+        <div class="card rounded-xl p-4 mb-6 shadow-lg" id="summaryBar">
+            <div class="flex flex-wrap justify-center gap-6">
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-green-400" id="crossCount">0</div>
+                    <div class="text-sm text-secondary">Crosses</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-blue-400" id="universeCount">0</div>
+                    <div class="text-sm text-secondary">Stocks Scanned</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-secondary" id="anchorDate">-</div>
+                    <div class="text-sm text-secondary">Anchor Date</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl font-bold text-yellow-400" id="warningCount">0</div>
+                    <div class="text-sm text-secondary">Warnings</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signals Table -->
+        <div class="card rounded-xl shadow-lg overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-gray-700 bg-gray-800/50">
+                        <th class="px-4 py-3 text-left text-secondary">Symbol</th>
+                        <th class="px-4 py-3 text-left text-secondary">Company</th>
+                        <th class="px-4 py-3 text-right text-secondary">EMA-20 at Cross</th>
+                        <th class="px-4 py-3 text-right text-secondary">EMA-50 at Cross</th>
+                        <th class="px-4 py-3 text-right text-secondary">Last Close</th>
+                        <th class="px-4 py-3 text-center text-secondary">Cross Date</th>
+                    </tr>
+                </thead>
+                <tbody id="crossTableBody">
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-secondary">
+                            <div class="flex justify-center items-center gap-3">
+                                <div class="loading-spinner mr-3"></div>
+                                <span>Scanning for EMA crosses...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="card rounded-xl shadow-lg mt-4" style="display: none;">
+            <div class="empty-state">
+                <i class="fas fa-check-circle"></i>
+                <h3 class="text-xl font-semibold mb-2">No EMA crosses in this window</h3>
+                <p class="text-secondary">No stocks had a fresh EMA-20 above EMA-50 cross in the selected window.</p>
+            </div>
+        </div>
+
+        <!-- Warnings -->
+        <div id="warningsContainer" class="mt-6" style="display: none;">
+            <div class="card rounded-xl p-4 shadow-lg border-l-4 border-yellow-500">
+                <h4 class="font-semibold text-yellow-400 mb-2">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>Warnings
+                </h4>
+                <ul id="warningsList" class="text-sm text-secondary space-y-1"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/ema-cross-screener.js"></script>
+    <script src="js/navigation.js"></script>
+    </body>
+</html>

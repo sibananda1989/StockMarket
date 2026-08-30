@@ -26,6 +26,16 @@ public class SignalController {
         return ResponseEntity.ok(ApiResponse.success(signals));
     }
 
+    /**
+     * Batch signals for specific stock ids — used by watchlist page to avoid
+     * computing signals for every stock in the system.
+     */
+    @GetMapping("/batch")
+    public ResponseEntity<ApiResponse<List<SignalDTO>>> getSignalsBatch(
+            @RequestParam("ids") List<Long> ids) {
+        return ResponseEntity.ok(ApiResponse.success(signalService.getSignalsForIds(ids)));
+    }
+
     @GetMapping("/buy")
     public ResponseEntity<ApiResponse<List<SignalDTO>>> getBuySignals() {
         List<SignalDTO> signals = signalService.getBuySignals();

@@ -30,9 +30,10 @@ public class IndicatorComputationService {
         Stock stock = stockRepository.getReferenceById(stockId);
         List<TechnicalIndicator> result = new ArrayList<>();
 
-        tryAdd(result, stock, IndicatorType.RSI, new RsiCalculator(14).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.RSI, new RsiCalculator(12).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.SMA_20, new SmaCalculator(20).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.SMA_50, new SmaCalculator(50).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.SMA_44, new SmaCalculator(44).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.EMA_20, new EmaCalculator(20).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.MACD_LINE, new MacdLineCalculator().calculate(prices), date);
         tryAdd(result, stock, IndicatorType.MACD_SIGNAL, new MacdSignalCalculator().calculate(prices), date);
@@ -47,10 +48,13 @@ public class IndicatorComputationService {
         tryAdd(result, stock, IndicatorType.ROC_12, new RocCalculator(12).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.OBV, new ObvCalculator().calculate(prices), date);
         tryAdd(result, stock, IndicatorType.VWAP, new VwapCalculator().calculate(prices), date);
-        tryAdd(result, stock, IndicatorType.BOLLINGER_UPPER, new BollingerUpperCalculator(20, 2).calculate(prices), date);
-        tryAdd(result, stock, IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.BOLLINGER_UPPER, new BollingerUpperCalculator(20, 2.5).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2.5).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.ATR, new ATRCalculator(14).calculate(prices), date);
         tryAdd(result, stock, IndicatorType.ADX, new AdxCalculator(14).calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.VOLUME_RATIO, new VolumeRatioCalculator().calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.AMIHUD_ILLIQUIDITY, new AmihudCalculator().calculate(prices), date);
+        tryAdd(result, stock, IndicatorType.DOLLAR_VOLUME, new DollarVolumeCalculator().calculate(prices), date);
 
         if (prices.size() >= 200) {
             tryAdd(result, stock, IndicatorType.SMA_200, new SmaCalculator(200).calculate(prices), date);

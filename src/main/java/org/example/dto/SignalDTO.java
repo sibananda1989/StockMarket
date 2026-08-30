@@ -15,6 +15,7 @@ public class SignalDTO {
     private String symbol;
     private String name;
     private String sector;
+    private String industry;
     private BigDecimal latestPrice;
 
     private BigDecimal rsi14;
@@ -153,4 +154,10 @@ public class SignalDTO {
     private int scoreAfterCandlestick;
     private int scoreAfterReversal;
     private int scoreAfterDiscount;
+
+    // Multi-strategy engine breakdown (strategy contributions to this signal)
+    private List<StrategyBreakdownDTO> strategyBreakdown;
+
+    // Liquidity assessment (computed from Amihud, dollar volume, turnover)
+    private LiquidityScoreDTO liquidityScore;
 }

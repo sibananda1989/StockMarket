@@ -99,6 +99,12 @@ public class FundamentalDataService {
 
         if (dto.getSector() != null && !dto.getSector().equals(stock.getSector())) {
             stock.setSector(dto.getSector());
+        }
+        if (dto.getIndustry() != null && !dto.getIndustry().equals(stock.getIndustry())) {
+            stock.setIndustry(dto.getIndustry());
+        }
+        if ((dto.getSector() != null && !dto.getSector().equals(stock.getSector()))
+                || (dto.getIndustry() != null && !dto.getIndustry().equals(stock.getIndustry()))) {
             stockRepository.save(stock);
         }
 
@@ -285,6 +291,12 @@ public class FundamentalDataService {
 
                 if (dto.getSector() != null && !dto.getSector().equals(stock.getSector())) {
                     stock.setSector(dto.getSector());
+                }
+                if (dto.getIndustry() != null && !dto.getIndustry().equals(stock.getIndustry())) {
+                    stock.setIndustry(dto.getIndustry());
+                }
+                if ((dto.getSector() != null && !dto.getSector().equals(stock.getSector()))
+                        || (dto.getIndustry() != null && !dto.getIndustry().equals(stock.getIndustry()))) {
                     stockRepository.save(stock);
                 }
 

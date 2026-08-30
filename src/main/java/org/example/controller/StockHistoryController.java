@@ -12,6 +12,7 @@ import org.example.exception.PriceAlreadyExistsException;
 import org.example.service.DailyPriceService;
 import org.example.service.StockHistoryService;
 import org.example.service.StockService;
+import org.example.service.TechnicalAnalysisService;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/stocks")
@@ -34,6 +37,8 @@ public class StockHistoryController {
     private final StockService stockService;
     private final DailyPriceService dailyPriceService;
     private final CacheManager cacheManager;
+    private final TechnicalAnalysisService technicalAnalysisService;
+    private static final Logger log = LoggerFactory.getLogger(StockHistoryController.class);
 
     @GetMapping("/history")
     public ResponseEntity<ApiResponse<StockSummaryDTO>> getHistory(
@@ -89,7 +94,8 @@ public class StockHistoryController {
             Stock stock = stockService.getOrCreateStock(
                 request.getSymbol(),
                 request.getName() != null ? request.getName() : request.getSymbol(),
-                request.getSector() != null ? request.getSector() : "Other"
+                request.getSector() != null ? request.getSector() : "Other",
+                request.getIndustry()
             );
 
             // Save daily prices
@@ -113,6 +119,13 @@ public class StockHistoryController {
                     // Skip duplicates
                     skippedCount++;
                 }
+            }
+
+            try {
+                int filled = technicalAnalysisService.fillIndicatorGapsForStock(stock.getId(), 365);
+                log.info("Indicator backfill complete for stock {}: {} records filled", stock.getSymbol(), filled);
+            } catch (Exception e) {
+                log.error("Indicator backfill failed for stock {}: {}", stock.getSymbol(), e.getMessage(), e);
             }
 
             return ResponseEntity.ok(ApiResponse.success(

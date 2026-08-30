@@ -14,7 +14,14 @@ async function apiCall(endpoint, options = {}) {
     try {
         const response = await fetch(url, mergedOptions);
         const text = await response.text();
-        const data = text ? JSON.parse(text) : null;
+        let data = null;
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                throw new Error('Invalid JSON response from server: ' + e.message);
+            }
+        }
 
         if (!response.ok) {
             throw new Error((data && data.message) || 'API call failed');
@@ -32,9 +39,18 @@ async function getAllStocks() {
     return apiCall('/stocks');
 }
 
+async function getSectors() {
+    return apiCall('/stocks/sectors');
+}
+
 // Startup Tasks API
 async function getStartupTasks() {
     return apiCall('/startup-tasks');
+}
+
+// Data Availability API
+async function getDataAvailability() {
+    return apiCall('/data-availability');
 }
 
 async function runStartupTasks(taskIds) {
@@ -154,12 +170,26 @@ async function calculateAllRsi() {
 
 
 // Technical Indicators API
+// NOTE: getLatestIndicators / getAllIndicatorHistory / getIndicatorHistory / calculateIndicators
+// return RAW DTOs from the backend (not wrapped in ApiResponse). Callers must treat the
+// resolved value as the data itself, e.g. `res.length`, `res.every(...)`, `render(res)`.
+// Only fillIndicatorGaps returns a wrapped ApiResponse (use res.status / res.data).
 async function getLatestIndicators(stockId) {
     return apiCall(`/indicators/${stockId}`);
 }
 
+async function getAllIndicatorHistory(stockId, fromDate, toDate) {
+    return apiCall(`/indicators/${stockId}/history?fromDate=${fromDate}&toDate=${toDate}`);
+}
+
 async function calculateIndicators(stockId) {
     return apiCall(`/indicators/calculate/${stockId}`, {
+        method: 'POST',
+    });
+}
+
+async function resetIndicators(stockId, days = 365) {
+    return apiCall(`/indicators/reset/${stockId}?days=${days}`, {
         method: 'POST',
     });
 }
@@ -187,20 +217,26 @@ async function fillIndicatorGaps(days = 7) {
 // Expose key functions to global scope for use in inline scripts
 window.fillRsiGaps = fillRsiGaps;
 window.fillIndicatorGaps = fillIndicatorGaps;
+window.resetIndicators = resetIndicators;
 
-// Portfolio API
+// Portfolio API — always reads from portfolio_daily_values via source=daily
 async function getPortfolioHistory(days = 365, all = false, portfolioId = null) {
     let endpoint = '/portfolio/history?';
     const params = [];
     if (!all) params.push(`days=${days}`);
     if (all) params.push('all=true');
     if (portfolioId) params.push(`portfolioId=${portfolioId}`);
+    params.push('source=daily');
     return apiCall(`/portfolio/history?${params.join('&')}`);
 }
 
 async function getPortfolioScreener(date) {
     const q = date ? `?date=${date}` : '';
     return apiCall(`/portfolio/screener${q}`);
+}
+
+async function forceBackfillSnapshots() {
+    return apiCall('/portfolio/backfill/force', { method: 'POST' });
 }
 
 async function recalculateAllPortfolios() {
@@ -287,6 +323,45 @@ async function recalculatePortfolioApi(portfolioId) {
     });
 }
 
+// ─── Portfolio Transactions (ledger) ─────────────────────────────────
+
+async function recordTransaction(portfolioId, payload) {
+    return apiCall(`/portfolios/${portfolioId}/transactions`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+async function getTransactions(portfolioId, stockId) {
+    const q = stockId != null ? `?stockId=${encodeURIComponent(stockId)}` : '';
+    return apiCall(`/portfolios/${portfolioId}/transactions${q}`);
+}
+
+async function getAllTransactionsByStock(stockId) {
+    return apiCall(`/portfolios/all/transactions-by-stock?stockId=${encodeURIComponent(stockId)}`);
+}
+
+async function deleteTransaction(portfolioId, txId) {
+    return apiCall(`/portfolios/${portfolioId}/transactions/${txId}`, {
+        method: 'DELETE',
+    });
+}
+
+// ─── Buy lots (lot-based sell matching) ──────────────────────────────
+
+async function getBuyLots(portfolioId, stockId) {
+    const q = stockId != null ? `?stockId=${encodeURIComponent(stockId)}` : '';
+    return apiCall(`/portfolios/${portfolioId}/lots${q}`);
+}
+
+async function sellFromLot(portfolioId, payload) {
+    return apiCall(`/portfolios/${portfolioId}/transactions/sell-from-lot`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    });
+}
+
+
 // FII/DII API
 async function getFiiDiiData() {
     return apiCall('/fiidii');
@@ -310,17 +385,30 @@ async function getStockSignal(stockId) {
     return apiCall(`/signals/${stockId}`);
 }
 
+async function getAllSignals() {
+    return apiCall('/signals');
+}
+
+// Signals for a specific set of stock ids (watchlist page) — avoids
+// computing signals for all stocks in the system.
+async function getBatchSignals(ids) {
+    return apiCall(`/signals/batch?ids=${ids}`);
+}
+
 // Signal History API
 async function getSignalHistory(stockId, days = 90) {
     return apiCall(`/signals/${stockId}/history?days=${days}`);
 }
 
 // Backtest API
-async function getBacktestData(stockId, stopLoss, positionSizePct) {
+async function getBacktestData(stockId, stopLoss, positionSizePct, days, riskFreeRate, trailingStop) {
     let endpoint = `/backtest/stock/${stockId}`;
     const params = new URLSearchParams();
     if (stopLoss !== undefined) params.append('stopLoss', stopLoss);
     if (positionSizePct !== undefined) params.append('positionSizePct', positionSizePct);
+    if (days !== undefined) params.append('days', days);
+    if (riskFreeRate !== undefined) params.append('riskFreeRatePct', riskFreeRate);
+    if (trailingStop !== undefined) params.append('trailingStopMultiplier', trailingStop);
     const qs = params.toString();
     if (qs) endpoint += '?' + qs;
     return apiCall(endpoint);
@@ -402,8 +490,12 @@ async function searchStocksByName(name, limit = 10) {
 
 // ─── Support & Resistance API ────────────────────────────────────────────────
 
-async function getSupportResistance(stockId) {
-    return apiCall(`/support-resistance/${stockId}`);
+async function getSupportResistance(stockId, lookbackDays) {
+    let endpoint = `/support-resistance/${stockId}`;
+    if (lookbackDays) {
+        endpoint += `?lookbackDays=${lookbackDays}`;
+    }
+    return apiCall(endpoint);
 }
 
 async function calculateSupportResistance(stockId) {
@@ -589,6 +681,12 @@ async function getMultiStrategySignalHistory(stockId, days = 365, activeStrategi
     return apiCall(`/signals/multi-strategy/${stockId}/history?days=${days}${qs ? '&' + qs.substring(1) : ''}`);
 }
 
+// ─── Strategy Results API ────────────────────────────────────────────────────
+
+function getStrategyResults() { return apiCall('/strategy-results'); }
+function getStrategyResultsFor(strategyName) { return apiCall(`/strategy-results/${encodeURIComponent(strategyName)}`); }
+function refreshStrategyResults() { return apiCall('/strategy-results/refresh', { method: 'POST' }); }
+
 // ─── Strategy Config API ────────────────────────────────────────────────────
 
 async function getStrategyConfigs() {
@@ -600,6 +698,23 @@ async function toggleStrategyConfig(strategyName, active) {
         method: 'PUT',
         body: JSON.stringify({ active })
     });
+}
+
+// ─── Score Parameters API ─────────────────────────────────────────────────
+
+async function getScoreParameters() {
+    return apiCall('/score-parameters');
+}
+
+async function updateScoreParameter(paramKey, enabled) {
+    return apiCall(`/score-parameters/${encodeURIComponent(paramKey)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: enabled })
+    });
+}
+
+async function resetScoreParameters() {
+    return apiCall('/score-parameters/reset', { method: 'POST' });
 }
 
 // ─── Strategy Condition API ────────────────────────────────────────────
@@ -642,4 +757,26 @@ async function toggleCondition(strategyName, conditionId, enabled) {
         body: JSON.stringify({ enabled })
     });
     return res.data;
+}
+
+// ─── Volume Spike Factor API ──────────────────────────────────────────────
+
+async function getVolumeSpikeFactor() {
+    return apiCall('/strategy-config/volume/spike-factor');
+}
+
+async function updateVolumeSpikeFactor(factor) {
+    return apiCall(`/strategy-config/volume/spike-factor?factor=${factor}`, { method: 'PUT' });
+}
+
+// ─── SMC/ICT Pattern Detection API ──────────────────────────────────────────
+
+async function getSMCPatterns(stockId, lookbackDays = 365) {
+    return apiCall(`/smc/${stockId}?lookbackDays=${lookbackDays}`);
+}
+
+// ─── EMA Cross Screener API ─────────────────────────────────────────────────
+
+async function getEmaCrossSignals(days = 5) {
+    return apiCall(`/screener/ema-cross?days=${days}`);
 }

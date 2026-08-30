@@ -31,7 +31,7 @@ public abstract class TradingStrategy {
      *
      * @param stockId     the stock identifier
      * @param indicators  latest technical indicator records for the stock
-     * @param prices      recent daily price records (most recent first)
+     * @param prices      recent daily price records (oldest first, ascending chronological order)
      * @return a {@link StrategyResult} with signal, confidence, and explanation
      */
     public abstract StrategyResult evaluate(Long stockId,
@@ -58,7 +58,7 @@ public abstract class TradingStrategy {
         }
         return indicators.stream()
                 .filter(ti -> ti.getIndicatorType() == type)
-                .findFirst()
+                .max(Comparator.comparing(TechnicalIndicator::getCalculationDate))
                 .map(TechnicalIndicator::getValue)
                 .map(BigDecimal::doubleValue);
     }

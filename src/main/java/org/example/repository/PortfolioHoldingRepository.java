@@ -46,4 +46,7 @@ public interface PortfolioHoldingRepository extends JpaRepository<PortfolioHoldi
     @Modifying
     @Query("DELETE FROM PortfolioHolding ph WHERE ph.portfolio.id = :portfolioId AND ph.stock.id = :stockId")
     int deleteByPortfolioIdAndStockId(@Param("portfolioId") Long portfolioId, @Param("stockId") Long stockId);
+
+    @Query("SELECT COUNT(DISTINCT ph.stock.id) FROM PortfolioHolding ph")
+    long countDistinctStocks();
 }

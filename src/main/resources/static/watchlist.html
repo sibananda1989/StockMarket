@@ -36,32 +36,36 @@ font-size: 0.6rem;
 opacity: 0.8;
 }
 .signal-tooltip {
-display: none;
-position: fixed;
-background: #1f2937;
-border: 1px solid #4b5563;
-border-radius: 8px;
-padding: 10px 14px;
-min-width: 220px;
-z-index: 1000;
-box-shadow: 0 8px 25px rgba(0,0,0,0.4);
-text-align: left;
-white-space: nowrap;
+	display: none;
+	position: fixed;
+	background: #1f2937;
+	border: 1px solid #4b5563;
+	border-radius: 8px;
+	padding: 8px 12px;
+	min-width: 200px;
+	z-index: 1000;
+	box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+	text-align: left;
+	font-size: 0.7rem;
+}
+.signal-tooltip .tooltip-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 3px 14px;
 }
 .signal-tooltip .tooltip-row {
-display: flex;
-justify-content: space-between;
-font-size: 0.75rem;
-padding: 2px 0;
-color: #d1d5db;
-gap: 12px;
+	display: flex;
+	justify-content: space-between;
+	padding: 1px 0;
+	color: #d1d5db;
+	gap: 6px;
 }
 .signal-tooltip .tooltip-label {
-color: #9ca3af;
+	color: #9ca3af;
+	white-space: nowrap;
 }
-.signal-tooltip .tooltip-divider {
-border-top: 1px solid #374151;
-margin: 4px 0;
+.signal-tooltip .tooltip-row-full {
+	grid-column: 1 / -1;
 }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
 .badge-neutral { background: rgba(107,114,128,0.2); color: #9ca3af; }
@@ -152,6 +156,7 @@ class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm f
 <th class="px-4 py-3 text-left">Symbol</th>
 <th class="px-4 py-3 text-left">Name</th>
 <th class="px-4 py-3 text-left">Sector</th>
+<th class="px-4 py-3 text-left">Industry</th>
 <th class="px-4 py-3 text-right">LTP</th>
 <th class="px-4 py-3 text-right">Signal</th>
 <th class="px-4 py-3 text-center">Added</th>
@@ -160,17 +165,25 @@ class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm f
 </tr>
 </thead>
 <tbody id="detailTableBody">
-<tr><td colspan="8" class="text-center py-8 text-secondary">Loading stocks...</td></tr>
+<tr><td colspan="9" class="text-center py-8 text-secondary">Loading stocks...</td></tr>
 </tbody>
 </table>
 </div>
-<!-- Sector Allocation Chart -->
+<!-- Allocation Charts -->
 <div id="sectorChartSection" class="px-6 py-4 border-t border-gray-700 hidden">
 <h4 class="text-sm font-bold mb-3">
 <i class="fas fa-chart-pie text-purple-400 mr-2"></i>Sector Allocation
 </h4>
 <div class="relative" style="height: 250px;">
 <canvas id="watchlistSectorChart"></canvas>
+</div>
+</div>
+<div id="industryChartSection" class="px-6 py-4 border-t border-gray-700 hidden">
+<h4 class="text-sm font-bold mb-3">
+<i class="fas fa-industry text-cyan-400 mr-2"></i>Industry Allocation
+</h4>
+<div class="relative" style="height: 250px;">
+<canvas id="watchlistIndustryChart"></canvas>
 </div>
 </div>
 </div>
@@ -188,13 +201,13 @@ class="px-3 py-1.5 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm f
 <form id="watchlistForm" onsubmit="saveWatchlist(event)">
 <input type="hidden" id="editWatchlistId">
 <div class="mb-4">
-<label class="block text-sm font-medium mb-2">Name</label>
+<label for="wlName" class="block text-sm font-medium mb-2">Name</label>
 <input type="text" id="wlName" required maxlength="100"
 class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
 placeholder="e.g. Earnings Watch, Tech Growth">
 </div>
 <div class="mb-4">
-<label class="block text-sm font-medium mb-2">Description</label>
+<label for="wlDescription" class="block text-sm font-medium mb-2">Description</label>
 <textarea id="wlDescription" maxlength="255" rows="2"
 class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
 placeholder="Optional description..."></textarea>
@@ -251,7 +264,7 @@ Delete
 
 <!-- Primary: Name Search -->
 <div class="mb-4 relative">
-<label class="block text-sm font-medium mb-2">Search Stock</label>
+<label for="addStockSearch" class="block text-sm font-medium mb-2">Search Stock</label>
 <input type="text" id="addStockSearch"
 class="w-full px-4 py-2.5 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
 placeholder="Type stock name or symbol (e.g. Reliance, TCS, Infosys)..."
@@ -270,32 +283,37 @@ autocomplete="off">
 <button onclick="clearSelectedStock()" class="text-xs text-red-400 hover:text-red-300">
 <i class="fas fa-times mr-1"></i>Clear
 </button>
-</div>
-<div class="grid grid-cols-2 gap-3">
-<div>
-<label class="block text-xs text-secondary mb-1">Symbol</label>
+</div>                            <div class="grid grid-cols-2 gap-3">            <div>
+<label for="qcSymbol" class="block text-xs text-secondary mb-1">Symbol</label>
 <input type="text" id="qcSymbol" readonly
 class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm font-bold text-white">
-</div>
-<div>
-<label class="block text-xs text-secondary mb-1">Name</label>
+</div>            <div>
+<label for="qcName" class="block text-xs text-secondary mb-1">Name</label>
 <input type="text" id="qcName" readonly
 class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
 </div>
 <div>
-<label class="block text-xs text-secondary mb-1">Exchange</label>
-<input type="text" id="qcExchange" readonly
-class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
+<label for="qcExchange" class="block text-xs text-secondary mb-1">Exchange</label>
+<select id="qcExchange" class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+<option value="NSE">NSE</option>
+<option value="BSE">BSE</option>
+</select>
 </div>
 <div>
-<label class="block text-xs text-secondary mb-1">Sector</label>
+<label for="qcSector" class="block text-xs text-secondary mb-1">Sector</label>
 <select id="qcSector" class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
 <option value="">Select</option>
 <option>Technology</option><option>Finance</option><option>Healthcare</option>
 <option>Energy</option><option>Consumer Discretionary</option>
-<option>Consumer Staples</option><option>Industrial</option>
+<option>Consumer Staples</option><option>Aero &amp; defence</option><option>Industrial</option>
 <option>Utilities</option><option>Real Estate</option><option>Materials</option><option>Other</option>
 </select>
+</div>
+<div>
+<label for="qcIndustry" class="block text-xs text-secondary mb-1">Industry</label>
+<input type="text" id="qcIndustry"
+class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm"
+placeholder="Auto-filled or type industry">
 </div>
 </div>
 </div>
@@ -312,8 +330,10 @@ class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium tra
 Cancel
 </button>
 <button id="addStockBtn" onclick="confirmAddSingleStock()"
-class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors" disabled>
-<i class="fas fa-plus mr-1"></i>Add to Watchlist
+class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+<i id="addStockBtnIcon" class="fas fa-plus mr-1"></i>
+<span id="addStockBtnText">Add to Watchlist</span>
+<span id="addStockBtnSpinner" class="hidden ml-2"><i class="fas fa-spinner fa-spin"></i></span>
 </button>
 </div>
 </div>
@@ -331,14 +351,12 @@ class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg fo
 <input type="hidden" id="portfolioStockId">
 
 <div class="mb-4 bg-gray-700/30 rounded-lg p-4 border border-gray-600">
-<div class="grid grid-cols-2 gap-3">
-<div>
-<label class="block text-xs text-secondary mb-1">Symbol</label>
+<div class="grid grid-cols-2 gap-3">            <div>
+<label for="portfolioSymbol" class="block text-xs text-secondary mb-1">Symbol</label>
 <input type="text" id="portfolioSymbol" readonly
 class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm font-bold text-white">
-</div>
-<div>
-<label class="block text-xs text-secondary mb-1">Name</label>
+</div>            <div>
+<label for="portfolioName" class="block text-xs text-secondary mb-1">Name</label>
 <input type="text" id="portfolioName" readonly
 class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm">
 </div>
@@ -346,20 +364,20 @@ class="w-full px-3 py-2 rounded-lg border border-gray-600 bg-gray-700/50 text-sm
 </div>
 
 <div class="mb-4">
-<label class="block text-sm font-medium mb-2">Target Portfolio</label>
+<label for="portfolioTargetSelector" class="block text-sm font-medium mb-2">Target Portfolio</label>
 <select id="portfolioTargetSelector"
 class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500">
 <option value="">Select portfolio</option>
 </select>
 </div>
 <div class="mb-4">
-<label class="block text-sm font-medium mb-2">Quantity</label>
+<label for="portfolioQty" class="block text-sm font-medium mb-2">Quantity</label>
 <input type="number" id="portfolioQty" min="1" required
 class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
 placeholder="Enter quantity">
 </div>
 <div class="mb-4">
-<label class="block text-sm font-medium mb-2">Avg Buy Price</label>
+<label for="portfolioAvgPrice" class="block text-sm font-medium mb-2">Avg Buy Price</label>
 <input type="number" id="portfolioAvgPrice" step="0.01" min="0" required
 class="w-full px-4 py-2 rounded-lg border border-gray-600 bg-transparent focus:outline-none focus:ring-2 focus:ring-green-500"
 placeholder="Enter average buy price">
@@ -370,7 +388,7 @@ placeholder="Enter average buy price">
 class="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-medium transition-colors">
 Cancel
 </button>
-<button onclick="confirmAddToPortfolio()"
+<button onclick="confirmAddToPortfolio(event)"
 class="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
 <i class="fas fa-shopping-cart mr-1"></i>Add to Portfolio
 </button>
@@ -409,6 +427,5 @@ document.getElementById(modalId).classList.remove('hidden');
 document.getElementById(modalId).classList.add('flex');
 }
 </script>
-<script src="js/navigation.js"></script>
 </body>
 </html>

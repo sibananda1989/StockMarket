@@ -87,8 +87,8 @@ public class PortfolioMigrationStartupTask implements StartupTask {
         // ║  exist yet. Once any holding exists, we skip this migration     ║
         // ║  forever — otherwise stocks that happen to have quantity > 0    ║
         // ║  on the 'stocks' table (e.g. from Dhan sync, CSV import) would ║
-        // ║  be silently auto-added to the Default portfolio on every       ║
-        // ║  application restart. See CLAUDE.md for root-cause analysis.    ║
+    // ║  be silently auto-added to the Default portfolio on every       ║
+    // ║  application restart. See AGENTS.md for root-cause analysis.    ║
         // ╚══════════════════════════════════════════════════════════════════╝
         long existingHoldingCount = holdingRepository.count();
         if (existingHoldingCount == 0) {
@@ -132,12 +132,27 @@ public class PortfolioMigrationStartupTask implements StartupTask {
         }
 
         // Step 3: Update portfolio_snapshots with null portfolio_id to default portfolio
+        // MySQL prohibits self-referential UPDATE...WHERE NOT EXISTS, so we use
+        // UPDATE...JOIN with a derived table instead.
         Query updateSnapshots = entityManager.createNativeQuery(
-                "UPDATE portfolio_snapshots SET portfolio_id = :portfolioId WHERE portfolio_id IS NULL");
+                "UPDATE portfolio_snapshots " +
+                "INNER JOIN (" +
+                "  SELECT ps_inner.id " +
+                "  FROM portfolio_snapshots ps_inner " +
+                "  LEFT JOIN portfolio_snapshots ps_dup " +
+                "    ON ps_dup.portfolio_id = :portfolioId " +
+                "    AND ps_dup.stock_id = ps_inner.stock_id " +
+                "    AND ps_dup.snapshot_date = ps_inner.snapshot_date " +
+                "  WHERE ps_inner.portfolio_id IS NULL " +
+                "    AND ps_dup.id IS NULL" +
+                ") AS to_update ON portfolio_snapshots.id = to_update.id " +
+                "SET portfolio_snapshots.portfolio_id = :portfolioId");
         updateSnapshots.setParameter("portfolioId", defaultPort.getId());
         int snapshotsUpdated = updateSnapshots.executeUpdate();
         if (snapshotsUpdated > 0) {
             log.info("Updated {} portfolio_snapshots with portfolio_id={}", snapshotsUpdated, defaultPort.getId());
+        } else {
+            log.debug("No portfolio_snapshots required update for default portfolio (id={})", defaultPort.getId());
         }
 
         log.info("Portfolio migration complete. Default portfolio id={}", defaultPort.getId());

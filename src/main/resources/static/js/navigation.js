@@ -3,7 +3,9 @@
 
 const NAV_ITEMS = [
   { href: 'index.html', label: 'Dashboard', icon: 'fas fa-chart-pie' },
+  { href: 'portfolio-transactions.html', label: 'Transactions', icon: 'fas fa-receipt' },
   { href: 'strategy.html', label: 'Strategy', icon: 'fas fa-chess-knight' },
+  { href: 'strategy-results.html', label: 'Strategy Results', icon: 'fas fa-chart-bar' },
   { href: 'stocks.html', label: 'Stock Management', icon: 'fas fa-database' }
 ];
 
@@ -16,6 +18,7 @@ const DROPDOWN_ITEMS = [
   { href: 'history-summary.html', label: 'History Summary', icon: 'fas fa-file-alt' },
   { href: 'institutional-dashboard.html', label: 'Institutional', icon: 'fas fa-building-columns' },
   { href: 'fundamentals-screener.html', label: 'Fundamentals', icon: 'fas fa-filter' },
+  { href: 'ema-cross-screener.html', label: 'EMA Cross', icon: 'fas fa-arrow-trend-up' },
   { href: '#', label: 'Fill RSI Gaps', icon: 'fas fa-magic', onclick: 'handleFillRsiGapsFromNav()' }
 ];
 
@@ -99,20 +102,31 @@ function createNavigation() {
 }
 
 function injectNavigation() {
-  // Find the header area - look for the first nav.card or create insertion point
+  const newNav = createNavigation();
+
+  // Preferred: inject into the #navigation placeholder every page provides.
+  // This guarantees the nav sits at the top of the page (above hero content),
+  // regardless of the header's CSS classes.
+  const placeholder = document.getElementById('navigation');
+  if (placeholder) {
+    // Reset to a clean state so repeated injectNavigation() calls never stack navs.
+    placeholder.classList.remove('mb-6');
+    placeholder.innerHTML = '';
+    placeholder.appendChild(newNav);
+    return;
+  }
+
+  // Legacy fallback: replace an existing nav element if present.
   const existingNav = document.querySelector('nav.card.rounded-xl.p-4.mb-6.shadow-lg');
-  
   if (existingNav) {
-    // Replace existing navigation
-    const newNav = createNavigation();
     existingNav.parentNode.replaceChild(newNav, existingNav);
-  } else {
-    // Try to find header and insert after it
-    const header = document.querySelector('.flex.justify-between.items-center.mb-8, .flex.justify-between.items-center.mb-6');
-    if (header && header.parentNode) {
-      const newNav = createNavigation();
-      header.parentNode.insertBefore(newNav, header.nextSibling);
-    }
+    return;
+  }
+
+  // Last resort: try to find header and insert after it
+  const header = document.querySelector('.flex.justify-between.items-center.mb-8, .flex.justify-between.items-center.mb-6');
+  if (header && header.parentNode) {
+    header.parentNode.insertBefore(newNav, header.nextSibling);
   }
 }
 

@@ -59,8 +59,8 @@ class RsiStrategyTest {
         );
         StrategyResult result = strategy.evaluate(1L, indicators, prices);
         assertEquals(StrategySignal.HOLD, result.signal());
-        assertEquals(0.50, result.confidence());
-        assertEquals("RSI neutral-low (40.0)", result.reason());
+        assertEquals(0.45, result.confidence());
+        assertEquals("RSI neutral (40.0)", result.reason());
     }
 
     @Test
@@ -70,8 +70,8 @@ class RsiStrategyTest {
         );
         StrategyResult result = strategy.evaluate(1L, indicators, prices);
         assertEquals(StrategySignal.HOLD, result.signal());
-        assertEquals(0.40, result.confidence());
-        assertEquals("RSI neutral-high (60.0)", result.reason());
+        assertEquals(0.45, result.confidence());
+        assertEquals("RSI neutral (60.0)", result.reason());
     }
 
     @Test

@@ -201,6 +201,7 @@ async function loadStocks() {
     renderHoldingsTable();
     renderPerformers();
     renderSectorChart();
+    renderIndustryChart();
     renderPnlDistributionChart();
     updateRiskCards(allStocks);
   } catch (e) {
@@ -220,8 +221,11 @@ async function loadHistoryChart() {
     renderTrendChart();
   } catch (e) {
     console.error('Error loading history:', e);
+    destroyChart('trend');
     const parent = document.getElementById('portfolioTrendChart')?.parentElement;
-    if (parent) parent.innerHTML = '<p class="text-danger text-center py-8">Failed to load portfolio history</p>';
+    if (parent) {
+      parent.innerHTML = '<p class="text-danger text-center py-8">Failed to load portfolio history</p>';
+    }
   }
 }
 
@@ -310,10 +314,12 @@ function renderTrendChart() {
   canvas.style.display = 'block';
   if (emptyMsg) emptyMsg.style.display = 'none';
 
-  // Parse date strings into Date objects for the Chart.js time scale
+  // Parse date strings into Date objects for the Chart.js time scale.
+  // Use Date.UTC to anchor to midnight UTC so the chart displays the correct
+  // calendar date regardless of the user's local timezone offset.
   const parseDate = (d) => {
     const p = d.split('-');
-    return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+    return new Date(Date.UTC(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])));
   };
 
   charts.trend = new Chart(document.getElementById('portfolioTrendChart'), {
@@ -446,14 +452,55 @@ function renderSectorChart() {
   });
 }
 
+function renderIndustryChart() {
+  destroyChart('industry');
+  if (!allStocks.length) return;
+
+  const industryMap = {};
+  allStocks.forEach(s => {
+    const ind = s.industry || 'Other';
+    industryMap[ind] = (industryMap[ind] || 0) + (s.currentValue || 0);
+  });
+
+  const labels = Object.keys(industryMap);
+  const data = Object.values(industryMap);
+  const colors = generateColors(labels.length);
+
+  charts.industry = new Chart(document.getElementById('industryChart'), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: '#1e293b'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((ctx.raw / total) * 100).toFixed(1);
+              return ctx.label + ': ' + fmtPrice(ctx.raw) + ' (' + pct + '%)';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 // ─── P&L Distribution Chart (Horizontal Bar) ─────────────────────────────
 
 function renderPnlDistributionChart() {
   destroyChart('pnlDist');
   if (!allStocks.length) return;
-
-  const container = document.getElementById('pnlDistributionChart').parentElement;
-  container.style.height = Math.max(300, allStocks.length * 32) + 'px';
 
   const sorted = [...allStocks].sort((a, b) => (a.pnlPercent || 0) - (b.pnlPercent || 0));
   const labels = sorted.map(s => s.symbol);
@@ -504,9 +551,17 @@ async function loadSignals() {
     const url = currentPortfolioId
       ? `/api/signals?portfolioId=${currentPortfolioId}`
       : '/api/signals';
-    const res = await fetch(url);
-    const json = await res.json();
-    allSignals = json.data || [];
+    
+    // Fetch signals and fundamentals in parallel
+    const [signalsRes, fundRes] = await Promise.all([
+      fetch(url).then(r => r.json()),
+      screenFundamentals({ limit: 500, sortBy: 'marketCap', sortOrder: 'desc' }).catch(e => {
+        console.warn('Could not load fundamentals for signals table:', e);
+        return null;
+      })
+    ]);
+    
+    allSignals = signalsRes.data || [];
 
     if (currentPortfolioId && allStocks.length > 0) {
       // Defensive client-side filter — backend may not have applied the portfolioId
@@ -516,17 +571,11 @@ async function loadSignals() {
     }
 
     // Load fundamentals map for P/E and Market Cap columns
-    try {
-      const fundRes = await screenFundamentals({ limit: 500, sortBy: 'marketCap', sortOrder: 'desc' });
-      if (fundRes && fundRes.status === 'success' && fundRes.data) {
-        fundamentalsMap = {};
-        fundRes.data.forEach(function(f) {
-          fundamentalsMap[f.stockId] = { peRatio: f.peRatio, marketCap: f.marketCap };
-        });
-      }
-    } catch (e) {
-      console.warn('Could not load fundamentals for signals table:', e);
-      fundamentalsMap = {};
+    fundamentalsMap = {};
+    if (fundRes && fundRes.status === 'success' && fundRes.data) {
+      fundRes.data.forEach(function(f) {
+        fundamentalsMap[f.stockId] = { peRatio: f.peRatio, marketCap: f.marketCap };
+      });
     }
 
     if (allSignals.length) {
@@ -545,7 +594,7 @@ async function loadSignals() {
 function renderSortedSignals() {
   const data = filteredSignals.length ? filteredSignals : allSignals;
   if (!data || !data.length) {
-    document.getElementById('signalsTableBody').innerHTML = '<tr><td colspan="13" class="text-center py-4 text-secondary">No matching signals</td></tr>';
+    document.getElementById('signalsTableBody').innerHTML = '<tr><td colspan="16" class="text-center py-4 text-secondary">No matching signals</td></tr>';
     updateSignalStats([]);
     return;
   }
@@ -575,9 +624,8 @@ function renderSortedSignals() {
 
   const tbody = document.getElementById('signalsTableBody');
   tbody.innerHTML = sorted.map(s => {
-    const displaySignal = getDisplayRecommendation(s);
-    const displayRec = displaySignal.displayRecommendation || s.recommendation;
-    const displayScore = displaySignal.displayScore ?? s.compositeScore;
+    const displayRec = s.recommendation;
+    const displayScore = s.compositeScore;
     const pnl = s.pnlPercent;
     const pnlStr = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '--';
     const rsiStr = s.rsi14 != null ? s.rsi14.toFixed(1) : '--';
@@ -625,12 +673,27 @@ function renderSortedSignals() {
     const mcStr = fund.marketCap != null ? formatMarketCap(fund.marketCap) : '--';
 
     // Signal badge with high conviction indicator
+    // Liquidity badge
+    const liqScore = s.liquidityScore?.compositeScore;
+    let liqStr = '--';
+    if (liqScore != null) {
+      const badgeCls = getLiquidityBadge(liqScore);
+      liqStr = `<span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeCls}">${liqScore}</span>`;
+    }
+
     const badgeClass = getRecommendationBadge(displayRec);
     const highConvBadge = displayRec !== s.recommendation ? '<i class="fas fa-info-circle text-yellow-400 ml-1" title="High conviction criteria not met"></i>' : '';
 
-    return `<tr>
+    // Strategy breakdown tooltip HTML
+    const strategyTip = s.strategyBreakdown && s.strategyBreakdown.length
+      ? renderStrategyBreakdownTooltip(s.strategyBreakdown)
+      : '';
+
+    return `<tr class="signal-row">
       <td><a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" class="font-bold hover:text-blue-400 transition-colors">${s.symbol}</a></td>
-      <td><span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeClass}">${displayRec}${highConvBadge}</span></td>
+      <td class="strategy-tooltip-cell">
+        <span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeClass} strat-breakdown-toggle" data-strategy-tip="${strategyTip.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">${displayRec}${highConvBadge}</span>
+      </td>
       <td class="text-right">${rsiStr}</td>
       <td class="text-right ${targetClass}">${targetStr}</td>
       <td class="text-right text-red-500">${slStr}</td>
@@ -642,6 +705,7 @@ function renderSortedSignals() {
       <td class="text-center">${macdStr}</td>
       <td class="text-right">${peStr}</td>
       <td class="text-right">${mcStr}</td>
+      <td class="text-right">${liqStr}</td>
       <td class="text-right ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}">${pnlStr}</td>
       <td class="text-right ${displayScore >= 0 ? 'text-green-500' : 'text-red-500'}">${displayScore >= 0 ? '+' : ''}${displayScore}</td>
     </tr>`;
@@ -677,6 +741,9 @@ function applyFilters() {
 
   const compMin = parseFloat(document.getElementById('filterCompositeMin')?.value);
   if (!isNaN(compMin)) result = result.filter(s => s.compositeScore != null && s.compositeScore >= compMin);
+
+  const liqMin = parseFloat(document.getElementById('filterLiquidityMin')?.value);
+  if (!isNaN(liqMin) && liqMin > 0) result = result.filter(s => s.liquidityScore?.compositeScore != null && s.liquidityScore.compositeScore >= liqMin);
 
   const checkedRecs = Array.from(document.querySelectorAll('.rec-filter:checked')).map(cb => cb.value);
   if (checkedRecs.length > 0) {
@@ -763,6 +830,15 @@ function getRecommendationBadge(rec) {
   }
 }
 
+function getLiquidityBadge(score) {
+  if (!score && score !== 0) return 'bg-gray-600';
+  if (score >= 80) return 'bg-cyan-600';
+  if (score >= 60) return 'bg-cyan-500';
+  if (score >= 40) return 'bg-yellow-600';
+  if (score >= 20) return 'bg-orange-600';
+  return 'bg-red-600';
+}
+
 function getConfidenceBadge(score) {
   if (!score && score !== 0) return 'bg-gray-600';
   if (score >= 70) return 'bg-green-600';
@@ -789,24 +865,17 @@ function updateSignalStats(data) {
   if (ssEl) ssEl.textContent = strongSell;
 }
 
-// High conviction criteria (matching stock-detail.js logic)
+// High conviction criteria (relaxed: >= 16 instead of === 19)
 function isHighConvictionBuy(signal) {
   if (!signal) return false;
-  const indicatorCoverageOk = signal.indicatorCoverage === 19;
+  const indicatorCoverageOk = signal.indicatorCoverage >= 16;
   const trendOk = signal.sma20 > signal.sma50;
   const volumeOk = signal.volumeConfirmed === true;
   return signal.recommendation === 'STRONG BUY' && indicatorCoverageOk && trendOk && volumeOk;
 }
 
 function getDisplayRecommendation(signal) {
-  if (!signal) return signal;
-  const isBuy = signal.recommendation === 'STRONG BUY' || signal.recommendation === 'BUY';
-  const isHighConviction = isBuy && isHighConvictionBuy(signal);
-  
-  if (isBuy && !isHighConviction) {
-    return { ...signal, displayRecommendation: 'HOLD', displayScore: Math.min(signal.compositeScore ?? 0, 4) };
-  }
-  return signal;
+  return signal || {};
 }
 
 function renderOpportunityCards(data) {
@@ -817,16 +886,37 @@ function renderOpportunityCards(data) {
   
   if (!buyCard || !sellCard) return;
 
-  const buySignals = data
-    .filter(s => s.recommendation === 'STRONG BUY' || s.recommendation === 'BUY')
-    .map(s => getDisplayRecommendation(s))
+  // Prioritize STRONG BUY, fill remaining slots with BUY
+  const strongBuySignals = data
+    .filter(s => s.recommendation === 'STRONG BUY')
     .sort((a, b) => ((b.displayScore ?? b.compositeScore) || 0) - ((a.displayScore ?? a.compositeScore) || 0))
-    .slice(0, 10);
+    .slice(0, 5);
+  const buyFillCount = 5 - strongBuySignals.length;
+  const buySignals = buyFillCount > 0
+    ? strongBuySignals.concat(
+        data
+          .filter(s => s.recommendation === 'BUY')
+          .filter(s => !strongBuySignals.find(sb => sb.stockId === s.stockId))
+          .sort((a, b) => ((b.displayScore ?? b.compositeScore) || 0) - ((a.displayScore ?? a.compositeScore) || 0))
+          .slice(0, buyFillCount)
+      )
+    : strongBuySignals;
 
-  const sellSignals = data
-    .filter(s => s.recommendation === 'STRONG SELL' || s.recommendation === 'SELL')
+  // Prioritize STRONG SELL, fill remaining slots with SELL
+  const strongSellSignals = data
+    .filter(s => s.recommendation === 'STRONG SELL')
     .sort((a, b) => (b.confidenceScore || 0) - (a.confidenceScore || 0))
     .slice(0, 5);
+  const sellFillCount = 5 - strongSellSignals.length;
+  const sellSignals = sellFillCount > 0
+    ? strongSellSignals.concat(
+        data
+          .filter(s => s.recommendation === 'SELL')
+          .filter(s => !strongSellSignals.find(ss => ss.stockId === s.stockId))
+          .sort((a, b) => (b.confidenceScore || 0) - (a.confidenceScore || 0))
+          .slice(0, sellFillCount)
+      )
+    : strongSellSignals;
   
   if (buyCountEl) buyCountEl.textContent = buySignals.length;
   if (sellCountEl) sellCountEl.textContent = sellSignals.length;
@@ -913,7 +1003,7 @@ function renderPerformerList(stocks, isTop) {
 function renderHoldingsTable() {
   const tbody = document.getElementById('holdingsTableBody');
   if (!allStocks.length) {
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center py-8">No holdings found. Import stocks with portfolio data.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8">No holdings found. Import stocks with portfolio data.</td></tr>';
     document.getElementById('tableSummary').textContent = '';
     return;
   }
@@ -930,8 +1020,7 @@ function renderHoldingsTable() {
     const badgeCls = pnl >= 0 ? 'bg-green-600' : 'bg-red-600';
     const linkUrl = `stock-detail.html?id=${s.stockId || s.id}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}`;
     return `<tr>
-      <td><a href="${linkUrl}" class="font-bold hover:text-blue-400 transition-colors">${s.symbol}</a></td>
-      <td>${s.name || '--'}</td>
+      <td><a href="${linkUrl}" class="font-bold hover:text-blue-400 transition-colors">${s.name || '--'}</a></td>
       <td>${s.sector || '--'}</td>
       <td class="text-right">${s.quantity ?? '--'}</td>
       <td class="text-right">${fmtPrice(s.avgPrice)}</td>
@@ -940,11 +1029,6 @@ function renderHoldingsTable() {
       <td class="text-right">${fmtPrice(s.currentValue)}</td>
       <td class="text-right ${cls}">${fmtPrice(pnl)}</td>
       <td class="text-right"><span class="px-2 py-0.5 rounded text-xs font-medium text-white ${badgeCls}">${pnlPct != null ? (pnlPct >= 0 ? '+' : '') + pnlPct.toFixed(2) + '%' : '--'}</span></td>
-      <td class="text-center">
-        <button onclick="removeHoldingFromPortfolio(${s.id})" title="Remove from portfolio" class="text-red-400 hover:text-red-300 transition-colors">
-          <i class="fas fa-trash-alt"></i>
-        </button>
-      </td>
     </tr>`;
   }).join('');
 }
@@ -1042,5 +1126,87 @@ function showToast(msg, type) {
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
+
+// ─── Strategy Breakdown Tooltip ──────────────────────────────────────────
+
+/**
+ * Renders a compact HTML table showing each strategy's contribution to the signal.
+ */
+function renderStrategyBreakdownTooltip(breakdown) {
+  if (!breakdown || !breakdown.length) return '';
+  const rows = breakdown.map(s => {
+    const signalColor = s.signal === 'BUY' || s.signal === 'STRONG BUY' ? '#22c55e'
+      : s.signal === 'SELL' || s.signal === 'STRONG SELL' ? '#ef4444'
+      : '#9ca3af';
+    const confPct = (s.confidence * 100).toFixed(0) + '%';
+    const contrib = s.weightedScore != null ? s.weightedScore.toFixed(2) : '0.00';
+    let volumeDetails = '';
+    if (s.strategyName === 'VOLUME' && (s.latestVolume != null || s.avgVolume != null || s.spikeThreshold != null)) {
+        const latestVol = s.latestVolume != null ? Number(s.latestVolume).toLocaleString('en-IN') : 'N/A';
+        const avgVolNum = s.avgVolume != null ? Number(s.avgVolume) : 0;
+        const avgVol = avgVolNum > 0 ? Math.round(avgVolNum).toLocaleString('en-IN') : 'N/A';
+        const spikeThresh = (s.spikeThreshold != null && avgVolNum > 0) 
+            ? (Number(s.spikeThreshold) / avgVolNum).toFixed(1) + 'x' 
+            : 'N/A';
+        volumeDetails = `<span class="strat-breakdown-vol" style="color:#8892a0;font-size:9px;margin-left:4px;">Vol: ${latestVol} | Avg: ${avgVol} | Thresh: ${spikeThresh}</span>`;
+    }
+    return `<div class="strat-breakdown-row">
+      <span class="strat-breakdown-name">${escHtml(s.strategyName)}</span>
+      <span class="strat-breakdown-signal" style="color:${signalColor}">${s.signal}</span>
+      <span class="strat-breakdown-conf">${confPct}</span>
+      <span class="strat-breakdown-prio">P${s.priority}</span>
+      <span class="strat-breakdown-contrib">${contrib}</span>
+      ${volumeDetails}
+    </div>`;
+  }).join('');
+  return `<div class="strat-breakdown-tooltip-inner">
+    <div class="strat-breakdown-header">
+      <span>Strategy</span><span>Signal</span><span>Conf</span><span>Pri</span><span>Contrib</span>
+    </div>
+    ${rows}
+  </div>`;
+}
+
+// Click handler for strategy breakdown tooltips
+// Uses event delegation on the signals table body
+let strategyTooltipTimer = null;
+let activeTooltipEl = null;
+
+document.addEventListener('click', function(e) {
+  const toggle = e.target.closest('.strat-breakdown-toggle');
+  if (!toggle) {
+    // Click outside → remove all tooltips
+    document.querySelectorAll('.strat-breakdown-popup').forEach(el => el.remove());
+    activeTooltipEl = null;
+    return;
+  }
+  e.stopPropagation();
+
+  // Remove any other open tooltips
+  document.querySelectorAll('.strat-breakdown-popup').forEach(el => {
+    if (el._trigger !== toggle) el.remove();
+  });
+
+  // If clicking the already-active one, close it
+  if (activeTooltipEl === toggle) {
+    document.querySelectorAll('.strat-breakdown-popup').forEach(el => el.remove());
+    activeTooltipEl = null;
+    return;
+  }
+
+  const tipHtml = toggle.getAttribute('data-strategy-tip');
+  if (!tipHtml) return;
+
+  // Remove existing popup for this toggle
+  const existing = toggle.parentElement.querySelector('.strat-breakdown-popup');
+  if (existing) { existing.remove(); activeTooltipEl = null; return; }
+
+  const popup = document.createElement('div');
+  popup.className = 'strat-breakdown-popup';
+  popup._trigger = toggle;
+  popup.innerHTML = tipHtml;
+  toggle.parentElement.appendChild(popup);
+  activeTooltipEl = toggle;
+});
 
 

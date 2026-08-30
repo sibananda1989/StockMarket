@@ -16,6 +16,7 @@ public class StockDTO {
     private String symbol;
     private String name;
     private String sector;
+    private String industry;
     private String yahooSymbol;
     
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")

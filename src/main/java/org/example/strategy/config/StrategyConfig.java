@@ -3,11 +3,16 @@ package org.example.strategy.config;
 import org.example.strategy.base.TradingStrategy;
 import org.example.strategy.impl.BollingerBandStrategy;
 import org.example.strategy.impl.BreakoutStrategy;
+import org.example.strategy.impl.CandlestickContextStrategy;
 import org.example.strategy.impl.CandlestickPatternStrategy;
+import org.example.strategy.impl.EmaCrossoverStrategy;
+import org.example.strategy.impl.LiquidityStrategy;
 import org.example.strategy.impl.MacdStrategy;
 import org.example.strategy.impl.MovingAverageCrossoverStrategy;
 import org.example.strategy.impl.RsiStrategy;
+import org.example.strategy.impl.Sma44PullbackBounceStrategy;
 import org.example.strategy.impl.VolumeStrategy;
+import org.example.repository.FundamentalDataRepository;
 import org.example.service.BreakoutDetector;
 import org.example.service.SupportResistanceService;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,26 +28,44 @@ import java.util.List;
 @Configuration
 public class StrategyConfig {
 
-    @Value("${strategy.rsi.priority:7}")
+    @Value("${strategy.rsi.priority:5}")
     private int rsiPriority;
 
-    @Value("${strategy.macd.priority:7}")
+    @Value("${strategy.macd.priority:5}")
     private int macdPriority;
 
-    @Value("${strategy.ma-crossover.priority:8}")
+    @Value("${strategy.ma-crossover.priority:6}")
     private int maCrossoverPriority;
 
-    @Value("${strategy.bollinger.priority:6}")
+    @Value("${strategy.bollinger.priority:5}")
     private int bollingerPriority;
 
-    @Value("${strategy.volume.priority:5}")
+    @Value("${strategy.volume.spike-factor:1.5}")
+    private double volumeSpikeFactor;
+
+    @Value("${strategy.volume.priority:4}")
     private int volumePriority;
 
-    @Value("${strategy.candlestick.priority:4}")
-    private int candlestickPriority;
+    @Value("${strategy.candlestick.at-support.priority:4}")
+    private int atSupportPriority;
 
-    @Value("${strategy.breakout.priority:7}")
+    @Value("${strategy.candlestick.at-resistance.priority:4}")
+    private int atResistancePriority;
+
+    @Value("${strategy.breakout.priority:5}")
     private int breakoutPriority;
+
+    @Value("${strategy.candlestick.pattern.priority:4}")
+    private int candlestickPatternPriority;
+
+    @Value("${strategy.liquidity.priority:4}")
+    private int liquidityPriority;
+
+    @Value("${strategy.sma44-pullback.priority:8}")
+    private int sma44PullbackPriority;
+
+    @Value("${strategy.ema-crossover.priority:7}")
+    private int emaCrossoverPriority;
 
     /**
      * Creates the list of active strategies with configurable priorities.
@@ -52,15 +75,22 @@ public class StrategyConfig {
      * @return immutable list of all active strategies
      */
     @Bean
-    public List<TradingStrategy> activeStrategies(SupportResistanceService supportResistanceService, BreakoutDetector breakoutDetector) {
+    public List<TradingStrategy> activeStrategies(SupportResistanceService supportResistanceService,
+                                                   BreakoutDetector breakoutDetector,
+                                                   FundamentalDataRepository fundamentalDataRepository) {
         return List.of(
                 new RsiStrategy(rsiPriority),
                 new MacdStrategy(macdPriority),
                 new MovingAverageCrossoverStrategy(maCrossoverPriority),
                 new BollingerBandStrategy(bollingerPriority),
-                new VolumeStrategy(volumePriority),
-                new CandlestickPatternStrategy(candlestickPriority, supportResistanceService),
-                new BreakoutStrategy(breakoutPriority, breakoutDetector)
+                new VolumeStrategy(volumePriority, volumeSpikeFactor),
+                new LiquidityStrategy(liquidityPriority, fundamentalDataRepository),
+                new CandlestickPatternStrategy(candlestickPatternPriority),
+                new CandlestickContextStrategy(atSupportPriority, supportResistanceService, true),
+                new CandlestickContextStrategy(atResistancePriority, supportResistanceService, false),
+                new BreakoutStrategy(breakoutPriority, breakoutDetector),
+                new Sma44PullbackBounceStrategy(sma44PullbackPriority, supportResistanceService),
+                new EmaCrossoverStrategy(emaCrossoverPriority)
         );
     }
 }

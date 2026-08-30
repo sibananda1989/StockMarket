@@ -1,6 +1,6 @@
 # Stock Market Analysis Platform
 
-A full-stack Java Spring Boot web application for capturing, storing, and analyzing stock market data. It provides daily OHLCV price tracking, 21 technical indicators, RSI-14 calculation, multi-indicator signal generation, strategy backtesting, portfolio tracking, and integration with live market data providers (Dhan Brokerage API, Yahoo Finance, NSE India).
+A full-stack Java Spring Boot web application for capturing, storing, and analyzing stock market data. It provides daily OHLCV price tracking, 31 technical indicators (15-factor scoring), RSI-14 calculation, multi-indicator signal generation, 10-strategy multi-strategy engine, SMC/FVG detection, strategy backtesting, multi-portfolio tracking, and integration with live market data providers (Yahoo Finance, NSE India, Dhan optional).
 
 ---
 
@@ -47,7 +47,7 @@ A full-stack Java Spring Boot web application for capturing, storing, and analyz
 This is a **personal stock portfolio management and technical analysis platform** for Indian stock market (NSE/BSE) investors. It enables users to:
 
 - Track stock holdings with real-time P&L
-- Run 21 technical indicators on daily OHLCV data
+- Run 31 technical indicators on daily OHLCV data
 - Generate algorithmic BUY/SELL/HOLD signals with a weighted composite scoring system
 - Backtest trading strategies with trailing stop-loss and position sizing
 - Manage watchlists for stocks of interest
@@ -58,13 +58,14 @@ This is a **personal stock portfolio management and technical analysis platform*
 
 | Module | Size | Purpose |
 |--------|------|---------|
-| `SignalService` | 34.6k | Core signal generation engine with 15-component weighted scoring |
-| `TechnicalAnalysisService` + 22 calculators | 6.7k + 22 files | Indicator computation pipeline |
+| `SignalService` | 2,986 lines | Core signal generation engine with 15-factor weighted scoring (SignalThresholds.java) |
+| `TechnicalAnalysisService` + 34 calculators | 6.7k + 34 files | Indicator computation pipeline (31 IndicatorTypes) |
 | `BacktestService` | 8k | Strategy simulation with risk management |
-| `YahooFinanceService` + `DhanSyncService` | 13.7k + 6.5k | Data ingestion from external APIs |
+| `YahooFinanceService` + `YahooFinanceSyncService` | 13.7k | Data ingestion from Yahoo Finance (primary) |
 | `StockService` + `DailyPriceService` | 9.1k + 4.7k | Core CRUD and portfolio calculations |
-| `Institutional Activity Engine` (8 services) | 2.7k total | FII/DII/MF shareholding tracking, bulk/block deals, institutional scoring (0-100), 7 screeners |
-| `PortfolioService` + `PortfolioSnapshotService` | 4.9k + 8.9k | Multi-portfolio management with named portfolios and holdings |
+| `Institutional Activity Engine` (8 services) | ~2.7k total | FII/DII/MF shareholding tracking, bulk/block deals, institutional scoring (0-100), 7 screeners |
+| `PortfolioService` + `PortfolioSnapshotService` | 5.2k + 8.9k | Multi-portfolio management with named portfolios, holdings, transactions |
+| `Strategy Engine` (10 strategies) | 10 impl | Rsi, Macd, MA Crossover, Bollinger, Volume, Breakout, CandlestickPattern, CandlestickContext, Sma44Pullback, Liquidity |
 | `portfolio.js` + `stock-detail.js` | 34k + 86k | Primary frontend visualization |
 
 ### Primary User Workflows
@@ -140,9 +141,8 @@ This is a **personal stock portfolio management and technical analysis platform*
 
 | Layer | Framework | Files |
 |-------|----------|-------|
-| Backend Unit | JUnit 5 + Mockito | 24 test files |
-| Backend Integration | SpringBootTest | 3 test files |
-| Frontend E2E | Playwright | 2 spec files |
+| Backend Unit + Integration | JUnit 5 + Mockito + SpringBootTest | 81 test files |
+| Frontend E2E | Playwright | 2+ spec files |
 
 ---
 
@@ -154,56 +154,57 @@ This is a **personal stock portfolio management and technical analysis platform*
 ┌──────────────────────────────────────────────────────────┐
 │                    BROWSER (Frontend)                     │
 │  Static HTML + Tailwind CSS + Vanilla JS + Chart.js      │
-│  Pages: Dashboard, Stock Detail, Watchlist, etc.          │
-│  api.js → fetch() → REST API calls                       │
+│  Pages: 14 HTML (Dashboard, Stock Detail, Watchlist...)   │
+│  api.js → fetch() → REST API calls (~150+ wrappers)       │
 └──────────────────────┬───────────────────────────────────┘
                        │ HTTP (port 8080)
 ┌──────────────────────▼───────────────────────────────────┐
 │               SPRING BOOT APPLICATION                     │
 │                                                           │
 │  ┌─────────────────────────────────────────────────────┐  │
-│  │  CONTROLLERS (15 REST controllers, 68 endpoints)    │  │
+│  │  CONTROLLERS (27 REST controllers, ~153 mappings)   │  │
 │  └──────────────────┬──────────────────────────────────┘  │
 │                     │                                      │
 │  ┌──────────────────▼──────────────────────────────────┐  │
-│  │  SERVICES (24 service classes)                       │  │
-│  │  ├── SignalService (34.6k) ← CORE BUSINESS LOGIC    │  │
-│  │  ├── BacktestService (8k)                            │  │
-│  │  ├── TechnicalAnalysisService (6.7k)                 │  │
-│  │  ├── YahooFinanceService (13.7k)                     │  │
-│  │  ├── DhanSyncService (6.5k)                          │  │
-│  │  ├── PortfolioSnapshotService (8.9k)                 │  │
-│  │  └── 18 other services                               │  │
+│  │  SERVICES (37 service classes)                        │  │
+│  │  ├── SignalService (2,986 lines) ← CORE BUSINESS LOGIC│  │
+│  │  ├── BacktestService (8k)                             │  │
+│  │  ├── TechnicalAnalysisService (6.7k)                  │  │
+│  │  ├── YahooFinanceService (13.7k)                      │  │
+│  │  ├── PortfolioSnapshotService (8.9k)                  │  │
+│  │  ├── Strategy Engine (10 strategies)                  │  │
+│  │  └── 31 other services + 8 institutional + 6 SMC      │  │
 │  └──────────────────┬──────────────────────────────────┘  │
 │                     │                                      │
 │  ┌──────────────────▼──────────────────────────────────┐  │
-│  │  CALCULATORS (22 indicator calculators)               │  │
-│  │  RSI, SMA(20/50/200), EMA(20), MACD, Bollinger,     │  │
+│  │  CALCULATORS (34 indicator calculators)               │  │
+│  │  RSI, SMA(20/50/200/44), EMA(20), MACD, Bollinger,  │  │
 │  │  Stochastic K/D, Williams %R, ATR, CCI, ADX,         │  │
-│  │  +DI/-DI, OBV, ROC, StochRSI, Ultimate Osc, S/R     │  │
+│  │  +DI/-DI, OBV, ROC, StochRSI, Ultimate Osc, S/R,    │  │
+│  │  VWAP, VolumeRatio, DollarVolume, Amihud, Ichimoku×5 │  │
 │  └──────────────────┬──────────────────────────────────┘  │
 │                     │                                      │
 │  ┌──────────────────▼──────────────────────────────────┐  │
-│  │  REPOSITORIES (11 Spring Data JPA repos)              │  │
+│  │  REPOSITORIES (26 Spring Data JPA repos)              │  │
 │  └──────────────────┬──────────────────────────────────┘  │
 │                     │                                      │
 │  ┌──────────────────▼──────────────────────────────────┐  │
-│  │  CACHE (Caffeine: 5 caches, 15min TTL, 200 entries) │  │
+│  │  CACHE (Caffeine: 7 caches, 10-15min TTL, 200-2000) │  │
 │  └─────────────────────────────────────────────────────┘  │
 │                                                           │
 │  ┌─────────────────────────────────────────────────────┐  │
-│  │  SCHEDULERS (3 cron jobs + 2 startup tasks)          │  │
-│  │  ├── Daily 4:15PM IST: Dhan sync + indicators       │  │
-│  │  ├── Daily 9AM IST: Safety-net indicator recalc      │  │
-│  │  ├── Weekly Sun 7AM UTC: Yahoo backfill              │  │
-│  │  ├── Daily 2:30AM: Signal performance precompute     │  │
-│  │  └── Startup: Indicator calc + portfolio snapshot    │  │
+│  │  SCHEDULERS (9 cron jobs + 7 startup tasks)          │  │
+│  │  ├── Daily 5:45 AM: Snapshots + indicators           │  │
+│  │  ├── Daily 3 AM: Accuracy marking                    │  │
+│  │  ├── Daily 2:30 AM: Performance aggregation           │  │
+│  │  ├── Mon-Fri 12:30 PM: Institutional holdings         │  │
+│  │  └── Startup: Indicator calc + portfolio snapshot etc │  │
 │  └─────────────────────────────────────────────────────┘  │
 └──────────────────────┬───────────────────────────────────┘
                        │
 ┌──────────────────────▼───────────────────────────────────┐
 │                    MySQL (stockmarket)                     │
-│  11 tables, ddl-auto=update                               │
+│  16+ tables (29 entities), ddl-auto=update                 │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -216,25 +217,34 @@ org.example
 ├── config/
 │   ├── CorsConfig.java                   # CORS (all origins on /api/**)
 │   └── ClientAbortSilencerFilter.java    # Broken-pipe exception handler
-├── controller/                           # 17 REST controllers
+├── controller/                           # 27 REST controllers (~153 mappings)
 │   ├── StockController.java              # Stock CRUD + portfolio + search (13 endpoints)
 │   ├── StockHistoryController.java       # Yahoo Finance history (8 endpoints)
 │   ├── StockSyncController.java          # Data sync (2 endpoints)
 │   ├── PriceController.java              # OHLCV CRUD (3 endpoints)
-│   ├── RsiController.java                # RSI endpoints (4 endpoints)
-│   ├── TechnicalIndicatorController.java # Indicator endpoints (3 endpoints)
+│   ├── RsiController.java                # RSI endpoints (4 endpoints) DEPRECATED
+│   ├── TechnicalIndicatorController.java # Indicator endpoints (8 endpoints, RAW DTOs)
 │   ├── SignalController.java             # Signal endpoints (4 endpoints)
-│   ├── PortfolioController.java          # Portfolio history + screener (3 endpoints)
-│   ├── PortfolioManagementController.java# Multi-portfolio CRUD + holdings (9 endpoints)
+│   ├── PortfolioController.java          # Portfolio history + screener (5 endpoints)
+│   ├── PortfolioManagementController.java# Multi-portfolio CRUD + holdings + transactions (16 endpoints)
 │   ├── BacktestController.java           # Backtesting (1 endpoint)
 │   ├── WatchlistController.java          # Watchlist CRUD + items (11 endpoints)
-│   ├── SupportResistanceController.java  # S/R levels (5 endpoints)
-│   ├── DhanController.java               # Dhan brokerage sync (2 endpoints)
+│   ├── WatchlistOpportunityController.java # Opportunities (1 endpoint)
+│   ├── SupportResistanceController.java  # S/R levels (4 endpoints)
 │   ├── FiiDiiController.java             # FII/DII data (2 endpoints)
 │   ├── CorporateEventController.java     # Corporate events (2 endpoints)
 │   ├── InstitutionalHoldingController.java # Shareholding, deals, scores, screeners (20 endpoints)
-│   └── StockHistoryViewController.java   # Thymeleaf view (1 endpoint)
-├── dto/                                  # 32 Data Transfer Objects
+│   ├── DataAvailabilityController.java   # Data health/coverage
+│   ├── IndicatorCoverageController.java  # Coverage gaps
+│   ├── FundamentalDataController.java    # Fundamentals (5 endpoints)
+│   ├── SMCController.java                # SMC patterns (1 endpoint)
+│   ├── ScoreParameterController.java     # Score toggles (3 endpoints)
+│   ├── StrategyConfigController.java     # Strategy config (9 endpoints)
+│   ├── StrategyDailyWeightController.java# Daily weights (3 endpoints)
+│   ├── StrategyResultsController.java    # Strategy results (3 endpoints)
+│   ├── StartupTaskController.java        # Startup tasks (3 endpoints)
+│   └── HomeController.java               # Thymeleaf views
+├── dto/                                  # 59 Data Transfer Objects
 │   ├── ApiResponse.java                  # Universal envelope {status, message, data, timestamp}
 │   ├── StockDTO.java
 │   ├── StockDetailsDTO.java
@@ -252,24 +262,31 @@ org.example
 │   ├── BulkDealDTO.java / BlockDealDTO.java
 │   ├── SymbolValidationResult.java
 │   └── 20 other DTOs
-├── entity/                               # 15 JPA entities + 2 enums
+├── entity/                               # 29 JPA entities + 2 enums
 │   ├── Stock.java                        # Hub entity (still has legacy portfolio fields)
 │   ├── DailyPrice.java                   # OHLCV (UK: stock_id + price_date)
-│   ├── RsiValue.java                     # DEPRECATED — superseded by TechnicalIndicator
-│   ├── TechnicalIndicator.java           # Generic EAV for 21 indicator types
-│   ├── IndicatorType.java                # Enum (21 values)
+│   ├── TechnicalIndicator.java           # Generic EAV for 31 indicator types
+│   ├── IndicatorType.java                # Enum (31 values + isDirectional)
 │   ├── SupportResistanceLevel.java       # 11 level types (UK: stock_id + type + date + order)
 │   ├── LevelType.java                    # Enum (11 values)
-│   ├── PortfolioSnapshot.java            # Daily position snapshots
 │   ├── Portfolio.java                    # Named portfolio (Retirement, Trading, etc.)
 │   ├── PortfolioHolding.java             # Links Stock → Portfolio with qty/avg price
+│   ├── PortfolioTransaction.java         # Ledger: BUY/SELL with avg-cost
+│   ├── TransactionType.java              # Enum: BUY/SELL
+│   ├── PortfolioSnapshot.java            # Daily position snapshots
 │   ├── InstitutionalHolding.java         # Quarterly FII/DII/MF shareholding %
 │   ├── BulkDeal.java                     # Bulk deals with client classification
 │   ├── BlockDeal.java                    # Block deals with client classification
+│   ├── FundamentalData.java              # P/E, EPS, ROE, D/E, market cap
 │   ├── Watchlist.java / WatchlistItem.java
 │   ├── CorporateEvent.java
 │   ├── FiiDiiData.java
-│   └── SignalHistoricalPerformance.java
+│   ├── SignalRecord.java                 # Historical signals + forward returns
+│   ├── SignalHistoricalPerformance.java
+│   ├── StrategyConfig/ConditionGroup/DailyWeight
+│   ├── ScoreParameterConfig.java
+│   ├── StartupTaskLog.java
+│   └── ShadowSignalRecord / StrategyStockResult / StrategyConditionStatsCache
 ├── exception/                            # 6 custom exceptions + GlobalExceptionHandler
 │   ├── StockNotFoundException.java       # 404
 │   ├── NoPriceDataException.java         # 404
@@ -280,31 +297,47 @@ org.example
 │   └── GlobalExceptionHandler.java       # @RestControllerAdvice (includes ConstraintViolation, sanitization)
 ├── metrics/
 │   └── InstitutionalMetrics.java         # Custom Micrometer counters/timers for institutional engine
-├── repository/                           # 15 Spring Data JPA repositories
+├── repository/                           # 26 Spring Data JPA repositories
 │   ├── StockRepository.java
 │   ├── DailyPriceRepository.java
-│   ├── RsiValueRepository.java
 │   ├── TechnicalIndicatorRepository.java
 │   ├── SupportResistanceLevelRepository.java
 │   ├── PortfolioSnapshotRepository.java
 │   ├── PortfolioRepository.java          # Multi-portfolio repository
 │   ├── PortfolioHoldingRepository.java   # Portfolio-stock link repository
+│   ├── PortfolioTransactionRepository.java
 │   ├── InstitutionalHoldingRepository.java
 │   ├── BulkDealRepository.java
 │   ├── BlockDealRepository.java
 │   ├── WatchlistRepository.java / WatchlistItemRepository.java
 │   ├── CorporateEventRepository.java
 │   ├── FiiDiiDataRepository.java
-│   └── SignalHistoricalPerformanceRepository.java
-├── scheduler/                            # 4 scheduled task classes
-│   ├── MarketAnalysisScheduler.java      # Dhan sync, indicators, backfill
-│   ├── SignalPerformanceScheduler.java   # Forward returns precomputation
+│   ├── SignalHistoricalPerformanceRepository.java
+│   ├── SignalRecordRepository.java
+│   ├── StrategyConfig/ConditionGroup/DailyWeight/StockResult Repos
+│   ├── ScoreParameterConfigRepository.java
+│   ├── StartupTaskLogRepository.java
+│   ├── ShadowSignalRecordRepository.java
+│   └── FundamentalData/Watchlist/Block/Bulk etc.
+├── scheduler/                            # 9 scheduled task classes
+│   ├── MarketAnalysisScheduler.java      # Yahoo sync, indicators, backfill
+│   ├── SignalPerformanceScheduler.java   # Forward returns precomputation (2:30 AM)
+│   ├── SignalAccuracyScheduler.java      # Accuracy marking (3 AM)
 │   ├── InstitutionalHoldingScheduler.java # Shareholding + deals + XBRL (5 cron jobs)
-│   └── IndicatorStartupTask.java         # On startup: calc indicators if missing
-├── startup/
+│   ├── DailySnapshotScheduler.java       # Snapshots daily 5:45 AM
+│   ├── FundamentalDataScheduler.java     # Fundamentals Sun 8 AM UTC
+│   ├── StrategyDailyWeightScheduler.java # Weights cron
+│   ├── IndicatorStartupTask.java         # On startup: calc indicators if missing
+│   └── SignalStartupTask.java            # On startup: signals
+├── startup/                              # 7 startup tasks
 │   ├── PortfolioMigrationStartupTask.java # One-time migration: stock→portfolio_holdings
-│   └── PortfolioSnapshotStartupTask.java  # On startup: ensure today's snapshots
-├── service/                              # 28+ service classes
+│   ├── PortfolioSnapshotStartupTask.java  # On startup: ensure today's snapshots
+│   ├── StartupDataSyncTask.java           # Data sync on boot
+│   ├── FundamentalStartupTask.java
+│   ├── FiiDiiStartupTask.java
+│   ├── SignalAccuracyStartupTask.java
+│   └── StartupTask.java (base)
+├── service/                              # 37 service classes
 │   ├── SignalService.java                # CORE: Signal generation engine (34.6k)
 │   ├── BacktestService.java              # Strategy backtesting
 │   ├── TechnicalAnalysisService.java     # Indicator calculation orchestration
@@ -339,40 +372,46 @@ org.example
 │       ├── ClientClassifier.java             # Regex-based FII/MF/DII/Promoter/Retail
 │       ├── NseSessionManager.java            # NSE cookie session mgmt + circuit breaker
 │       └── NseXbrlShareholdingService.java   # XBRL XML parser for detailed FII/DII/MF
-└── service/calculator/                   # 22 technical indicator calculators
-    ├── IndicatorCalculator.java          # Interface: calculate(List<DailyPrice>): BigDecimal
-    ├── RsiCalculator.java                # RSI-14 (Wilder's smoothing)
-    ├── SmaCalculator.java                # Generic SMA
-    ├── Sma20/50/200Calculator.java       # Period-specific SMA wrappers
-    ├── EmaCalculator.java                # Generic EMA
-    ├── Ema20Calculator.java              # EMA-20 wrapper
-    ├── MacdLineCalculator.java           # MACD = EMA12 - EMA26
-    ├── MacdSignalCalculator.java         # Signal = EMA9 of MACD
-    ├── BollingerUpper/LowerCalculator.java
-    ├── StochK/DCalculator.java           # Stochastic Oscillator
-    ├── WilliamsRCalculator.java          # Williams %R
-    ├── ATRCalculator.java                # Average True Range (14)
-    ├── CCICalculator.java                # Commodity Channel Index (20)
-    ├── StochRsiCalculator.java           # Stochastic RSI
-    ├── AdxCalculator.java                # ADX with +DI/-DI (14)
-    ├── PlusDi/MinusDiCalculator.java     # Directional indicators
-    ├── UltimateOscillatorCalculator.java # 7/14/28 period
-    ├── RocCalculator.java                # Rate of Change (12)
-    ├── ObvCalculator.java                # On-Balance Volume
-    └── SupportResistanceCalculator.java  # Swing H/L, Pivots, Major levels
+└── service/calculator/                   # 34 technical indicator calculators
+     ├── IndicatorCalculator.java          # Interface: calculate(List<DailyPrice>): BigDecimal
+     ├── IndicatorComputationService.java  # Orchestration (31 types)
+     ├── RsiCalculator.java                # RSI-14 (Wilder's smoothing)
+     ├── SmaCalculator.java                # Generic SMA
+     ├── Sma20/50/200/44Calculator.java    # Period-specific SMA wrappers
+     ├── EmaCalculator.java                # Generic EMA
+     ├── Ema20Calculator.java              # EMA-20 wrapper
+     ├── MacdLineCalculator.java           # MACD = EMA12 - EMA26
+     ├── MacdSignalCalculator.java         # Signal = EMA9 of MACD
+     ├── BollingerUpper/LowerCalculator.java
+     ├── StochK/DCalculator.java           # Stochastic Oscillator
+     ├── WilliamsRCalculator.java          # Williams %R
+     ├── ATRCalculator.java                # Average True Range (14)
+     ├── CCICalculator.java                # Commodity Channel Index (20)
+     ├── StochRsiCalculator.java           # Stochastic RSI
+     ├── AdxCalculator.java                # ADX with +DI/-DI (14)
+     ├── PlusDi/MinusDiCalculator.java     # Directional indicators
+     ├── UltimateOscillatorCalculator.java # 7/14/28 period
+     ├── RocCalculator.java                # Rate of Change (12)
+     ├── ObvCalculator.java                # On-Balance Volume
+     ├── Vwap/VolumeRatio/DollarVolume/Amihud # Volume & liquidity
+     ├── IchimokuCalculator.java           # Tenkan/Kijun/Senkou A/B/Chikou
+     ├── CandlestickPatternCalculator.java # 8 patterns
+     ├── ReversalDetector.java             # Reversal detection
+     └── SupportResistanceCalculator.java  # Swing H/L, Pivots, Major levels
 ```
 
 ### Layer Responsibilities
 
 | Layer | Responsibility | Count |
 |-------|---------------|-------|
-| **Controller** | HTTP request/response handling, input validation, DTO marshaling | 17 |
-| **Service** | Business logic, orchestration, external API calls, caching | 28+ |
-| **Calculator** | Pure mathematical indicator computation (no I/O) | 22 |
-| **Repository** | Database access via Spring Data JPA + custom native queries | 15 |
-| **Entity** | JPA domain model with annotations | 15 |
-| **DTO** | API request/response data contracts | 32 |
-| **Scheduler** | Cron-triggered batch operations | 4 |
+| **Controller** | HTTP request/response handling, input validation, DTO marshaling | 27 |
+| **Service** | Business logic, orchestration, external API calls, caching | 37 (+8 institutional +6 SMC) |
+| **Calculator** | Pure mathematical indicator computation (no I/O) | 34 (32 + interface + orchestration) |
+| **Repository** | Database access via Spring Data JPA + custom native queries | 26 |
+| **Entity** | JPA domain model with annotations | 29 |
+| **DTO** | API request/response data contracts | 59 |
+| **Scheduler** | Cron-triggered batch operations | 9 |
+| **Startup** | Boot-time data sync & migration | 7 |
 | **Exception** | Error classification and response formatting | 7 |
 | **Metrics** | Custom Micrometer counters/timers for monitoring | 1 |
 
@@ -896,7 +935,7 @@ Every page includes a **duplicated** navigation bar (no shared component):
 - **User Flow**: Triggered on-demand or via API → Computes composite score → Returns recommendation
 - **Backend**: `SignalService.computeSignal()` → 15 sub-scores → ADX penalty → Volume penalty → FII/DII adjustment → Confidence → Position sizing
 - **Scoring**: Divergence (±4), MACD (±3), Weekly Confluence (±3), RSI (±2), Bollinger (±2), Stochastic (±2), StochRSI (±2), plus 7 more
-- **Thresholds**: ≥6 STRONG BUY, ≥3 BUY, ≤-3 SELL, ≤-6 STRONG SELL
+- **Thresholds**: ≥7 STRONG BUY, ≥3 BUY, ≤-4 SELL, ≤-7 STRONG SELL (SignalThresholds.java)
 - **DB Dependencies**: `stocks`, `daily_prices`, `technical_indicators`, `support_resistance_levels`, `fiidii_data`, `corporate_events`, `signal_historical_performance`
 
 ### Feature 4: Backtesting
@@ -909,9 +948,9 @@ Every page includes a **duplicated** navigation bar (no shared component):
 
 ### Feature 5: Technical Analysis
 
-- **Purpose**: Calculate 21 indicator types for all stocks
+- **Purpose**: Calculate 31 indicator types for all stocks (EAV pattern)
 - **User Flow**: Triggered by scheduler or API → Calculate all indicators → Store in DB → Available for signals and display
-- **Backend**: `TechnicalAnalysisService.calculateIndicatorsForStock()` → 22 calculators → `TechnicalIndicatorPersistenceService`
+- **Backend**: `TechnicalAnalysisService.calculateIndicatorsForStock()` → 34 calculators (via IndicatorComputationService) → `TechnicalIndicatorPersistenceService`
 - **DB Dependencies**: `technical_indicators` table
 
 ### Feature 6: Watchlist Management
@@ -1199,15 +1238,15 @@ The signal engine (`SignalService.computeSignalFromPrices`) performs a comprehen
 | **Volume Confirmation** | `volumeConfirmed = false` AND `|score| ≥ 3` | Score × 0.6 (40% penalty) |
 | **FII/DII Adjustment** | Based on institutional flow sentiment | ±0, ±1, or ±2 |
 
-### Recommendation Thresholds
+### Recommendation Thresholds — `SignalThresholds.java`
 
 | Composite Score | Recommendation |
 |-----------------|---------------|
-| ≥ 6 | **STRONG BUY** |
-| 3 – 5 | **BUY** |
-| −2 – 2 | **HOLD** |
-| −5 – −3 | **SELL** |
-| ≤ −6 | **STRONG SELL** |
+| ≥ 7 | **STRONG BUY** |
+| 3 – 6 | **BUY** |
+| −3 – 2 | **HOLD** |
+| −6 – −4 | **SELL** |
+| ≤ −7 | **STRONG SELL** |
 
 ### Target Price and Stop Loss
 
@@ -1293,7 +1332,7 @@ curl "http://localhost:8080/api/backtest/stock/1?stopLoss=true&positionSizePct=0
 
 ## Technical Indicators
 
-The platform calculates and persists 21 indicator types using a strategy-pattern calculator registry (`IndicatorCalculator` interface):
+The platform calculates and persists 31 indicator types using a strategy-pattern calculator registry (`IndicatorCalculator` interface + `IndicatorComputationService` orchestration):
 
 | Indicator | Calculator | Description | Min Data |
 |-----------|-----------|-------------|----------|
@@ -1318,8 +1357,16 @@ The platform calculates and persists 21 indicator types using a strategy-pattern
 | **Ultimate Oscillator** | `UltimateOscillatorCalculator` | 7/14/28 period buying pressure | 28 |
 | **ROC** (12) | `RocCalculator` | Rate of Change | 13 |
 | **OBV** | `ObvCalculator` | On-Balance Volume (cumulative) | 2 |
+| **SMA 44** | `Sma44Calculator` | 44-period SMA (pullback bounce) | 44 |
+| **VWAP** | `VwapCalculator` | Volume-Weighted Avg Price | 1 |
+| **Volume Ratio** | `VolumeRatioCalculator` | Volume vs 20-day avg | 20 |
+| **Dollar Volume** | `DollarVolumeCalculator` | Close × Volume | 1 |
+| **Amihud Illiquidity** | `AmihudCalculator` | Price impact illiquidity | 2 |
+| **Ichimoku** (5 lines) | `IchimokuCalculator` | Tenkan/Kijun/Senkou A/B/Chikou | 52 |
+| **Candlestick Pattern** | `CandlestickPatternCalculator` | 8 patterns (hammer, engulfing etc.) | 2 |
+| **Support/Resistance** | `SupportResistanceCalculator` | Swing/Pivot/Major levels | 20 |
 
-**Persistence**: Results stored in `technical_indicators` table with unique constraint on `(stock_id, indicator_type, calculation_date)`. Indicators cached with 15-minute TTL.
+**Persistence**: Results stored in `technical_indicators` table (31 types) with unique constraint on `(stock_id, indicator_type, calculation_date)`. Indicators cached via Caffeine (`latestIndicators`/`indicatorHistory`, 10-15 min TTL, 500-2000 entries).
 
 ---
 
@@ -1377,13 +1424,17 @@ boolean hasSplit = stockSplitDetector.hasRecentSplit(stockId, 90);
 | Weekly Deals Backfill | `0 30 5 * * SUN` | 11:00 AM IST (Sunday) | Backfill 90 days of bulk + block deals | No |
 | Weekly XBRL Fetch | `0 0 6 * * SUN` | 11:30 AM IST (Sunday) | Download & parse detailed FII/DII/MF XBRL filings | No |
 
-### Startup Tasks
+### Startup Tasks (7 tasks — `src/main/java/org/example/startup/`)
 
 | Task | Trigger | Action |
 |------|---------|--------|
 | `IndicatorStartupTask` | `ApplicationReadyEvent` | Calculate indicators for today if not done; widen `indicator_type` column |
+| `SignalStartupTask` | `ApplicationReadyEvent` | Warm signal cache / precompute |
 | `PortfolioMigrationStartupTask` | `ApplicationReadyEvent` | One-time migration: create default portfolio, migrate Stock→PortfolioHolding, update snapshot portfolio_id |
 | `PortfolioSnapshotStartupTask` | `ApplicationReadyEvent` | Ensure today's portfolio snapshot exists for each stock |
+| `StartupDataSyncTask` | `ApplicationReadyEvent` | Sync Yahoo data on boot |
+| `FundamentalStartupTask` | `ApplicationReadyEvent` | Fetch fundamentals on boot |
+| `FiiDiiStartupTask` / `SignalAccuracyStartupTask` | `ApplicationReadyEvent` | FII/DII + accuracy boot sync |
 
 ---
 
@@ -1431,16 +1482,17 @@ boolean hasSplit = stockSplitDetector.hasRecentSplit(stockId, 90);
 
 ## Caching
 
-Caffeine cache with **15-minute TTL** and **200-entry maximum** per cache:
+Caffeine cache — `CacheConfig.java` (7 caches) vs `application.properties` (5 caches, 10min/2000 entries).Effective TTL 10-15 min, max 500-2000 entries, `expireAfterWrite`:
 
 | Cache Name | Key | Used In |
 |-----------|-----|---------|
 | `stockHistory` | `symbol_days` | `YahooFinanceService.fetchHistory` |
 | `latestIndicators` | `stockId` | `TechnicalAnalysisService.getLatestIndicators` |
 | `indicatorHistory` | `stockId:type` | `TechnicalAnalysisService.getIndicatorHistory` |
-| `signals` | `stockId` | `SignalService` |
+| `signals` / `signalDto` | `stockId` / key | `SignalService` (signals + DTO) |
 | `supportResistanceLevels` | `stockId` | `SupportResistanceService` |
 | `institutionalScores` | `stockId` or `'all'` | `InstitutionalScoreService` |
+| `smcPatterns` | `stockId` | `SMCDetectionService` |
 
 Cache eviction: When `calculateIndicatorsForStock` runs, it evicts `latestIndicators` and `indicatorHistory` for that stock. When new shareholding data or deals are fetched, `institutionalScores` is fully evicted via `@CacheEvict(allEntries = true)`.
 
@@ -1571,7 +1623,7 @@ All error messages are sanitized (newlines/carriage returns stripped) before log
 | 5 | DTO | `src/main/java/org/example/dto/NewFeatureDTO.java` |
 | 6 | Frontend Page | `src/main/resources/static/new-page.html` |
 | 7 | API Client | `src/main/resources/static/js/new-page.js` + `api.js` |
-| 8 | Navigation | Add `<a>` to nav bar in **all 9 HTML files** |
+| 8 | Navigation | Add `<a>` to nav bar in **all 14 HTML files** (via `navigation.js`) |
 | 9 | Metrics | Add Micrometer counters/timers in `metrics/` for monitoring |
 | 10 | Cache | Add cache to `CacheConfig.java` if needed |
 | 11 | Config | Add properties to `application.properties` if needed |

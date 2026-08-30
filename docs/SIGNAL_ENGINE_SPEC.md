@@ -1,7 +1,7 @@
 # Signal Engine Specification
 
 ## Overview
-The signal engine (`SignalService.java`) computes a composite score from 16 technical factors, applies modifier adjustments, and maps the result to a recommendation. Scores are cached via Caffeine (15-min TTL).
+The signal engine (`SignalService.java` — 2,986 lines) computes a composite score from 15 technical factors (31 IndicatorTypes), applies modifier adjustments (ADX, volume, FII/DII, bearish discount), and maps via `SignalThresholds.java` to recommendation. Scores cached via Caffeine (10-15 min TTL, 7 caches). Last audited 2026-08-21.
 
 ## Scoring Factors
 
@@ -26,15 +26,18 @@ The signal engine (`SignalService.java`) computes a composite score from 16 tech
 | 17 | Volume Confirmation | +2 (volume ≥ 1.2× 20d avg) | — |
 | — | FII/DII Sentiment | +1 (combined > 500 Cr) | −1 (combined < −500 Cr) |
 
-## Recommendation Thresholds
+## Recommendation Thresholds — `SignalThresholds.java`
 
 | Recommendation | Score Range |
 |---------------|-----------|
-| STRONG BUY | ≥ 6 |
-| BUY | ≥ 2 |
-| HOLD | −3 to 1 |
-| SELL | −7 to −4 |
-| STRONG SELL | ≤ −7 |
+| STRONG BUY | ≥ 7 (`STRONG_BUY_THRESHOLD`) |
+| BUY | ≥ 3 (`BUY_THRESHOLD`) |
+| HOLD | −3 to 2 |
+| SELL | ≤ −4 (`SELL_THRESHOLD`) |
+| STRONG SELL | ≤ −7 (`STRONG_SELL_THRESHOLD`) |
+| **Bearish dampener** | When SMA20 < SMA50: dampener 0.5× + subtract 2, discount 0.85 (reversal exceptions 0.9-1.0) |
+| **ADX multiplier** | <15→0.3, 15-25→0.5-0.7, 25-35→0.7-1.0, ≥35→1.0 (counter-trend 0.7) |
+| **Overbought dampener** | 0.7× when ≥3 (or ≥4 in bullish ADX) of StochRSI>85/CCI>150/StochK>80/W%R>-20 |
 
 ## Confidence Score (0–100)
 ```

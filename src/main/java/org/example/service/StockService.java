@@ -7,6 +7,7 @@ import org.example.dto.RsiDTO;
 import org.example.dto.StockDTO;
 import org.example.entity.DailyPrice;
 import org.example.entity.IndicatorType;
+import org.example.entity.Portfolio;
 import org.example.entity.PortfolioHolding;
 import org.example.entity.TechnicalIndicator;
 import org.example.entity.Stock;
@@ -16,6 +17,7 @@ import org.example.repository.BulkDealRepository;
 import org.example.repository.DailyPriceRepository;
 import org.example.repository.InstitutionalHoldingRepository;
 import org.example.repository.PortfolioHoldingRepository;
+import org.example.repository.PortfolioRepository;
 import org.example.repository.PortfolioSnapshotRepository;
 import org.example.repository.SignalRecordRepository;
 import org.example.repository.StockRepository;
@@ -41,6 +43,7 @@ public class StockService {
     private final DailyPriceRepository dailyPriceRepository;
     private final PortfolioSnapshotRepository portfolioSnapshotRepository;
     private final PortfolioHoldingRepository portfolioHoldingRepository;
+    private final PortfolioRepository portfolioRepository;
     private final SupportResistanceLevelRepository supportResistanceLevelRepository;
     private final BlockDealRepository blockDealRepository;
     private final BulkDealRepository bulkDealRepository;
@@ -71,6 +74,7 @@ public class StockService {
         existingStock.setSymbol(stock.getSymbol());
         existingStock.setName(stock.getName());
         existingStock.setSector(stock.getSector());
+        existingStock.setIndustry(stock.getIndustry());
         existingStock.setYahooSymbol(stock.getYahooSymbol());
 
         return stockRepository.save(existingStock);
@@ -159,6 +163,11 @@ public class StockService {
     }
 
     @Transactional(readOnly = true)
+    public StockDTO getStockDTO(Stock stock, BigDecimal latestPrice, BigDecimal latestRsi) {
+        return convertToDTO(stock, latestPrice, latestRsi);
+    }
+
+    @Transactional(readOnly = true)
     public List<StockDTO> getAllStockDTOs() {
         List<Stock> stocks = stockRepository.findAll();
         if (stocks.isEmpty()) return List.of();
@@ -219,11 +228,26 @@ public class StockService {
                 .collect(Collectors.toList());
     }
 
-    public Stock getOrCreateStock(String symbol, String name, String sector) {
+    public Stock getOrCreateStock(String symbol, String name, String sector, String industry) {
         String trimmedSymbol = symbol != null ? symbol.trim() : null;
         String trimmedName = name != null ? name.trim() : null;
 
         return stockRepository.findBySymbol(trimmedSymbol)
+                .map(existingStock -> {
+                    boolean updated = false;
+                    if (sector != null && (existingStock.getSector() == null || !existingStock.getSector().equals(sector))) {
+                        existingStock.setSector(sector);
+                        updated = true;
+                    }
+                    if (industry != null && (existingStock.getIndustry() == null || !existingStock.getIndustry().equals(industry))) {
+                        existingStock.setIndustry(industry);
+                        updated = true;
+                    }
+                    if (updated) {
+                        return stockRepository.save(existingStock);
+                    }
+                    return existingStock;
+                })
                 .orElseGet(() -> {
                     if (trimmedSymbol == null || trimmedSymbol.isBlank()) {
                         throw new IllegalArgumentException("Symbol is required");
@@ -234,8 +258,12 @@ public class StockService {
                     if (trimmedSymbol.length() > 20) {
                         throw new IllegalArgumentException("Symbol must be at most 20 characters");
                     }
-                    return stockRepository.save(new Stock(trimmedSymbol, trimmedName, sector));
+                    return stockRepository.save(new Stock(trimmedSymbol, trimmedName, sector, industry));
                 });
+    }
+
+    public Stock getOrCreateStock(String symbol, String name, String sector) {
+        return getOrCreateStock(symbol, name, sector, null);
     }
 
     public Stock updatePortfolioData(Long id, CsvImportRequest req) {
@@ -303,16 +331,25 @@ public class StockService {
      * in sync when portfolio data is updated via the stock management page.
      */
     public void syncPortfolioHoldings(Stock stock) {
-        List<PortfolioHolding> holdings = portfolioHoldingRepository.findByStockId(stock.getId());
-        for (PortfolioHolding holding : holdings) {
-            holding.setQuantity(stock.getQuantity());
-            holding.setAvgPrice(stock.getAvgPrice());
-        }
-        if (!holdings.isEmpty()) {
-            portfolioHoldingRepository.saveAll(holdings);
-            log.debug("Synced {} portfolio holding(s) for stock {} (id={})",
-                    holdings.size(), stock.getSymbol(), stock.getId());
-        }
+        // Only sync to the default portfolio — prevents overwriting
+        // portfolio-specific holdings in custom portfolios.
+        Portfolio defaultPort = portfolioRepository.findByIsDefaultTrue().orElse(null);
+        if (defaultPort == null) return;
+
+        PortfolioHolding holding = portfolioHoldingRepository
+                .findByPortfolioIdAndStockId(defaultPort.getId(), stock.getId())
+                .orElseGet(() -> {
+                    PortfolioHolding h = new PortfolioHolding();
+                    h.setPortfolio(defaultPort);
+                    h.setStock(stock);
+                    return h;
+                });
+
+        holding.setQuantity(stock.getQuantity());
+        holding.setAvgPrice(stock.getAvgPrice());
+        portfolioHoldingRepository.save(holding);
+        log.debug("Synced holding for stock {} in default portfolio (id={})",
+                stock.getSymbol(), defaultPort.getId());
     }
 
     /**
@@ -354,6 +391,7 @@ public class StockService {
         dto.setSymbol(stock.getSymbol());
         dto.setName(stock.getName());
         dto.setSector(stock.getSector());
+        dto.setIndustry(stock.getIndustry());
         dto.setYahooSymbol(stock.getYahooSymbol());
         dto.setCreatedAt(stock.getCreatedAt());
         dto.setUpdatedAt(stock.getUpdatedAt());

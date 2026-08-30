@@ -1,0 +1,12 @@
+{
+  "keybinds": {
+    "leader": "ctrl+x",
+    "editor_open": "<leader>e",
+    "command_list": "ctrl+p",
+    "agent_list": "<leader>a",
+    "model_cycle_recent": "f2",
+    "session_new": "<leader>n",
+    "session_list": "<leader>l",
+    "session_compact": "<leader>c"
+  }
+}

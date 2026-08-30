@@ -3,10 +3,14 @@ package org.example.service;
 import org.example.dto.StockDTO;
 import org.example.dto.WatchlistDTO;
 import org.example.dto.WatchlistDetailDTO;
+import org.example.entity.DailyPrice;
+import org.example.entity.IndicatorType;
 import org.example.entity.Stock;
+import org.example.entity.TechnicalIndicator;
 import org.example.entity.Watchlist;
 import org.example.entity.WatchlistItem;
 import org.example.repository.DailyPriceRepository;
+import org.example.repository.TechnicalIndicatorRepository;
 import org.example.repository.WatchlistItemRepository;
 import org.example.repository.WatchlistRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executor;
+
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -44,15 +48,10 @@ class WatchlistServiceTest {
     private DailyPriceRepository dailyPriceRepository;
 
     @Mock
-    private Executor syncExecutor;
+    private TechnicalIndicatorRepository technicalIndicatorRepository;
 
     @InjectMocks
     private WatchlistService watchlistService;
-
-    @BeforeEach
-    void setUp() {
-        watchlistService.setSyncExecutor(syncExecutor);
-    }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -63,7 +62,7 @@ class WatchlistServiceTest {
     }
 
     private Stock createStock(Long id, String symbol) {
-        Stock stock = new Stock(symbol, symbol + " Inc.", "Technology");
+        Stock stock = new Stock(symbol, symbol + " Inc.", "Technology", null);
         stock.setId(id);
         stock.setQuantity(0);
         return stock;
@@ -75,6 +74,7 @@ class WatchlistServiceTest {
         dto.setSymbol(symbol);
         dto.setName(symbol + " Inc.");
         dto.setSector("Technology");
+        dto.setIndustry(null);
         return dto;
     }
 
@@ -167,8 +167,7 @@ class WatchlistServiceTest {
     }
 
     @Test
-    void testGetWatchlistDetail() {
-        // Given
+    void testGetWatchlistDetail_UsesBatchQueries() {
         Watchlist watchlist = createWatchlist(1L, "Tech", "Tech stocks");
         Stock stock1 = createStock(10L, "AAPL");
         Stock stock2 = createStock(11L, "GOOGL");
@@ -178,21 +177,37 @@ class WatchlistServiceTest {
         when(watchlistRepository.findById(1L)).thenReturn(Optional.of(watchlist));
         when(watchlistItemRepository.findByWatchlistIdOrderByAddedAtAsc(1L))
                 .thenReturn(List.of(item1, item2));
-        when(stockService.getStockDTO(stock1)).thenReturn(createStockDTO(10L, "AAPL"));
-        when(stockService.getStockDTO(stock2)).thenReturn(createStockDTO(11L, "GOOGL"));
-        when(dailyPriceRepository.countByStockId(10L)).thenReturn(45L);
-        when(dailyPriceRepository.countByStockId(11L)).thenReturn(30L);
 
-        // When
+        // Batch mocks
+        DailyPrice dp1 = new DailyPrice(); dp1.setStock(stock1); dp1.setClosingPrice(new BigDecimal("150.00"));
+        DailyPrice dp2 = new DailyPrice(); dp2.setStock(stock2); dp2.setClosingPrice(new BigDecimal("280.00"));
+        when(dailyPriceRepository.findLatestPriceForStockIds(List.of(10L, 11L)))
+                .thenReturn(List.of(dp1, dp2));
+
+        TechnicalIndicator rsi1 = new TechnicalIndicator(); rsi1.setStock(stock1); rsi1.setValue(new BigDecimal("62.5"));
+        TechnicalIndicator rsi2 = new TechnicalIndicator(); rsi2.setStock(stock2); rsi2.setValue(new BigDecimal("45.0"));
+        when(technicalIndicatorRepository.findLatestByStockIdsAndTypes(
+                List.of(10L, 11L), List.of(IndicatorType.RSI)))
+                .thenReturn(List.of(rsi1, rsi2));
+
+        when(dailyPriceRepository.countByStockIds(List.of(10L, 11L)))
+                .thenReturn(List.of(new Object[]{10L, 45L}, new Object[]{11L, 30L}));
+
+        when(stockService.getStockDTO(eq(stock1), eq(new BigDecimal("150.00")), eq(new BigDecimal("62.5"))))
+                .thenReturn(createStockDTO(10L, "AAPL"));
+        when(stockService.getStockDTO(eq(stock2), eq(new BigDecimal("280.00")), eq(new BigDecimal("45.0"))))
+                .thenReturn(createStockDTO(11L, "GOOGL"));
+
         WatchlistDetailDTO result = watchlistService.getWatchlistDetail(1L);
 
-        // Then
         assertNotNull(result);
         assertEquals("Tech", result.getName());
         assertEquals(2, result.getItemCount());
         assertEquals(2, result.getStocks().size());
         assertEquals("AAPL", result.getStocks().get(0).getSymbol());
         assertEquals("GOOGL", result.getStocks().get(1).getSymbol());
+        verify(dailyPriceRepository, never()).countByStockId(anyLong());
+        verify(stockService, never()).getStockDTO(any(Stock.class));
     }
 
     @Test
@@ -205,9 +220,7 @@ class WatchlistServiceTest {
         when(stockService.getStockById(10L)).thenReturn(stock);
         when(watchlistItemRepository.save(any(WatchlistItem.class)))
                 .thenReturn(new WatchlistItem(watchlist, stock));
-        // Mock syncExecutor to run the Runnable synchronously
-        doAnswer(invocation -> { ((Runnable) invocation.getArgument(0)).run(); return null; })
-                .when(syncExecutor).execute(any(Runnable.class));
+        when(stockSyncService.syncStockHistory(eq(10L), eq(90))).thenReturn(64L);
 
         // When
         WatchlistItem item = watchlistService.addStockToWatchlist(1L, 10L);
@@ -217,6 +230,7 @@ class WatchlistServiceTest {
         assertEquals(watchlist, item.getWatchlist());
         assertEquals(stock, item.getStock());
         verify(watchlistItemRepository, times(1)).save(any(WatchlistItem.class));
+        verify(stockSyncService, times(1)).syncStockHistory(10L, 90);
     }
 
     @Test

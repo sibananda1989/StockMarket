@@ -26,7 +26,12 @@ public class RsiCalculator implements IndicatorCalculator {
             throw new IllegalArgumentException("Need at least " + (period + 1) + " days of price data to calculate RSI-" + period);
         }
 
-        java.util.Map<LocalDate, BigDecimal> results = new java.util.HashMap<>();
+        // BUG FIX (2026-07-06): Use LinkedHashMap to preserve insertion order.
+        // HashMap has no guaranteed iteration order, so calculate() was returning
+        // an ARBITRARY RSI value instead of the latest one. This caused ALL RSI
+        // values stored in the database to be random/wrong for every stock.
+        // See anchor summary for full analysis.
+        java.util.Map<LocalDate, BigDecimal> results = new java.util.LinkedHashMap<>();
         BigDecimal[] gains = new BigDecimal[prices.size() - 1];
         BigDecimal[] losses = new BigDecimal[prices.size() - 1];
         for (int i = 0; i < gains.length; i++) {

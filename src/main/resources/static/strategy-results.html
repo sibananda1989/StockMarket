@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Tracker - Strategy Results</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="css/theme.css?v=v20260808_hoverfix1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dark min-h-screen">
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold"><i class="fas fa-chart-bar text-blue-400 mr-3"></i>Strategy Results</h1>
+            <p class="text-secondary mt-1">What each strategy is saying about the whole stock universe (latest snapshot)</p>
+        </div>
+        <button id="refreshBtn"
+            class="px-4 py-2 rounded-lg font-medium transition-colors bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+            <i class="fas fa-rotate mr-2"></i>Refresh
+        </button>
+    </div>
+
+    <div id="navigation"></div>
+
+    <div id="loading" class="hidden text-center py-12 text-gray-400">
+        <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+        <p>Computing strategy results…</p>
+    </div>
+
+    <div class="card rounded-xl shadow-lg overflow-hidden">
+        <table id="strategy-results-table" class="w-full text-sm">
+            <thead>
+                <tr class="text-left text-gray-400 border-b border-gray-700">
+                    <th class="px-4 py-3">Strategy</th>
+                    <th class="px-4 py-3 text-center">BUY</th>
+                    <th class="px-4 py-3 text-center">SELL</th>
+                    <th class="px-4 py-3 text-center">HOLD</th>
+                </tr>
+            </thead>
+            <tbody id="strategy-results-tbody" class="divide-y divide-gray-800"></tbody>
+        </table>
+        <div id="empty-state" class="hidden text-center py-12 text-gray-400">
+            <i class="fas fa-inbox text-3xl mb-3"></i>
+            <p>No strategy results yet. Click Refresh to compute today's snapshot.</p>
+        </div>
+    </div>
+</div>
+
+<script>document.write('<script src="js/api.js?_=' + Date.now() + '"><\/script>');</script>
+<script>document.write('<script src="js/navigation.js?_=' + Date.now() + '"><\/script>');</script>
+<script>document.write('<script src="strategy-results.js?_=' + Date.now() + '"><\/script>');</script>
+</body>
+</html>

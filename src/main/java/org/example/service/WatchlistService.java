@@ -5,21 +5,24 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.dto.StockDTO;
 import org.example.dto.WatchlistDTO;
 import org.example.dto.WatchlistDetailDTO;
+import org.example.entity.IndicatorType;
+import org.example.entity.DailyPrice;
 import org.example.entity.Stock;
+import org.example.entity.TechnicalIndicator;
 import org.example.entity.Watchlist;
 import org.example.entity.WatchlistItem;
 import org.example.exception.StockNotFoundException;
 import org.example.repository.DailyPriceRepository;
+import org.example.repository.TechnicalIndicatorRepository;
 import org.example.repository.WatchlistItemRepository;
 import org.example.repository.WatchlistRepository;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import org.springframework.beans.factory.annotation.Autowired;
-
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.Executor;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,14 +36,7 @@ public class WatchlistService {
     private final StockService stockService;
     private final StockSyncService stockSyncService;
     private final DailyPriceRepository dailyPriceRepository;
-
-    private Executor syncExecutor;
-
-    @Autowired
-    @Qualifier("syncExecutor")
-    public void setSyncExecutor(Executor syncExecutor) {
-        this.syncExecutor = syncExecutor;
-    }
+    private final TechnicalIndicatorRepository technicalIndicatorRepository;
 
     // ─── Watchlist CRUD ─────────────────────────────────────────────────────
 
@@ -82,11 +78,43 @@ public class WatchlistService {
     public WatchlistDetailDTO getWatchlistDetail(Long id) {
         Watchlist watchlist = getWatchlistById(id);
         List<WatchlistItem> items = watchlistItemRepository.findByWatchlistIdOrderByAddedAtAsc(id);
+
+        if (items.isEmpty()) {
+            return toDetailDTO(watchlist, List.of());
+        }
+
+        List<Long> stockIds = items.stream()
+                .map(item -> item.getStock().getId())
+                .collect(Collectors.toList());
+
+        // Batch-fetch latest prices
+        Map<Long, BigDecimal> latestPriceMap = new HashMap<>();
+        for (DailyPrice dp : dailyPriceRepository.findLatestPriceForStockIds(stockIds)) {
+            latestPriceMap.put(dp.getStock().getId(), dp.getClosingPrice());
+        }
+
+        // Batch-fetch latest RSI
+        Map<Long, BigDecimal> latestRsiMap = new HashMap<>();
+        List<TechnicalIndicator> rsiIndicators = technicalIndicatorRepository
+                .findLatestByStockIdsAndTypes(stockIds, List.of(IndicatorType.RSI));
+        for (TechnicalIndicator ti : rsiIndicators) {
+            latestRsiMap.put(ti.getStock().getId(), ti.getValue());
+        }
+
+        // Batch-fetch price record counts
+        Map<Long, Long> countMap = new HashMap<>();
+        for (Object[] row : dailyPriceRepository.countByStockIds(stockIds)) {
+            countMap.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
+        }
+
         List<StockDTO> stockDTOs = items.stream()
                 .map(item -> {
-                    StockDTO dto = stockService.getStockDTO(item.getStock());
+                    Stock stock = item.getStock();
+                    StockDTO dto = stockService.getStockDTO(stock,
+                            latestPriceMap.get(stock.getId()),
+                            latestRsiMap.get(stock.getId()));
                     dto.setAddedAt(item.getAddedAt());
-                    dto.setRecordCount(dailyPriceRepository.countByStockId(item.getStock().getId()));
+                    dto.setRecordCount(countMap.getOrDefault(stock.getId(), 0L));
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -106,10 +134,24 @@ public class WatchlistService {
         WatchlistItem item = new WatchlistItem(watchlist, stock);
         WatchlistItem saved = watchlistItemRepository.save(item);
 
-        // Trigger background history sync
-        triggerBackgroundSync(stockId);
+        // Sync history synchronously so caller gets fresh data immediately
+        syncStockHistoryForWatchlist(stockId);
 
         return saved;
+    }
+
+    /**
+     * Synchronously sync stock history when added to watchlist.
+     * This ensures price data is available immediately after adding.
+     */
+    private void syncStockHistoryForWatchlist(Long stockId) {
+        try {
+            log.info("Syncing history for watchlist stock {}", stockId);
+            long saved = stockSyncService.syncStockHistory(stockId, 90);
+            log.info("Synced {} records for watchlist stock {}", saved, stockId);
+        } catch (Exception e) {
+            log.warn("Failed to sync history for watchlist stock {}: {}", stockId, e.getMessage());
+        }
     }
 
     public void removeStockFromWatchlist(Long watchlistId, Long stockId) {
@@ -129,8 +171,8 @@ public class WatchlistService {
                 .map(stock -> watchlistItemRepository.save(new WatchlistItem(watchlist, stock)))
                 .collect(Collectors.toList());
 
-        // Trigger background history sync for each added stock
-        saved.forEach(item -> triggerBackgroundSync(item.getStock().getId()));
+        // Sync history synchronously for each added stock
+        saved.forEach(item -> syncStockHistoryForWatchlist(item.getStock().getId()));
 
         return saved;
     }
@@ -154,20 +196,6 @@ public class WatchlistService {
     @Transactional(readOnly = true)
     public long getWatchlistItemCount(Long watchlistId) {
         return watchlistItemRepository.countByWatchlistId(watchlistId);
-    }
-
-    // ─── Background Sync ────────────────────────────────────────────────────
-
-    private void triggerBackgroundSync(Long stockId) {
-        syncExecutor.execute(() -> {
-            try {
-                log.info("Starting background history sync for stock {}", stockId);
-                stockSyncService.syncStockHistory(stockId, 90);
-                log.info("Background history sync completed for stock {}", stockId);
-            } catch (Exception e) {
-                log.warn("Background sync failed for stock {}: {}", stockId, e.getMessage());
-            }
-        });
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────

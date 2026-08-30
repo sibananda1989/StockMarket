@@ -3,13 +3,18 @@ package org.example.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.*;
 import org.example.entity.Stock;
-import jakarta.validation.Valid;
+import org.example.event.StockCreatedEvent;
+import org.example.repository.StockRepository;
 import org.example.service.DailyPriceService;
 import org.example.service.PortfolioSnapshotService;
 import org.example.service.StockService;
+import org.example.service.TechnicalAnalysisService;
 import org.example.service.YahooFinanceService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -24,6 +29,9 @@ public class StockController {
     private final StockService stockService;
     private final PortfolioSnapshotService snapshotService;
     private final YahooFinanceService yahooFinanceService;
+    private final TechnicalAnalysisService technicalAnalysisService;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final StockRepository stockRepository;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<StockDTO>>> getAllStocks() {
@@ -32,9 +40,12 @@ public class StockController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<StockDTO>> createStock(@Valid @RequestBody StockDTO dto) {
-        Stock stock = new Stock(dto.getSymbol(), dto.getName(), dto.getSector());
+        Stock stock = new Stock(dto.getSymbol(), dto.getName(), dto.getSector(), dto.getIndustry());
+        stock.setYahooSymbol(dto.getYahooSymbol() != null && !dto.getYahooSymbol().isBlank()
+                ? dto.getYahooSymbol() : dto.getSymbol());
         Stock saved = stockService.addStock(stock);
         StockDTO savedDto = stockService.getStockDTO(saved);
+        applicationEventPublisher.publishEvent(new StockCreatedEvent(this, saved.getId()));
         return ResponseEntity.ok(ApiResponse.success("Stock created successfully", savedDto));
     }
 
@@ -45,6 +56,7 @@ public class StockController {
         existing.setSymbol(dto.getSymbol());
         existing.setName(dto.getName());
         existing.setSector(dto.getSector());
+        existing.setIndustry(dto.getIndustry());
         Stock updated = stockService.updateStock(id, existing);
         StockDTO updatedDto = stockService.getStockDTO(updated);
         return ResponseEntity.ok(ApiResponse.success("Stock updated successfully", updatedDto));
@@ -91,11 +103,19 @@ public class StockController {
     @PostMapping("/csv-import")
     public ResponseEntity<ApiResponse<List<StockDTO>>> csvImport(@RequestBody List<CsvImportRequest> requests) {
         List<StockDTO> results = requests.stream().map(req -> {
-            Stock stock = stockService.getOrCreateStock(req.getSymbol(), req.getName(), req.getSector());
+            String trimmedSymbol = req.getSymbol() != null ? req.getSymbol().trim() : null;
+            boolean isNew = trimmedSymbol != null && !stockRepository.existsBySymbol(trimmedSymbol);
+            Stock stock = stockService.getOrCreateStock(req.getSymbol(), req.getName(), req.getSector(), req.getIndustry());
             stock.setQuantity(req.getQuantity());
             stock.setAvgPrice(req.getAvgPrice());
+            if (req.getLastTradedPrice() != null) {
+                stock.setLastTradedPrice(req.getLastTradedPrice());
+            }
             stockService.recalculatePortfolio(stock);
             stockService.syncPortfolioHoldings(stock);
+            if (isNew) {
+                applicationEventPublisher.publishEvent(new StockCreatedEvent(this, stock.getId()));
+            }
             return stockService.getStockDTO(stock);
         }).collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.success(results));
@@ -136,5 +156,16 @@ public class StockController {
         int count = stockService.deleteStocksBySymbolPrefix(prefix);
         return ResponseEntity.ok(ApiResponse.success(
                 "Deleted " + count + " stock(s) with symbol prefix '" + prefix + "'", null));
+    }
+
+    @GetMapping("/sectors")
+    public ResponseEntity<ApiResponse<List<String>>> getAllSectors() {
+        List<String> sectors = stockRepository.findDistinctSectors();
+        return ResponseEntity.ok(ApiResponse.success(sectors));
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<ApiResponse<String>> healthCheck() {
+        return ResponseEntity.ok(ApiResponse.success("OK", null));
     }
 }

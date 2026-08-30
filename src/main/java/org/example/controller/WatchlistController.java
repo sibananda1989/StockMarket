@@ -18,9 +18,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Map;
 
 @RestController
@@ -75,12 +73,16 @@ public class WatchlistController {
     }
 
     @PostMapping("/{id}/items")
-    public ResponseEntity<ApiResponse<Void>> addStockToWatchlist(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> addStockToWatchlist(
             @PathVariable Long id,
             @RequestBody AddStockRequest request) {
-        watchlistService.addStockToWatchlist(id, request.getStockId());
+        WatchlistItem item = watchlistService.addStockToWatchlist(id, request.getStockId());
+        Map<String, Object> result = new HashMap<>();
+        result.put("watchlistItemId", item.getId());
+        result.put("stockId", item.getStock().getId());
+        result.put("symbol", item.getStock().getSymbol());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Stock added to watchlist", null));
+                .body(ApiResponse.success("Stock added to watchlist", result));
     }
 
     @DeleteMapping("/{watchlistId}/items/{stockId}")

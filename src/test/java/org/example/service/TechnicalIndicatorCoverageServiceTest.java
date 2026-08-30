@@ -20,7 +20,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+
+import org.springframework.data.domain.Pageable;
 
 @ExtendWith(MockitoExtension.class)
 class TechnicalIndicatorCoverageServiceTest {
@@ -37,7 +40,7 @@ class TechnicalIndicatorCoverageServiceTest {
     @Test
     void getCoverage_noRowsYet_returnsAllMissing() {
         // Given
-        when(indicatorRepository.findLatestTwoCalculationDates(42L))
+        when(indicatorRepository.findLatestTwoCalculationDates(eq(42L), any(Pageable.class)))
                 .thenReturn(Collections.emptyList());
 
         // When
@@ -64,7 +67,7 @@ class TechnicalIndicatorCoverageServiceTest {
                 .map(t -> makeIndicator(42L, t, today))
                 .collect(Collectors.toList());
 
-        when(indicatorRepository.findLatestTwoCalculationDates(42L))
+        when(indicatorRepository.findLatestTwoCalculationDates(eq(42L), any(Pageable.class)))
                 .thenReturn(List.of(today));
         when(indicatorRepository.findByStockIdAndCalculationDate(42L, today))
                 .thenReturn(rows);
@@ -91,7 +94,7 @@ class TechnicalIndicatorCoverageServiceTest {
                 .map(t -> makeIndicator(42L, t, today))
                 .collect(Collectors.toList());
 
-        when(indicatorRepository.findLatestTwoCalculationDates(42L))
+        when(indicatorRepository.findLatestTwoCalculationDates(eq(42L), any(Pageable.class)))
                 .thenReturn(List.of(today));
         when(indicatorRepository.findByStockIdAndCalculationDate(42L, today))
                 .thenReturn(rows);

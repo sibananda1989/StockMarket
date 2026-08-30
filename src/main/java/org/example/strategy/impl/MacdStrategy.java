@@ -46,10 +46,29 @@ public class MacdStrategy extends TradingStrategy {
         double absGap = Math.abs(gap);
         double confidence = Math.min(absGap * CONFIDENCE_SCALE, MAX_CONFIDENCE);
 
-        // Detect crossover: compare today's position with yesterday's
+        // Level 1: Zero-line crossover (highest priority — confirms major trend shift)
         Optional<Double> prevMacdLineOpt = resolvePreviousIndicator(indicators, IndicatorType.MACD_LINE);
-        Optional<Double> prevMacdSignalOpt = resolvePreviousIndicator(indicators, IndicatorType.MACD_SIGNAL);
+        if (prevMacdLineOpt.isPresent()) {
+            double prevMacdLine = prevMacdLineOpt.get();
+            boolean wasBelowZero = prevMacdLine < 0;
+            boolean isAboveZero = macdLine > 0;
+            boolean wasAboveZero = prevMacdLine > 0;
+            boolean isBelowZero = macdLine < 0;
 
+            if (wasBelowZero && isAboveZero) {
+                return StrategyResult.withoutContribution(StrategySignal.BUY, Math.min(confidence, MAX_CONFIDENCE),
+                        String.format("MACD zero-line bullish crossover (line=%.2f crossed above 0)", macdLine),
+                        getName(), getPriority());
+            }
+            if (wasAboveZero && isBelowZero) {
+                return StrategyResult.withoutContribution(StrategySignal.SELL, Math.min(confidence, MAX_CONFIDENCE),
+                        String.format("MACD zero-line bearish crossover (line=%.2f crossed below 0)", macdLine),
+                        getName(), getPriority());
+            }
+        }
+
+        // Level 2: Signal-line crossover
+        Optional<Double> prevMacdSignalOpt = resolvePreviousIndicator(indicators, IndicatorType.MACD_SIGNAL);
         if (prevMacdLineOpt.isPresent() && prevMacdSignalOpt.isPresent()) {
             double prevMacdLine = prevMacdLineOpt.get();
             double prevMacdSignal = prevMacdSignalOpt.get();
@@ -59,38 +78,28 @@ public class MacdStrategy extends TradingStrategy {
             boolean isBelow = gap < 0;
 
             if (wasBelow && isAbove) {
-                return StrategyResult.withoutContribution(StrategySignal.BUY, confidence,
+                return StrategyResult.withoutContribution(StrategySignal.BUY, Math.min(confidence, MAX_CONFIDENCE),
                         String.format("MACD bullish crossover (line=%.2f, signal=%.2f, gap=%.2f)", macdLine, macdSignal, gap),
                         getName(), getPriority());
             } else if (wasAbove && isBelow) {
-                return StrategyResult.withoutContribution(StrategySignal.SELL, confidence,
+                return StrategyResult.withoutContribution(StrategySignal.SELL, Math.min(confidence, MAX_CONFIDENCE),
                         String.format("MACD bearish crossover (line=%.2f, signal=%.2f, gap=%.2f)", macdLine, macdSignal, gap),
                         getName(), getPriority());
-            } else {
-                // Same position as yesterday — no crossover, but maintain position with lower confidence
-                if (isAbove) {
-                    return StrategyResult.withoutContribution(StrategySignal.BUY, Math.min(confidence, POSITION_CONFIDENCE),
-                            String.format("MACD line above signal (line=%.2f, signal=%.2f, gap=%.2f)", macdLine, macdSignal, gap),
-                            getName(), getPriority());
-                } else if (isBelow) {
-                    return StrategyResult.withoutContribution(StrategySignal.SELL, Math.min(confidence, POSITION_CONFIDENCE),
-                            String.format("MACD line below signal (line=%.2f, signal=%.2f, gap=%.2f)", macdLine, macdSignal, gap),
-                            getName(), getPriority());
-                } else {
-                    return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.30,
-                            "MACD line equals signal line", getName(), getPriority());
-                }
             }
         }
 
-        // Fallback to position-based when no previous data
+        // Level 3: Position-based (no crossover detected — relative position with zero-line context)
         if (gap > 0) {
+            // MACD line above signal — bullish bias
+            String context = (macdLine > 0 && macdSignal > 0) ? "both above zero" : "below zero";
             return StrategyResult.withoutContribution(StrategySignal.BUY, Math.min(confidence, POSITION_CONFIDENCE),
-                    String.format("MACD line above signal (line=%.2f, signal=%.2f, gap=%.2f)", macdLine, macdSignal, gap),
+                    String.format("MACD line above signal (line=%.2f, signal=%.2f, %s)", macdLine, macdSignal, context),
                     getName(), getPriority());
         } else if (gap < 0) {
+            // MACD line below signal — bearish bias
+            String context = (macdLine < 0 && macdSignal < 0) ? "both below zero" : "above zero";
             return StrategyResult.withoutContribution(StrategySignal.SELL, Math.min(confidence, POSITION_CONFIDENCE),
-                    String.format("MACD line below signal (line=%.2f, signal=%.2f, gap=%.2f)", macdLine, macdSignal, gap),
+                    String.format("MACD line below signal (line=%.2f, signal=%.2f, %s)", macdLine, macdSignal, context),
                     getName(), getPriority());
         } else {
             return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.30,

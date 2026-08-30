@@ -28,4 +28,7 @@ public interface SignalRecordRepository extends JpaRepository<SignalRecord, Long
     @Modifying
     @Query("DELETE FROM SignalRecord sr WHERE sr.stockId = :stockId")
     int deleteByStockId(@Param("stockId") Long stockId);
+
+    @Query("SELECT COUNT(DISTINCT sr.stockId) FROM SignalRecord sr")
+    long countDistinctStocks();
 }

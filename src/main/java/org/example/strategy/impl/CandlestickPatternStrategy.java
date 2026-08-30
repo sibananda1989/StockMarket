@@ -1,97 +1,102 @@
 package org.example.strategy.impl;
 
-import org.example.dto.SupportResistanceDto;
 import org.example.entity.DailyPrice;
-import org.example.service.SupportResistanceService;
+import org.example.entity.TechnicalIndicator;
 import org.example.service.calculator.CandlestickPatternCalculator;
+import org.example.service.calculator.CandlestickPatternCalculator.Pattern;
+import org.example.service.calculator.CandlestickPatternCalculator.Result;
 import org.example.strategy.base.TradingStrategy;
 import org.example.strategy.model.StrategyResult;
 import org.example.strategy.model.StrategySignal;
 
-import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Pure candlestick pattern strategy that detects individual candlestick patterns
+ * without requiring support/resistance context.
+ *
+ * <p>Bullish patterns → BUY signal (confidence scales with pattern score).
+ * Bearish patterns → SELL signal (confidence scales with pattern score).
+ * No pattern detected → HOLD.</p>
+ *
+ * <p>Pattern strength is derived from the pattern score returned by
+ * {@link CandlestickPatternCalculator}:
+ * <ul>
+ *   <li>Score ±3 (morning/evening star): confidence 0.85</li>
+ *   <li>Score ±2 (engulfing, piercing, dark cloud, hammer, shooting star): confidence 0.70</li>
+ *   <li>Score ±1 (harami): confidence 0.55</li>
+ * </ul></p>
+ */
 public class CandlestickPatternStrategy extends TradingStrategy {
 
-    private final SupportResistanceService supportResistanceService;
-
-    public CandlestickPatternStrategy(int priority, SupportResistanceService supportResistanceService) {
-        super("CANDLESTICK", priority);
-        this.supportResistanceService = supportResistanceService;
+    public CandlestickPatternStrategy(int priority) {
+        super("CANDLESTICK_PATTERN", priority);
     }
 
     @Override
-    public StrategyResult evaluate(Long stockId, List<org.example.entity.TechnicalIndicator> indicators, List<DailyPrice> prices) {
+    public StrategyResult evaluate(Long stockId,
+                                   List<TechnicalIndicator> indicators,
+                                   List<DailyPrice> prices) {
         if (prices == null || prices.size() < 3) {
             return insufficientData();
         }
 
         CandlestickPatternCalculator calculator = new CandlestickPatternCalculator();
-        CandlestickPatternCalculator.Result result = calculator.detect(prices);
+        Result result = calculator.detect(prices);
 
-        if (result.pattern() == CandlestickPatternCalculator.Pattern.NONE) {
-            return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, "No candlestick pattern detected", getName(), getPriority());
-        }
-
-        SupportResistanceDto levels = supportResistanceService.getLatestLevels(stockId);
-        
-        if (levels == null || levels.getMajorLevels() == null || levels.getMajorLevels().isEmpty()) {
-            return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, "No support/resistance levels available", getName(), getPriority());
-        }
-
-        BigDecimal currentPrice = prices.get(0).getClosingPrice();
-
-        switch (result.pattern()) {
-            case HAMMER, BULLISH_ENGULFING, MORNING_STAR, BULLISH_HARAMI, PIERCING_LINE:
-                if (isNearSupport(currentPrice, levels.getMajorLevels())) {
-                    return StrategyResult.withoutContribution(StrategySignal.BUY, 0.75, 
-                        String.format("%s on support (score: %d)", result.label(), result.score()), 
-                        getName(), getPriority());
-                } else {
-                    return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, 
-                        String.format("%s but not near support", result.label()), 
-                        getName(), getPriority());
-                }
-            case SHOOTING_STAR, BEARISH_ENGULFING, EVENING_STAR, BEARISH_HARAMI, DARK_CLOUD_COVER:
-                if (isNearResistance(currentPrice, levels.getMajorLevels())) {
-                    return StrategyResult.withoutContribution(StrategySignal.SELL, 0.75, 
-                        String.format("%s on resistance (score: %d)", result.label(), result.score()), 
-                        getName(), getPriority());
-                } else {
-                    return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, 
-                        String.format("%s but not near resistance", result.label()), 
-                        getName(), getPriority());
-                }
-            default:
-                return StrategyResult.withoutContribution(StrategySignal.HOLD, 0.50, 
-                    String.format("Unknown pattern: %s", result.pattern()), 
+        if (result.pattern() == Pattern.NONE || result.label() == null) {
+            return StrategyResult.withoutContribution(
+                    StrategySignal.HOLD, 0.50,
+                    "No candlestick pattern detected",
                     getName(), getPriority());
         }
+
+        // Determine signal and confidence from pattern type and score
+        if (result.score() > 0) {
+            double confidence = confidenceFromScore(result.score());
+            return StrategyResult.withoutContribution(
+                    StrategySignal.BUY, confidence,
+                    String.format("Bullish pattern: %s (score: %d)", result.label(), result.score()),
+                    getName(), getPriority());
+        }
+
+        if (result.score() < 0) {
+            double confidence = confidenceFromScore(Math.abs(result.score()));
+            return StrategyResult.withoutContribution(
+                    StrategySignal.SELL, confidence,
+                    String.format("Bearish pattern: %s (score: %d)", result.label(), result.score()),
+                    getName(), getPriority());
+        }
+
+        // Unknown pattern (shouldn't happen if calculator returns known patterns)
+        return StrategyResult.withoutContribution(
+                StrategySignal.HOLD, 0.30,
+                String.format("Pattern detected but not classified: %s", result.label()),
+                getName(), getPriority());
     }
 
-    private boolean isNearSupport(BigDecimal price, List<SupportResistanceDto.MajorLevel> levels) {
-        for (SupportResistanceDto.MajorLevel level : levels) {
-            if ("support".equals(level.getType())) {
-                BigDecimal distance = price.subtract(level.getPrice()).abs();
-                BigDecimal threshold = level.getPrice().multiply(new BigDecimal("0.02"));
-                if (distance.compareTo(threshold) <= 0) {
-                    return true;
-                }
-            }
+    /**
+     * Maps pattern strength score to confidence.
+     * Score ±3 (star patterns) → high confidence
+     * Score ±2 (engulfing, hammer, etc.) → medium-high confidence
+     * Score ±1 (harami) → moderate confidence
+     * Fuzzy matches with percentage → scaled proportionally
+     */
+    private double confidenceFromScore(int absScore) {
+        if (absScore >= 90) {
+            // Fuzzy match with very high match percentage
+            return 0.80;
+        } else if (absScore >= 3) {
+            // Star patterns (morning/evening star)
+            return 0.85;
+        } else if (absScore >= 2) {
+            // Strong patterns (engulfing, hammer, shooting star, piercing line, dark cloud)
+            return 0.70;
+        } else if (absScore >= 1) {
+            // Moderate patterns (harami)
+            return 0.55;
         }
-        return false;
-    }
-
-    private boolean isNearResistance(BigDecimal price, List<SupportResistanceDto.MajorLevel> levels) {
-        for (SupportResistanceDto.MajorLevel level : levels) {
-            if ("resistance".equals(level.getType())) {
-                BigDecimal distance = price.subtract(level.getPrice()).abs();
-                BigDecimal threshold = level.getPrice().multiply(new BigDecimal("0.02"));
-                if (distance.compareTo(threshold) <= 0) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        // Low-score or fuzzy patterns
+        return 0.45;
     }
 }

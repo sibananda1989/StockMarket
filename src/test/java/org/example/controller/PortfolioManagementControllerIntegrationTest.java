@@ -2,7 +2,11 @@ package org.example.controller;
 
 import org.example.dto.ApiResponse;
 import org.example.dto.HoldingDTO;
+import org.example.dto.TransactionDTO;
+import org.example.dto.CreateTransactionRequest;
 import org.example.entity.*;
+import org.example.entity.TransactionType;
+import java.util.List;
 import org.example.repository.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +51,7 @@ class PortfolioManagementControllerIntegrationTest {
 
     private void clearAllData() {
         jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS = 0");
+        jdbcTemplate.execute("DELETE FROM portfolio_transactions");
         jdbcTemplate.execute("DELETE FROM portfolio_holdings");
         jdbcTemplate.execute("DELETE FROM portfolio_snapshots");
         jdbcTemplate.execute("DELETE FROM portfolios");
@@ -176,5 +181,100 @@ class PortfolioManagementControllerIntegrationTest {
     void getAggregateHolding_NoHoldings_ThrowsResourceNotFound() {
         assertThrows(ResourceNotFoundException.class,
                 () -> controller.getAggregateHolding(testStock.getId()));
+    }
+
+    // ─── Transactions (ledger) ──────────────────────────────────────────────
+
+    @Test
+    void recordTransaction_Buy_CreatesHoldingAndReturnsDto() {
+        CreateTransactionRequest req = new CreateTransactionRequest();
+        req.setStockId(testStock.getId());
+        req.setType(TransactionType.BUY);
+        req.setQuantity(10);
+        req.setPrice(new BigDecimal("100.00"));
+        req.setFees(new BigDecimal("10.00"));
+        req.setTransactionDate(LocalDate.now());
+
+        ResponseEntity<ApiResponse<TransactionDTO>> response =
+                controller.recordTransaction(testPortfolio.getId(), req);
+
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        ApiResponse<TransactionDTO> body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.isSuccess());
+        TransactionDTO dto = body.getData();
+        assertNotNull(dto);
+        assertEquals(TransactionType.BUY, dto.getType());
+        assertEquals(10, dto.getQuantity());
+        assertEquals("TEST.NS", dto.getStockSymbol());
+        assertEquals(testPortfolio.getId(), dto.getPortfolioId());
+        assertNull(dto.getRealizedPnl(), "BUY should not have realized P&L");
+    }
+
+    @Test
+    void getTransactions_AfterBuy_ReturnsListWithOneRow() {
+        CreateTransactionRequest req = new CreateTransactionRequest();
+        req.setStockId(testStock.getId());
+        req.setType(TransactionType.BUY);
+        req.setQuantity(10);
+        req.setPrice(new BigDecimal("100.00"));
+        req.setTransactionDate(LocalDate.now());
+        controller.recordTransaction(testPortfolio.getId(), req);
+
+        ResponseEntity<ApiResponse<List<TransactionDTO>>> response =
+                controller.getTransactions(testPortfolio.getId(), null);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<TransactionDTO> list = response.getBody().getData();
+        assertEquals(1, list.size());
+        assertEquals(TransactionType.BUY, list.get(0).getType());
+    }
+
+    @Test
+    void getTransactions_WithStockIdFilter_ReturnsFiltered() {
+        CreateTransactionRequest req = new CreateTransactionRequest();
+        req.setStockId(testStock.getId());
+        req.setType(TransactionType.BUY);
+        req.setQuantity(5);
+        req.setPrice(new BigDecimal("100.00"));
+        req.setTransactionDate(LocalDate.now());
+        controller.recordTransaction(testPortfolio.getId(), req);
+
+        ResponseEntity<ApiResponse<List<TransactionDTO>>> response =
+                controller.getTransactions(testPortfolio.getId(), 9999L);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().getData().isEmpty(), "Filter by non-matching stock should be empty");
+    }
+
+    @Test
+    void deleteTransaction_RemovesRow() {
+        CreateTransactionRequest req = new CreateTransactionRequest();
+        req.setStockId(testStock.getId());
+        req.setType(TransactionType.BUY);
+        req.setQuantity(5);
+        req.setPrice(new BigDecimal("100.00"));
+        req.setTransactionDate(LocalDate.now());
+        TransactionDTO created = controller.recordTransaction(testPortfolio.getId(), req).getBody().getData();
+
+        ResponseEntity<ApiResponse<String>> response =
+                controller.deleteTransaction(testPortfolio.getId(), created.getId());
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isSuccess());
+        assertTrue(controller.getTransactions(testPortfolio.getId(), null).getBody().getData().isEmpty());
+    }
+
+    @Test
+    void recordTransaction_SellWithoutHolding_ThrowsResourceNotFound() {
+        CreateTransactionRequest req = new CreateTransactionRequest();
+        req.setStockId(testStock.getId());
+        req.setType(TransactionType.SELL);
+        req.setQuantity(5);
+        req.setPrice(new BigDecimal("150.00"));
+        req.setTransactionDate(LocalDate.now());
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> controller.recordTransaction(testPortfolio.getId(), req));
     }
 }

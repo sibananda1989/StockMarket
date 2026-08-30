@@ -1,0 +1,1 @@
+ALTER TABLE stocks ADD COLUMN industry VARCHAR(100) NULL AFTER sector;

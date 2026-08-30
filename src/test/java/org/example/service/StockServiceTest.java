@@ -29,9 +29,9 @@ class StockServiceTest {
     @Test
     void testGetAllStocks() {
         // Given
-        Stock stock1 = new Stock("RELIANCE", "Reliance Industries", "Energy");
+        Stock stock1 = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
         stock1.setId(1L);
-        Stock stock2 = new Stock("TCS", "Tata Consultancy Services", "IT");
+        Stock stock2 = new Stock("TCS", "Tata Consultancy Services", "IT", null);
         stock2.setId(2L);
         when(stockRepository.findAll()).thenReturn(Arrays.asList(stock1, stock2));
 
@@ -48,7 +48,7 @@ class StockServiceTest {
      @Test
     void testGetStockById() {
         // Given
-        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy");
+        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
         stock.setId(1L);
         when(stockRepository.findById(1L)).thenReturn(Optional.of(stock));
 
@@ -64,7 +64,7 @@ class StockServiceTest {
     @Test
     void testGetStockBySymbol() {
         // Given
-        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy");
+        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
         stock.setId(1L);
         when(stockRepository.findBySymbol("RELIANCE")).thenReturn(Optional.of(stock));
 
@@ -80,8 +80,8 @@ class StockServiceTest {
     @Test
     void testAddStock() {
         // Given
-        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy");
-        Stock savedStock = new Stock("RELIANCE", "Reliance Industries", "Energy");
+        Stock stock = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
+        Stock savedStock = new Stock("RELIANCE", "Reliance Industries", "Energy", null);
         savedStock.setId(1L);
         when(stockRepository.save(any(Stock.class))).thenReturn(savedStock);
 

@@ -84,20 +84,31 @@ async function loadStocks() {
             const response = await getAllStocks();
             allStocks = (response.data || []).filter(s => s.quantity != null && s.quantity > 0);
         }
+        populateSectorDropdown();
         displayStocks(allStocks);
         updateSummaryCards(allStocks);
         populateAlertStockDropdown();
         checkAllAlerts();
     } catch (error) {
         document.getElementById('stocksTableBody').innerHTML =
-            '<tr><td colspan="11" class="text-center text-danger">Error loading stocks</td></tr>';
+            '<tr><td colspan="12" class="text-center text-danger">Error loading stocks</td></tr>';
     }
+}
+
+function populateSectorDropdown() {
+    const sel = document.getElementById('sectorFilter');
+    if (!sel) return;
+    const sectors = [...new Set(allStocks.map(s => s.sector).filter(Boolean))].sort();
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">All Sectors</option>' + 
+        sectors.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+    sel.value = currentVal && sectors.includes(currentVal) ? currentVal : '';
 }
 
 function displayStocks(stocks) {
     const tbody = document.getElementById('stocksTableBody');
     if (!stocks.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="text-center py-3">No stocks found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center py-3">No stocks found</td></tr>';
         return;
     }
 
@@ -115,6 +126,7 @@ function displayStocks(stocks) {
             <td><a href="${detailUrl}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(stock.symbol)}</a></td>
             <td><a href="${detailUrl}" class="hover:text-blue-400 transition-colors">${escHtml(stock.name)}</a></td>
             <td><span class="badge badge-neutral text-xs">${escHtml(stock.sector || '--')}</span></td>
+            <td>${escHtml(stock.industry || '--')}</td>
             <td class="text-right">${stock.quantity ?? '--'}</td>
             <td class="text-right">${fmt(stock.avgPrice)}</td>
             <td class="text-right">${fmt(stock.lastTradedPrice)}</td>
@@ -280,9 +292,12 @@ function updateSummaryCards(stocks) {
 
 function filterStocks() {
     const term = document.getElementById('searchInput').value.toLowerCase();
-    const filtered = term
-        ? allStocks.filter(s => s.symbol.toLowerCase().includes(term) || s.name.toLowerCase().includes(term))
-        : allStocks;
+    const sectorFilter = document.getElementById('sectorFilter').value;
+    const filtered = allStocks.filter(s => {
+        if (term && !s.symbol.toLowerCase().includes(term) && !(s.name || '').toLowerCase().includes(term)) return false;
+        if (sectorFilter && s.sector !== sectorFilter) return false;
+        return true;
+    });
     displayStocks(filtered);
 }
 
@@ -291,7 +306,7 @@ function sortBy(field) {
     else { sortField = field; sortDir = 'asc'; }
 
     document.querySelectorAll('#stocksTable thead th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
-    const fields = ['symbol', 'name', null, null, null, null, null, null, 'pnl', 'pnlPercent'];
+    const fields = ['symbol', 'name', null, null, null, null, null, null, null, 'pnl', 'pnlPercent'];
     const idx = fields.indexOf(field);
     if (idx >= 0) document.querySelectorAll('#stocksTable thead th')[idx].classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
 
@@ -338,11 +353,12 @@ async function addStock(event) {
     const symbol = _selectedStockMgmt.symbol.toUpperCase().trim();
     const name = _selectedStockMgmt.name.trim();
     const sector = document.getElementById('mgmtSector').value;
+    const industry = document.getElementById('mgmtIndustry').value.trim() || _selectedStockMgmt.industry || '';
     const portfolioId = document.getElementById('addPortfolioId').value;
     if (!sector) { showToast('Please select a sector', 'warning'); return; }
     if (!portfolioId) { showToast('Please select a portfolio', 'warning'); return; }
     try {
-        const res = await addStockApi({ symbol, name, sector, yahooSymbol: symbol });
+        const res = await addStockApi({ symbol, name, sector, yahooSymbol: symbol, industry });
         const newId = res.data.id;
         const qty = numOrNull('addQty');
         const avgPrice = numOrNull('addAvgPrice');
@@ -363,8 +379,10 @@ async function updateStock(event) {
     const sector = document.getElementById('editStockSector').value;
     const yahooSymbol = document.getElementById('editYahooSymbol').value.trim() || null;
     if (!symbol || !name || !sector) { showToast('Please fill in all required fields', 'warning'); return; }
+    const existing = allStocks.find(s => stockIdOf(s) == editId);
+    const industry = document.getElementById('editStockIndustry').value.trim() || (existing ? existing.industry : '');
     try {
-        await updateStockApi(editId, { symbol, name, sector, yahooSymbol });
+        await updateStockApi(editId, { symbol, name, sector, yahooSymbol, industry });
 
         const targetPid = document.getElementById('editPortfolioId')?.value;
         const oldHoldingId = document.getElementById('editHoldingId')?.value;
@@ -416,6 +434,7 @@ function openEditModal(id) {
     document.getElementById('editStockSymbol').value = s.symbol;
     document.getElementById('editStockName').value = s.name;
     document.getElementById('editStockSector').value = s.sector || '';
+    document.getElementById('editStockIndustry').value = s.industry || '';
     document.getElementById('editYahooSymbol').value = s.yahooSymbol || '';
     document.getElementById('editQty').value = s.quantity ?? '';
     document.getElementById('editAvgPrice').value = s.avgPrice ?? '';
@@ -567,6 +586,8 @@ function parseCsv(text) {
 
     const colMap = {
         name:             findCol(headers, ['name']),
+        sector:           findCol(headers, ['sector']),
+        industry:         findCol(headers, ['industry']),
         quantity:         findCol(headers, ['quantity', 'qty']),
         avgPrice:         findCol(headers, ['avg price', 'avg cost', 'avgprice', 'average price']),
         lastTradedPrice:  findCol(headers, ['last traded', 'ltp', 'last traded price', 'current price']),
@@ -583,6 +604,8 @@ function parseCsv(text) {
         return {
             name,
             symbol:           nameToSymbol(name),
+            sector:           cols[colMap.sector] || '',
+            industry:         cols[colMap.industry] || '',
             quantity:         parseNum(cols[colMap.quantity]),
             avgPrice:         parseNum(cols[colMap.avgPrice]),
             lastTradedPrice:  parseNum(cols[colMap.lastTradedPrice]),
@@ -677,7 +700,8 @@ async function importCsv() {
         const payload = parsedCsvData.map(r => ({
             symbol: r.symbol,
             name: r.name,
-            sector: 'Other',
+            sector: r.sector || 'Other',
+            industry: r.industry || null,
             quantity: r.quantity,
             avgPrice: r.avgPrice,
             lastTradedPrice: r.lastTradedPrice,
@@ -729,10 +753,10 @@ async function importCsv() {
 }
 
 function downloadSampleCsv() {
-    const sample = `Name\tQuantity\tAvg Price\tLast Traded\tInvestment\tCurrent Value\tP&L\tP&L%
-HDFC Bank\t6\t826.50\t780.85\t4959.00\t4685.10\t-273.90\t-5.52%
-Infosys\t6\t1256.33\t1179.20\t7538.00\t7075.20\t-462.80\t-6.14%
-Wipro\t21\t242.65\t197.91\t5095.65\t4156.11\t-939.54\t-18.44%`;
+    const sample = `Name\tSector\tIndustry\tQuantity\tAvg Price\tLast Traded\tInvestment\tCurrent Value\tP&L\tP&L%
+HDFC Bank\tBanking\tPrivate Bank\t6\t826.50\t780.85\t4959.00\t4685.10\t-273.90\t-5.52%
+Infosys\tIT\tSoftware Services\t6\t1256.33\t1179.20\t7538.00\t7075.20\t-462.80\t-6.14%
+Wipro\tIT\tSoftware Services\t21\t242.65\t197.91\t5095.65\t4156.11\t-939.54\t-18.44%`;
     const blob = new Blob([sample], { type: 'text/tab-separated-values' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -995,7 +1019,8 @@ function selectStockFromSearchMgmt(stock) {
                 { keywords: ['finance', 'bank', 'financial', 'insurance', 'credit', 'investment'], match: 'Finance' },
                 { keywords: ['consumer discretionary', 'retail', 'auto', 'media', 'entertainment', 'leisure', 'apparel'], match: 'Consumer Discretionary' },
                 { keywords: ['consumer staples', 'food', 'beverage', 'household', 'grocery', 'personal'], match: 'Consumer Staples' },
-                { keywords: ['industrial', 'manufacturing', 'aerospace', 'defense', 'transport', 'logistics', 'machinery', 'construction'], match: 'Industrial' },
+                { keywords: ['aerospace', 'defense', 'aero'], match: 'Aero & defence' },
+                { keywords: ['industrial', 'manufacturing', 'transport', 'logistics', 'machinery', 'construction'], match: 'Industrial' },
                 { keywords: ['utility', 'utilities', 'electric', 'water', 'gas utility'], match: 'Utilities' },
                 { keywords: ['real estate', 'property', 'reit'], match: 'Real Estate' },
                 { keywords: ['material', 'mining', 'chemical', 'steel', 'cement', 'forest'], match: 'Materials' },
@@ -1015,6 +1040,15 @@ function selectStockFromSearchMgmt(stock) {
             sectorSelect.value = sector;
         }
     }
+
+    // Auto-fill industry from Yahoo search or local data
+    let industry = stock.industry;
+    if (!industry) {
+        const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
+        if (local && local.industry) industry = local.industry;
+    }
+    const industryInput = document.getElementById('mgmtIndustry');
+    if (industryInput) industryInput.value = industry || '';
 
     hideSearchResultsMgmt();
     document.getElementById('addStockSearch').value = stock.name + ' (' + stock.symbol + ')';

@@ -42,11 +42,11 @@ public class StartupTaskController {
      */
     private static final List<String> EXECUTION_ORDER = List.of(
             "portfolio-migration",
-            "portfolio-snapshot",
+            "strategy-conditions",
+            "score-params",
             "data-sync",
             "fundamental-data",
             "fiidii-data",
-            "signal-cache",
             "signal-accuracy",
             "indicator-calc",
             "signal-performance"
@@ -78,14 +78,23 @@ public class StartupTaskController {
                 .map(taskMap::get)
                 .filter(task -> !EXCLUDED_CATEGORIES.contains(task.getCategory()))
                 .filter(task -> !completedToday.contains(task.getId()))
-                .map(task -> StartupTaskDTO.builder()
-                        .id(task.getId())
-                        .name(task.getName())
-                        .description(task.getDescription())
-                        .category(task.getCategory())
-                        .defaultEnabled(task.defaultEnabled())
-                        .required(task.isRequired())
-                        .build())
+                .map(task -> {
+                    var builder = StartupTaskDTO.builder()
+                            .id(task.getId())
+                            .name(task.getName())
+                            .description(task.getDescription())
+                            .category(task.getCategory())
+                            .defaultEnabled(task.defaultEnabled())
+                            .required(task.isRequired());
+                    
+                    StartupTaskLog latestLog = logRepository.findTopByTaskIdOrderByRunDateDescCompletedAtDesc(task.getId());
+                    if (latestLog != null) {
+                        builder.lastRunDate(latestLog.getCompletedAt() != null ? latestLog.getCompletedAt().format(java.time.format.DateTimeFormatter.ofPattern("MMM d, h:mm a")) : latestLog.getRunDate().toString());
+                        builder.lastRunStatus(latestLog.getStatus());
+                    }
+                    
+                    return builder.build();
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(ApiResponse.success(tasks));
@@ -106,24 +115,19 @@ public class StartupTaskController {
                 .filter(id -> !SEQUENTIAL_GROUP.contains(id))
                 .collect(Collectors.toList());
 
-        // Run parallel tasks asynchronously
-        List<CompletableFuture<Void>> parallelFutures = parallelTasks.stream()
-                .map(taskId -> CompletableFuture.runAsync(
-                        () -> runSingleTask(taskId, taskMap, today),
-                        startupTaskExecutor))
-                .collect(Collectors.toList());
-
-        // Run sequential tasks in order (rate-limited API calls)
-        for (String taskId : sequentialTasks) {
-            runSingleTask(taskId, taskMap, today);
+        // Run sequential group as ONE async unit (preserves ordering)
+        if (!sequentialTasks.isEmpty()) {
+            CompletableFuture.runAsync(() ->
+                    sequentialTasks.forEach(id -> runSingleTask(id, taskMap, today)),
+                    startupTaskExecutor);
         }
 
-        // Wait for all parallel tasks to complete
-        CompletableFuture.allOf(parallelFutures.toArray(new CompletableFuture[0]))
-                .join();
+        // Run each parallel task async (fire-and-forget)
+        parallelTasks.forEach(id ->
+                CompletableFuture.runAsync(() -> runSingleTask(id, taskMap, today), startupTaskExecutor));
 
-        log.info("Startup tasks execution complete");
-        return ResponseEntity.ok(ApiResponse.success("Startup tasks completed", null));
+        log.info("Startup tasks queued (async): {}", taskIds.size());
+        return ResponseEntity.accepted().body(ApiResponse.success("Startup tasks queued", null));
     }
 
     @PostMapping("/run-one/{taskId}")
@@ -131,13 +135,12 @@ public class StartupTaskController {
         Map<String, StartupTask> taskMap = getTaskMap();
         LocalDate today = LocalDate.now();
 
-        StartupTask task = taskMap.get(taskId);
-        if (task == null) {
+        if (taskMap.get(taskId) == null) {
             return ResponseEntity.ok(ApiResponse.error("Unknown task: " + taskId));
         }
 
-        String result = runSingleTask(taskId, taskMap, today);
-        return ResponseEntity.ok(ApiResponse.success(result, taskId));
+        CompletableFuture.runAsync(() -> runSingleTask(taskId, taskMap, today), startupTaskExecutor);
+        return ResponseEntity.accepted().body(ApiResponse.success("Task queued", taskId));
     }
 
     private String runSingleTask(String taskId, Map<String, StartupTask> taskMap, LocalDate today) {

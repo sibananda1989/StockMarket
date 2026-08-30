@@ -19,6 +19,7 @@ public class HoldingDTO {
     private String symbol;
     private String name;
     private String sector;
+    private String industry;
     private String yahooSymbol;
     private Integer quantity;
     private BigDecimal avgPrice;

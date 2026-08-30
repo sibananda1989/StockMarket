@@ -10,8 +10,10 @@ import org.example.exception.PriceAlreadyExistsException;
 import org.example.exception.StockNotFoundException;
 import org.example.repository.DailyPriceRepository;
 
+import org.example.service.PortfolioSnapshotService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,6 +29,8 @@ public class DailyPriceService {
     private final DailyPriceRepository dailyPriceRepository;
     private final StockService stockService;
     private final TechnicalAnalysisService technicalAnalysisService;
+    private final PortfolioSnapshotService snapshotService;
+    private final EntityManager entityManager;
 
     @Transactional(noRollbackFor = PriceAlreadyExistsException.class)
     public DailyPrice saveDailyPrice(Long stockId, BigDecimal closingPrice, LocalDate priceDate,
@@ -52,6 +56,12 @@ public class DailyPriceService {
         }
 
         stockService.recalculatePortfolio(stock);
+
+        try {
+            snapshotService.saveOrUpdate(stock, priceDate);
+        } catch (Exception e) {
+            log.warn("Portfolio snapshot creation failed for stock {} on {}: {}", stockId, priceDate, e.getMessage());
+        }
 
         return saved;
     }
@@ -115,4 +125,21 @@ public class DailyPriceService {
         dto.setCreatedAt(dailyPrice.getCreatedAt());
         return dto;
     }
+
+    /**
+     * One-time data cleanup: removes duplicate DailyPrice records (same stock_id + price_date),
+     * keeping only the row with the smallest id. This should be run once during maintenance
+     * to clean up any duplicates that may have been created by sync issues.
+     */
+    @Transactional
+    public void cleanupDuplicateDailyPrices() {
+        String sql = "DELETE dp FROM daily_price dp " +
+                     "INNER JOIN (" +
+                     "   SELECT id, ROW_NUMBER() OVER (PARTITION BY stock_id, price_date ORDER BY id) AS rn " +
+                     "   FROM daily_price " +
+                     ") dup ON dp.id = dup.id " +
+                     "WHERE dup.rn > 1";
+        entityManager.createNativeQuery(sql).executeUpdate();
+    }
+
 }

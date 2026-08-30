@@ -67,15 +67,15 @@ public class TechnicalAnalysisService {
     private final AtomicBoolean backfillInProgress = new AtomicBoolean(false);
 
     private final Map<IndicatorType, IndicatorCalculator> calculators = Map.ofEntries(
-            Map.entry(IndicatorType.RSI, new RsiCalculator(14)),
+            Map.entry(IndicatorType.RSI, new RsiCalculator(12)),
             Map.entry(IndicatorType.SMA_20, new SmaCalculator(20)),
             Map.entry(IndicatorType.SMA_50, new SmaCalculator(50)),
             Map.entry(IndicatorType.SMA_200, new SmaCalculator(200)),
             Map.entry(IndicatorType.EMA_20, new EmaCalculator(20)),
             Map.entry(IndicatorType.MACD_LINE, new MacdLineCalculator()),
             Map.entry(IndicatorType.MACD_SIGNAL, new MacdSignalCalculator()),
-            Map.entry(IndicatorType.BOLLINGER_UPPER, new BollingerUpperCalculator(20, 2.0)),
-            Map.entry(IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2.0)),
+            Map.entry(IndicatorType.BOLLINGER_UPPER, new BollingerUpperCalculator(20, 2.5)),
+            Map.entry(IndicatorType.BOLLINGER_LOWER, new BollingerLowerCalculator(20, 2.5)),
             Map.entry(IndicatorType.STOCH_K, new StochKCalculator(14)),
             Map.entry(IndicatorType.STOCH_D, new StochDCalculator(14, 3)),
             Map.entry(IndicatorType.WILLIAMS_R, new WilliamsRCalculator(14)),
@@ -95,7 +95,12 @@ public class TechnicalAnalysisService {
             Map.entry(IndicatorType.KIJUN_SEN, new IchimokuCalculator(IndicatorType.KIJUN_SEN)),
             Map.entry(IndicatorType.SENKOU_SPAN_A, new IchimokuCalculator(IndicatorType.SENKOU_SPAN_A)),
             Map.entry(IndicatorType.SENKOU_SPAN_B, new IchimokuCalculator(IndicatorType.SENKOU_SPAN_B)),
-            Map.entry(IndicatorType.CHIKOU_SPAN, new IchimokuCalculator(IndicatorType.CHIKOU_SPAN))
+            Map.entry(IndicatorType.CHIKOU_SPAN, new IchimokuCalculator(IndicatorType.CHIKOU_SPAN)),
+            // Volume-based indicators
+            Map.entry(IndicatorType.VOLUME_RATIO, new VolumeRatioCalculator()),
+            // Liquidity indicators
+            Map.entry(IndicatorType.AMIHUD_ILLIQUIDITY, new AmihudCalculator()),
+            Map.entry(IndicatorType.DOLLAR_VOLUME, new DollarVolumeCalculator())
     );
 
     public void calculateIndicatorsForStock(Long stockId) {
@@ -367,12 +372,22 @@ public class TechnicalAnalysisService {
 
         for (Stock stock : stocks) {
             try {
+                // Limit the price pull to the needed window (extra 200 days of history
+                // so indicators can be computed up to the earliest date in the range).
                 List<DailyPrice> prices = dailyPriceRepository
-                        .findAllByStockIdOrderByPriceDateAsc(stock.getId());
+                        .findByStockIdAndPriceDateBetweenOrderByPriceDateAsc(
+                                stock.getId(), fromDate.minusDays(200), LocalDate.now());
 
                 if (prices.isEmpty()) {
                     log.warn("No price data for {}, skipping", stock.getSymbol());
                     continue;
+                }
+
+                // Fetch date->indicator-count in ONE query for the whole window.
+                Map<LocalDate, Long> existingCounts = new HashMap<>();
+                for (Object[] row : indicatorRepository
+                        .findIndicatorCountsByStockIdAndDateFrom(fromDate, stock.getId())) {
+                    existingCounts.put((LocalDate) row[0], (Long) row[1]);
                 }
 
                 int stockFilled = 0;
@@ -385,10 +400,9 @@ public class TechnicalAnalysisService {
                     if (currentDate.isBefore(fromDate)) continue;
                     if (currentDate.isAfter(LocalDate.now())) break;
 
-                    // Count existing indicators for this date
-                    long existingCount = indicatorRepository.countByStockIdAndCalculationDate(
-                            stock.getId(), currentDate);
-                    if (existingCount >= totalCalculators) continue;
+                    // Look up existing indicator count for this date (no per-date COUNT query)
+                    Long existingCount = existingCounts.get(currentDate);
+                    if (existingCount != null && existingCount >= totalCalculators) continue;
 
                     // Compute missing indicators using prices up to this date
                     List<DailyPrice> pricesUpToDate = prices.subList(0, i + 1);
@@ -433,6 +447,169 @@ public class TechnicalAnalysisService {
         return totalFilled;
     }
 
+    /**
+     * Fills missing indicators for a single stock over the last N days.
+     * For each date in the range, checks if all indicators exist for that stock+date.
+     * If any are missing, recalculates them using prices up to that date.
+     *
+     * <p>Respects the staleness guard in
+     * {@link TechnicalIndicatorPersistenceService#saveOrUpdateIndicator(Stock, IndicatorType, BigDecimal, LocalDate)}
+     * — it will not overwrite existing non-null indicator values.</p>
+     *
+     * @param stockId the stock to fill gaps for
+     * @param days number of days to look back (default: 7)
+     * @return total number of indicator records filled
+     */
+    public int fillIndicatorGapsForStock(Long stockId, int days) {
+        long startTime = System.currentTimeMillis();
+        LocalDate fromDate = LocalDate.now().minusDays(days);
+
+        // Validate stock exists (throws StockNotFoundException if missing)
+        Stock stock = stockService.getStockById(stockId);
+
+        log.info("Filling indicator gaps for {} (stockId={}) over last {} days (from {})",
+                stock.getSymbol(), stockId, days, fromDate);
+
+        // Limit the price pull to the needed window (extra 200 days of history
+        // so indicators can be computed up to the earliest date in the range).
+        List<DailyPrice> prices = dailyPriceRepository
+                .findByStockIdAndPriceDateBetweenOrderByPriceDateAsc(
+                        stockId, fromDate.minusDays(200), LocalDate.now());
+
+        if (prices.isEmpty()) {
+            log.warn("No price data for {}, skipping", stock.getSymbol());
+            return 0;
+        }
+
+        // Fetch date->indicator-count in ONE query for the whole window.
+        Map<LocalDate, Long> existingCounts = new HashMap<>();
+        for (Object[] row : indicatorRepository
+                .findIndicatorCountsByStockIdAndDateFrom(fromDate, stockId)) {
+            existingCounts.put((LocalDate) row[0], (Long) row[1]);
+        }
+
+        int totalFilled = 0;
+        int totalCalculators = calculators.size();
+
+        for (int i = 0; i < prices.size(); i++) {
+            DailyPrice currentPrice = prices.get(i);
+            LocalDate currentDate = currentPrice.getPriceDate();
+
+            if (currentDate.isBefore(fromDate)) continue;
+            if (currentDate.isAfter(LocalDate.now())) break;
+
+            // Look up existing indicator count for this date (no per-date COUNT query)
+            Long existingCount = existingCounts.get(currentDate);
+            if (existingCount != null && existingCount >= totalCalculators) continue;
+
+            // Compute missing indicators using prices up to this date
+            List<DailyPrice> pricesUpToDate = prices.subList(0, i + 1);
+
+            for (Map.Entry<IndicatorType, IndicatorCalculator> entry : calculators.entrySet()) {
+                try {
+                    BigDecimal value = entry.getValue().calculate(pricesUpToDate);
+                    persistenceService.saveOrUpdateIndicator(
+                            stock, entry.getKey(), value, currentDate);
+                    totalFilled++;
+                } catch (IllegalArgumentException e) {
+                    // Not enough price data for this indicator at this date
+                    log.trace("Cannot compute {} for {} on {}: {}",
+                            entry.getKey(), stock.getSymbol(), currentDate, e.getMessage());
+                } catch (Exception e) {
+                    log.warn("Error computing {} for {} on {}: {}",
+                            entry.getKey(), stock.getSymbol(), currentDate, e.getMessage());
+                }
+            }
+        }
+
+        // Evict caches after filling gaps
+        Cache latestCache = cacheManager.getCache("latestIndicators");
+        if (latestCache != null) latestCache.evict(stockId);
+        Cache historyCache = cacheManager.getCache("indicatorHistory");
+        if (historyCache != null) historyCache.evict(stockId);
+
+        long elapsed = System.currentTimeMillis() - startTime;
+        log.info("Indicator gap fill complete for {}: {} records filled in {} ms",
+                stock.getSymbol(), totalFilled, elapsed);
+
+        return totalFilled;
+    }
+
+    /**
+     * Hard reset: deletes existing indicators and recomputes them from scratch
+     * for the given stock over the last N days. Unlike fillIndicatorGaps,
+     * this bypasses the staleness guard by deleting first, so stale/wrong
+     * values are forcibly overwritten.
+     *
+     * @param stockId the stock to reset
+     * @param days number of days to look back
+     * @return number of indicator records recomputed
+     */
+    public int resetAndRecalculateIndicatorsForStock(Long stockId, int days) {
+        Stock stock = stockService.getStockById(stockId);
+        LocalDate fromDate = LocalDate.now().minusDays(days);
+        LocalDate priceFrom = fromDate.minusDays(200); // longest lookback (SMA200)
+
+        // Delete existing indicators in the window
+        indicatorRepository.deleteByStockIdAndCalculationDateBetween(stockId, fromDate, LocalDate.now());
+
+        // Fetch prices (limited to needed window)
+        List<DailyPrice> prices = dailyPriceRepository
+                .findByStockIdAndPriceDateBetweenOrderByPriceDateAsc(stockId, priceFrom, LocalDate.now());
+        if (prices.isEmpty()) {
+            log.warn("No price data for {}, skipping reset", stock.getSymbol());
+            return 0;
+        }
+
+        int totalCalculators = calculators.size();
+        int totalRecomputed = 0;
+
+        for (int i = 0; i < prices.size(); i++) {
+            DailyPrice currentPrice = prices.get(i);
+            LocalDate currentDate = currentPrice.getPriceDate();
+            if (currentDate.isBefore(fromDate)) continue;
+            if (currentDate.isAfter(LocalDate.now())) break;
+
+            List<DailyPrice> pricesUpToDate = prices.subList(0, i + 1);
+            for (Map.Entry<IndicatorType, IndicatorCalculator> entry : calculators.entrySet()) {
+                try {
+                    BigDecimal value = entry.getValue().calculate(pricesUpToDate);
+                    persistenceService.saveOrUpdateIndicator(stock, entry.getKey(), value, currentDate);
+                    totalRecomputed++;
+                } catch (IllegalArgumentException e) {
+                    log.trace("Cannot compute {} for {} on {}: {}", entry.getKey(), stock.getSymbol(), currentDate, e.getMessage());
+                } catch (Exception e) {
+                    log.warn("Error computing {} for {} on {}: {}", entry.getKey(), stock.getSymbol(), currentDate, e.getMessage());
+                }
+            }
+        }
+
+        // Evict caches
+        Cache latestCache = cacheManager.getCache("latestIndicators");
+        if (latestCache != null) latestCache.evict(stockId);
+        Cache historyCache = cacheManager.getCache("indicatorHistory");
+        if (historyCache != null) historyCache.evict(stockId);
+
+        log.info("Hard reset complete for {}: {} records recomputed", stock.getSymbol(), totalRecomputed);
+        return totalRecomputed;
+    }
+
+    /**
+     * Hard reset for all stocks: deletes existing indicators and recomputes
+     * them from scratch over the last N days.
+     *
+     * @param days number of days to look back
+     * @return total number of indicator records recomputed across all stocks
+     */
+    public int resetAndRecalculateAllIndicators(int days) {
+        List<Stock> stocks = stockService.getAllStocks();
+        int total = 0;
+        for (Stock s : stocks) {
+            total += resetAndRecalculateIndicatorsForStock(s.getId(), days);
+        }
+        return total;
+    }
+
     @Transactional(readOnly = true)
     @Cacheable(cacheNames = "indicatorHistory", key = "#stockId + ':' + #type.name()")
     public List<IndicatorDto> getIndicatorHistory(Long stockId, IndicatorType type) {
@@ -440,6 +617,26 @@ public class TechnicalAnalysisService {
         stockService.getStockById(stockId);
         List<TechnicalIndicator> entities = indicatorRepository
                 .findByStockIdAndIndicatorTypeOrderByCalculationDateDesc(stockId, type);
+        return entities.stream()
+                .map(entity -> {
+                    IndicatorDto dto = new IndicatorDto();
+                    dto.setType(entity.getIndicatorType());
+                    dto.setValue(entity.getValue());
+                    dto.setCalculationDate(entity.getCalculationDate());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all indicator values for a stock within a date range, grouped by calculation date.
+     * Returns one IndicatorDto per indicator type per date, sorted by date ASC.
+     */
+    @Transactional(readOnly = true)
+    public List<IndicatorDto> getIndicatorHistoryForRange(Long stockId, LocalDate fromDate, LocalDate toDate) {
+        stockService.getStockById(stockId);
+        List<TechnicalIndicator> entities = indicatorRepository
+                .findByStockIdAndCalculationDateBetween(stockId, fromDate, toDate);
         return entities.stream()
                 .map(entity -> {
                     IndicatorDto dto = new IndicatorDto();

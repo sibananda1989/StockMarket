@@ -20,6 +20,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +34,7 @@ public class PortfolioService {
     private final StockRepository stockRepository;
     private final DailyPriceRepository dailyPriceRepository;
     private final PortfolioSnapshotService snapshotService;
+    private final PortfolioPositionReplayer replayer;
 
     // ═══════════════════════════════════════════════════════════════════
     // Portfolio CRUD
@@ -121,8 +123,6 @@ public class PortfolioService {
         holding.setAvgPrice(avgPrice);
         holding = holdingRepository.save(holding);
 
-        syncStockFromHolding(stock, quantity, avgPrice);
-        snapshotService.saveOrUpdate(stock, LocalDate.now(), portfolio);
         return computeHoldingDTO(holding);
     }
 
@@ -138,9 +138,6 @@ public class PortfolioService {
         if (avgPrice != null) holding.setAvgPrice(avgPrice);
         holding = holdingRepository.save(holding);
 
-        Stock stock = holding.getStock();
-        syncStockFromHolding(stock, holding.getQuantity(), holding.getAvgPrice());
-        snapshotService.saveOrUpdate(stock, LocalDate.now(), holding.getPortfolio());
         return computeHoldingDTO(holding);
     }
 
@@ -151,16 +148,25 @@ public class PortfolioService {
             throw new IllegalArgumentException("Holding does not belong to this portfolio");
         }
         Long stockId = holding.getStock().getId();
-        holdingRepository.delete(holding);
-        snapshotService.deleteSnapshot(portfolioId, stockId);
+        Stock stock = holding.getStock();
+        Portfolio portfolio = holding.getPortfolio();
+
+        // Capture a final snapshot with the current position BEFORE deletion.
+        // This preserves the stock's historical contribution in the portfolio trend chart.
+        // Previously we deleted ALL snapshots here, which made the chart "go to the bottom"
+        // by removing all historical value from the sold stock.
+        // NOTE: Snapshot is now handled by PortfolioTransactionService to avoid duplicates.
     }
 
     public void removeHoldingByStockId(Long portfolioId, Long stockId) {
         PortfolioHolding holding = holdingRepository.findByPortfolioIdAndStockId(portfolioId, stockId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Holding not found for portfolio " + portfolioId + " and stock " + stockId));
-        holdingRepository.delete(holding);
-        snapshotService.deleteSnapshot(portfolioId, stockId);
+        Stock stock = holding.getStock();
+        Portfolio portfolio = holding.getPortfolio();
+
+        // Capture a final snapshot before deletion (preserves chart history)
+        // NOTE: Snapshot is now handled by PortfolioTransactionService to avoid duplicates.
     }
 
     @Transactional(readOnly = true)
@@ -216,6 +222,7 @@ public class PortfolioService {
                 .symbol(stock.getSymbol())
                 .name(stock.getName())
                 .sector(stock.getSector())
+                .industry(stock.getIndustry())
                 .yahooSymbol(stock.getYahooSymbol())
                 .quantity(totalQty > 0 ? totalQty : null)
                 .avgPrice(weightedAvg.compareTo(BigDecimal.ZERO) > 0 ? weightedAvg : null)
@@ -233,6 +240,45 @@ public class PortfolioService {
             throw new ResourceNotFoundException("Portfolio not found: " + portfolioId);
         }
         return getHoldingsInternal(portfolioId);
+    }
+
+    /**
+     * Rebuilds all holdings for a portfolio from the transaction ledger.
+     * Truncates existing holdings then re-inserts from replay.
+     * Returns a diff summary.
+     */
+    @org.springframework.cache.annotation.CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
+    @Transactional
+    public RebuildHoldingsResponseDTO rebuildHoldings(Long portfolioId) {
+        if (!portfolioRepository.existsById(portfolioId)) {
+            throw new ResourceNotFoundException("Portfolio not found: " + portfolioId);
+        }
+        int beforeCount = (int) holdingRepository.countByPortfolioId(portfolioId);
+        holdingRepository.deleteByPortfolioId(portfolioId);
+
+        Map<Long, PortfolioPositionReplayer.PositionState> states = replayer.replay(portfolioId);
+        int added = 0, updated = 0, deleted = 0;
+        for (Map.Entry<Long, PortfolioPositionReplayer.PositionState> entry : states.entrySet()) {
+            Long stockId = entry.getKey();
+            PortfolioPositionReplayer.PositionState state = entry.getValue();
+            if (state.quantity() == null || state.quantity().compareTo(BigDecimal.ZERO) <= 0) {
+                deleted++;
+                continue;
+            }
+            Stock stock = stockRepository.findById(stockId).orElse(null);
+            if (stock != null) {
+                addHolding(portfolioId, stockId, state.quantity().intValue(), state.avgCost());
+                added++;
+            }
+        }
+        int afterCount = (int) holdingRepository.countByPortfolioId(portfolioId);
+        return RebuildHoldingsResponseDTO.builder()
+                .beforeCount(beforeCount)
+                .afterCount(afterCount)
+                .added(added)
+                .updated(0)
+                .deleted(deleted)
+                .build();
     }
 
     private List<HoldingDTO> getHoldingsInternal(Long portfolioId) {
@@ -312,6 +358,7 @@ public class PortfolioService {
                 .symbol(stock.getSymbol())
                 .name(stock.getName())
                 .sector(stock.getSector())
+                .industry(stock.getIndustry())
                 .yahooSymbol(stock.getYahooSymbol())
                 .quantity(holding.getQuantity())
                 .avgPrice(holding.getAvgPrice())
@@ -323,15 +370,6 @@ public class PortfolioService {
                 .build();
     }
 
-    /**
-     * Syncs PortfolioHolding quantity/avgPrice back to the Stock entity.
-     * Keeps the stocks table in sync when holdings are added/updated via portfolio management.
-     */
-    private void syncStockFromHolding(Stock stock, Integer quantity, BigDecimal avgPrice) {
-        stock.setQuantity(quantity);
-        stock.setAvgPrice(avgPrice);
-        stockRepository.save(stock);
-    }
 
     private PortfolioDTO toPortfolioDTO(Portfolio portfolio) {
         long count = holdingRepository.countByPortfolioId(portfolio.getId());

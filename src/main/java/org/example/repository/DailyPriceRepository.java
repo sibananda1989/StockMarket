@@ -39,6 +39,9 @@ public interface DailyPriceRepository extends JpaRepository<DailyPrice, Long> {
 
     long countByStockId(Long stockId);
 
+    @Query("SELECT dp.stock.id, COUNT(dp) FROM DailyPrice dp WHERE dp.stock.id IN :stockIds GROUP BY dp.stock.id")
+    List<Object[]> countByStockIds(@Param("stockIds") List<Long> stockIds);
+
   @Query("SELECT DISTINCT dp.priceDate FROM DailyPrice dp WHERE dp.priceDate >= :fromDate ORDER BY dp.priceDate ASC")
   List<LocalDate> findDistinctTradingDatesAfter(@Param("fromDate") LocalDate fromDate);
 
@@ -50,5 +53,11 @@ public interface DailyPriceRepository extends JpaRepository<DailyPrice, Long> {
   List<DailyPrice> findLatestPriceForStockIds(@Param("stockIds") List<Long> stockIds);
 
   @Query("SELECT dp FROM DailyPrice dp WHERE dp.stock.id IN :stockIds AND dp.priceDate >= :fromDate ORDER BY dp.stock.id, dp.priceDate DESC")
-  List<DailyPrice> findPricesForStockIdsSince(@Param("stockIds") List<Long> stockIds, @Param("fromDate") LocalDate fromDate);
+   List<DailyPrice> findPricesForStockIdsSince(@Param("stockIds") List<Long> stockIds, @Param("fromDate") LocalDate fromDate);
+
+   @Query("SELECT COUNT(DISTINCT dp.stock.id) FROM DailyPrice dp")
+   long countDistinctStocks();
+
+   long countByPriceDate(LocalDate date);
 }
+

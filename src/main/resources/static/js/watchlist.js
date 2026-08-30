@@ -43,19 +43,26 @@ const score = signal.compositeScore ?? 0;
 const bgClass = getRecommendationBadge(rec);
 
 const tooltipRows = [
-{ label: 'RSI (14)', value: signal.rsi14 != null ? signal.rsi14.toFixed(1) : '--' },
-{ label: 'MACD Hist', value: signal.macdHistogram != null ? signal.macdHistogram.toFixed(2) : '--' },
-{ label: 'Bollinger', value: signal.bollingerScore != null ? signal.bollingerScore : '--' },
-{ label: 'Target', value: signal.targetPrice != null ? '₹' + signal.targetPrice.toFixed(1) : '--' },
-{ label: 'Stop Loss', value: signal.stopLoss != null ? '₹' + signal.stopLoss.toFixed(1) : '--' },
-{ label: 'Confidence', value: signal.confidenceScore != null ? signal.confidenceScore + '%' : '--' },
+	[
+		{ label: 'RSI (14)', value: signal.rsi14 != null ? signal.rsi14.toFixed(1) : '--' },
+		{ label: 'MACD', value: signal.macdHistogram != null ? signal.macdHistogram.toFixed(2) : '--' },
+	],
+	[
+		{ label: 'Bollinger', value: signal.bollingerScore != null ? signal.bollingerScore : '--' },
+		{ label: 'Confidence', value: signal.confidenceScore != null ? signal.confidenceScore + '%' : '--' },
+	],
+	[
+		{ label: 'Target', value: signal.targetPrice != null ? '₹' + signal.targetPrice.toFixed(1) : '--' },
+		{ label: 'Stop Loss', value: signal.stopLoss != null ? '₹' + signal.stopLoss.toFixed(1) : '--' },
+	],
 ];
 
 const tooltipHtml = `
 <div class="signal-tooltip">
-<div class="tooltip-row"><span class="tooltip-label">Score</span><span>${score}</span></div>
-<div class="tooltip-divider"></div>
-${tooltipRows.map(r => `<div class="tooltip-row"><span class="tooltip-label">${r.label}</span><span>${r.value}</span></div>`).join('')}
+<div class="tooltip-grid">
+<div class="tooltip-row tooltip-row-full"><span class="tooltip-label">Score</span><span>${score}</span></div>
+${tooltipRows.map(pair => pair.map(r => `<div class="tooltip-row"><span class="tooltip-label">${r.label}</span><span>${r.value}</span></div>`).join('')).join('')}
+</div>
 </div>
 `;
 
@@ -145,16 +152,63 @@ const stock = _selectedStock;
 // Check if stock exists locally
 let localStock = allStocks.find(s => s.symbol.toUpperCase() === stock.symbol.toUpperCase());
 
+// If local stock exists, persist any sector/industry/exchange edits made in the modal
+if (localStock) {
+    const selectedSector = document.getElementById('qcSector').value;
+    const selectedIndustry = document.getElementById('qcIndustry').value.trim();
+    const selectedExchange = document.getElementById('qcExchange').value;
+    // Derive expected yahooSymbol from exchange selection
+    let expectedYahoo = localStock.yahooSymbol;
+    if (selectedExchange === 'BSE' && (!expectedYahoo || !expectedYahoo.endsWith('.BO'))) {
+        expectedYahoo = localStock.symbol.replace(/\.NS$/,'').replace(/\.BO$/,'') + '.BO';
+    } else if (selectedExchange === 'NSE' && (!expectedYahoo || !expectedYahoo.endsWith('.NS'))) {
+        // Keep as-is if already has suffix, otherwise default to .NS for NSE
+        if (!expectedYahoo || (!expectedYahoo.endsWith('.NS') && !expectedYahoo.endsWith('.BO'))) {
+            const base = localStock.symbol.replace(/\.NS$/,'').replace(/\.BO$/,'');
+            expectedYahoo = base + '.NS';
+        }
+    }
+    const needsUpdate = (selectedSector && selectedSector !== localStock.sector)
+        || (selectedIndustry !== (localStock.industry || ''))
+        || (expectedYahoo && expectedYahoo !== localStock.yahooSymbol);
+    if (needsUpdate) {
+        try {
+            const updatePayload = {
+                symbol: localStock.symbol,
+                name: localStock.name,
+                sector: selectedSector || localStock.sector || 'Other',
+                industry: selectedIndustry || localStock.industry || '',
+                yahooSymbol: expectedYahoo || localStock.yahooSymbol
+            };
+            await updateStockApi(localStock.id, updatePayload);
+            // refresh local cache
+            const stocksRes = await getAllStocks();
+            allStocks = stocksRes.data || [];
+            localStock = allStocks.find(s => s.symbol.toUpperCase() === stock.symbol.toUpperCase());
+        } catch (e) {
+            showToast(e.message || 'Failed to update stock details', 'error');
+            return;
+        }
+    }
+}
+
 // If not local, create it first
-if (!localStock) {
-const selectedSector = document.getElementById('qcSector').value || 'Other';
-try {
-const createRes = await addStockApi({
-symbol: stock.symbol,
-name: stock.name,
-sector: selectedSector,
-yahooSymbol: stock.symbol
-});
+  if (!localStock) {
+    const selectedSector = document.getElementById('qcSector').value || 'Other';
+    const selectedIndustry = document.getElementById('qcIndustry').value.trim() || stock.industry || '';
+    // Derive yahooSymbol from exchange selection for new stocks
+    const selectedExchange = document.getElementById('qcExchange').value;
+    let yahooSym = stock.symbol;
+    if (selectedExchange === 'BSE') yahooSym = stock.symbol.replace(/\.NS$/,'').replace(/\.BO$/,'') + '.BO';
+    else if (selectedExchange === 'NSE' && !yahooSym.includes('.')) yahooSym = yahooSym + '.NS';
+    try {
+    const createRes = await addStockApi({
+      symbol: stock.symbol,
+      name: stock.name,
+      sector: selectedSector,
+      yahooSymbol: yahooSym,
+      industry: selectedIndustry
+    });
 localStock = createRes.data;
 const stocksRes = await getAllStocks();
 allStocks = stocksRes.data || [];
@@ -164,20 +218,38 @@ return;
 }
 }
 
-// Add to watchlist
+// Add to watchlist (sync is now synchronous so data is available immediately)
 try {
-await addStockToWatchlist(watchlistId, localStock.id);
-showToast(stock.symbol + ' added to watchlist', 'success');
-closeModal('addStockModal');
-await selectWatchlist(watchlistId);
-const res = await getWatchlists();
-allWatchlists = res.data || [];
-renderWatchlists();
+    // Show loading state on button
+    const btn = document.getElementById('addStockBtn');
+    const btnText = document.getElementById('addStockBtnText');
+    const btnIcon = document.getElementById('addStockBtnIcon');
+    const btnSpinner = document.getElementById('addStockBtnSpinner');
+    btn.disabled = true;
+    btnText.textContent = 'Syncing 90 days...';
+    btnIcon.className = 'fas fa-spinner fa-spin mr-1';
+    btnSpinner.classList.remove('hidden');
 
-// Re-fetch after background sync completes to pick up LTP and record count
-setTimeout(() => selectWatchlist(watchlistId), 5000);
+    await addStockToWatchlist(watchlistId, localStock.id);
+
+    closeModal('addStockModal');
+    showToast(stock.symbol + ' added to watchlist', 'success');
+    await selectWatchlist(watchlistId);
+    const res = await getWatchlists();
+    allWatchlists = res.data || [];
+    renderWatchlists();
 } catch (e) {
-showToast(e.message || 'Failed to add stock', 'error');
+    showToast(e.message || 'Failed to add stock', 'error');
+} finally {
+    // Reset button state
+    const btn = document.getElementById('addStockBtn');
+    const btnText = document.getElementById('addStockBtnText');
+    const btnIcon = document.getElementById('addStockBtnIcon');
+    const btnSpinner = document.getElementById('addStockBtnSpinner');
+    if (btn) { btn.disabled = false; }
+    if (btnText) { btnText.textContent = 'Add to Watchlist'; }
+    if (btnIcon) { btnIcon.className = 'fas fa-plus mr-1'; }
+    if (btnSpinner) { btnSpinner.classList.add('hidden'); }
 }
 }
 
@@ -209,35 +281,42 @@ closeModal('portfolioModal');
 }
 
 async function confirmAddToPortfolio() {
-const stockId = parseInt(document.getElementById('portfolioStockId').value);
-const symbol = document.getElementById('portfolioSymbol').value;
-const qty = document.getElementById('portfolioQty').value;
-const avgPrice = document.getElementById('portfolioAvgPrice').value;
-const portfolioId = parseInt(document.getElementById('portfolioTargetSelector').value);
-if (!portfolioId) {
-showToast('Please select a target portfolio', 'error');
-return;
-}
-if (!qty || parseInt(qty) <= 0) {
-showToast('Quantity must be greater than 0', 'error');
-return;
-}
-if (!avgPrice || parseFloat(avgPrice) < 0) {
-showToast('Avg price must be 0 or more', 'error');
-return;
-}
-try {
-await addHolding(portfolioId, stockId, parseInt(qty), parseFloat(avgPrice));
+    const stockId = parseInt(document.getElementById('portfolioStockId').value);
+    const symbol = document.getElementById('portfolioSymbol').value;
+    const qty = document.getElementById('portfolioQty').value;
+    const avgPrice = document.getElementById('portfolioAvgPrice').value;
+    const portfolioId = parseInt(document.getElementById('portfolioTargetSelector').value);
+    if (!portfolioId) {
+    showToast('Please select a target portfolio', 'error');
+    return;
+    }
+    if (!qty || parseInt(qty) <= 0) {
+    showToast('Quantity must be greater than 0', 'error');
+    return;
+    }
+    if (!avgPrice || parseFloat(avgPrice) < 0) {
+    showToast('Avg price must be 0 or more', 'error');
+    return;
+    }
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Adding...';
+    try {
+    await addHolding(portfolioId, stockId, parseInt(qty), parseFloat(avgPrice));
 
-showToast(symbol + ' added to portfolio', 'success');
-closePortfolioModal();
-if (selectedWatchlistId) {
-await selectWatchlist(selectedWatchlistId);
-}
-} catch (e) {
-showToast(e.message || 'Failed to add to portfolio', 'error');
-}
-}
+    showToast(symbol + ' added to portfolio', 'success');
+    closePortfolioModal();
+    if (selectedWatchlistId) {
+    await selectWatchlist(selectedWatchlistId);
+    }
+    } catch (e) {
+    showToast(e.message || 'Failed to add to portfolio', 'error');
+    } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+    }
+    }
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
@@ -247,13 +326,15 @@ loadAll();
 
 async function loadAll() {
 try {
-const [watchlistsRes, stocksRes] = await Promise.all([
-getWatchlists(),
-getAllStocks()
-]);
+// Load watchlists first — render cards immediately.
+// allStocks is only needed for search; load it in background.
+const watchlistsRes = await getWatchlists();
 allWatchlists = watchlistsRes.data || [];
-allStocks = stocksRes.data || [];
 renderWatchlists();
+
+getAllStocks().then(stocksRes => {
+    allStocks = stocksRes.data || [];
+}).catch(e => console.error('Error loading stocks:', e));
 } catch (e) {
 console.error('Error loading watchlist data:', e);
 showToast('Failed to load watchlists', 'error');
@@ -321,23 +402,36 @@ const res = await getWatchlistItems(id);
 const detailData = res.data;
 const stocks = detailData.stocks || [];
 
-// Fetch signals for all stocks in parallel
-let signalsMap = {};
-if (stocks.length > 0) {
-const signalResults = await Promise.all(
-stocks.map(s => getStockSignal(s.id).catch(() => null))
-);
-signalResults.forEach((result, idx) => {
-if (result && result.data) signalsMap[stocks[idx].id] = result.data;
-});
+// Render table immediately with placeholder signals (no blocking)
+renderDetailStocks(stocks, {});
+if (stocks.length >= 2) {
+    renderSectorChart(stocks);
 }
 
-renderDetailStocks(stocks, signalsMap);
-renderSectorChart(stocks);
+// Fetch signals only for the watchlist stocks (batch) and re-render
+if (stocks.length > 0) {
+    try {
+        const ids = stocks.map(s => s.id).join(',');
+        const sigRes = await getBatchSignals(ids);
+        const allSignals = sigRes.data || [];
+        const signalsMap = {};
+        for (const signal of allSignals) {
+            if (signal.stockId != null) {
+                signalsMap[signal.stockId] = signal;
+            }
+        }
+        // Only re-render if user hasn't switched to another watchlist meanwhile
+        if (selectedWatchlistId === id) {
+            renderDetailStocks(stocks, signalsMap);
+        }
+    } catch (e) {
+        console.error('Error fetching batch signals:', e);
+    }
+}
 } catch (e) {
 console.error('Error loading watchlist items:', e);
-document.getElementById('detailTableBody').innerHTML =
-'<tr><td colspan="8" class="text-center py-4 text-red-500">Failed to load stocks</td></tr>';
+  document.getElementById('detailTableBody').innerHTML =
+    '<tr><td colspan="9" class="text-center py-4 text-red-500">Failed to load stocks</td></tr>';
 }
 }
 
@@ -345,27 +439,29 @@ function closeDetail() {
 document.getElementById('watchlistDetail').classList.add('hidden');
 document.getElementById('sectorChartSection').classList.add('hidden');
 if (_sectorChart) { _sectorChart.destroy(); _sectorChart = null; }
+if (_industryChart) { _industryChart.destroy(); _industryChart = null; }
 selectedWatchlistId = null;
 }
 
 function renderDetailStocks(stocks, signalsMap = {}) {
 const tbody = document.getElementById('detailTableBody');
-if (!stocks || !stocks.length) {
-tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-secondary">No stocks in this watchlist. Add stocks to start tracking.</td></tr>';
-return;
-}
+  if (!stocks || !stocks.length) {
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center py-8 text-secondary">No stocks in this watchlist. Add stocks to start tracking.</td></tr>';
+  return;
+  }
 
-tbody.innerHTML = stocks.map(s => {
-const ltpStr = s.lastTradedPrice != null ? fmtPrice(s.lastTradedPrice) : '--';
-const signalHtml = renderSignalBadge(signalsMap[s.id]);
-const addedStr = s.addedAt ? formatDate(s.addedAt) : '--';
-const records = s.recordCount != null ? s.recordCount + ' days' : '0';
-const recordsCls = s.recordCount > 0 ? 'text-green-400' : 'text-secondary';
-return `<tr class="stock-row border-b border-gray-700">
-<td><a href="stock-detail.html?id=${s.id}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(s.symbol)}</a></td>
-<td>${escHtml(s.name || '--')}</td>
-<td><span class="badge badge-neutral">${escHtml(s.sector || '--')}</span></td>
-<td class="text-right">${ltpStr}</td>
+  tbody.innerHTML = stocks.map(s => {
+  const ltpStr = s.lastTradedPrice != null ? fmtPrice(s.lastTradedPrice) : '--';
+  const signalHtml = renderSignalBadge(signalsMap[s.id]);
+  const addedStr = s.addedAt ? formatDate(s.addedAt) : '--';
+  const records = s.recordCount != null ? s.recordCount + ' days' : '0';
+  const recordsCls = s.recordCount > 0 ? 'text-green-400' : 'text-secondary';
+  return `<tr class="stock-row border-b border-gray-700">
+  <td><a href="stock-detail.html?id=${s.id}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(s.symbol)}</a></td>
+  <td>${escHtml(s.name || '--')}</td>
+  <td><span class="badge badge-neutral">${escHtml(s.sector || '--')}</span></td>
+  <td>${escHtml(s.industry || '--')}</td>
+  <td class="text-right">${ltpStr}</td>
 <td class="text-center">${signalHtml}</td>
 <td class="text-center text-xs text-secondary">${addedStr}</td>
 <td class="text-center text-xs ${recordsCls}">${records}</td>
@@ -385,6 +481,8 @@ class="text-blue-400 hover:text-blue-300 transition-colors mr-2" title="Sync His
 </tr>`;
 }).join('');
 }
+
+let _industryChart = null;
 
 function renderSectorChart(stocks) {
 const section = document.getElementById('sectorChartSection');
@@ -416,6 +514,79 @@ const canvas = document.getElementById('watchlistSectorChart');
 const ctx = canvas.getContext('2d');
 
 _sectorChart = new Chart(ctx, {
+type: 'doughnut',
+data: {
+labels: labels,
+datasets: [{
+data: data,
+backgroundColor: colors,
+borderColor: 'rgba(30, 41, 59, 0.8)',
+borderWidth: 2,
+hoverOffset: 8
+}]
+},
+options: {
+responsive: true,
+maintainAspectRatio: false,
+cutout: '60%',
+plugins: {
+legend: {
+position: 'right',
+labels: {
+color: '#9ca3af',
+padding: 12,
+usePointStyle: true,
+pointStyle: 'circle',
+font: { size: 12 }
+}
+},
+tooltip: {
+callbacks: {
+label: function(ctx) {
+const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+const pct = ((ctx.raw / total) * 100).toFixed(1);
+return ctx.label + ': ' + ctx.raw + ' stock' + (ctx.raw > 1 ? 's' : '') + ' (' + pct + '%)';
+}
+}
+}
+}
+}
+});
+
+// Render Industry chart
+renderIndustryChart(stocks);
+}
+
+function renderIndustryChart(stocks) {
+const section = document.getElementById('industryChartSection');
+if (!stocks || !stocks.length) {
+if (section) section.classList.add('hidden');
+if (_industryChart) { _industryChart.destroy(); _industryChart = null; }
+return;
+}
+
+// Group stocks by industry
+const industryCounts = {};
+stocks.forEach(s => {
+const ind = s.industry || 'Other';
+industryCounts[ind] = (industryCounts[ind] || 0) + 1;
+});
+
+const industries = Object.entries(industryCounts)
+.sort((a, b) => b[1] - a[1]);
+const labels = industries.map(s => s[0]);
+const data = industries.map(s => s[1]);
+const colors = generateColors(labels.length);
+
+if (section) section.classList.remove('hidden');
+
+if (_industryChart) { _industryChart.destroy(); _industryChart = null; }
+
+const canvas = document.getElementById('watchlistIndustryChart');
+if (!canvas) return;
+const ctx = canvas.getContext('2d');
+
+_industryChart = new Chart(ctx, {
 type: 'doughnut',
 data: {
 labels: labels,
@@ -543,9 +714,9 @@ document.getElementById('addStockBtn').disabled = true;
 displaySearchResultsWatchlist(allStocks.slice(0, 20).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : (s.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
 sector: s.sector || '',
-industry: '',
+industry: s.industry || '',
 quoteType: 'EQUITY',
 isYahooFinance: true
 })));
@@ -723,9 +894,9 @@ s.symbol.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
 ).slice(0, 10).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : (s.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
 sector: s.sector || '',
-industry: '',
+industry: s.industry || '',
 quoteType: 'EQUITY',
 isYahooFinance: true
 }));
@@ -740,9 +911,9 @@ s.symbol.toLowerCase().includes(trimmedQuery.toLowerCase()) ||
 ).map(s => ({
 symbol: s.symbol,
 name: s.name,
-exchange: '',
+exchange: s.yahooSymbol ? (s.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE') : (s.symbol.endsWith('.BO') ? 'BSE' : 'NSE'),
 sector: s.sector || '',
-industry: '',
+industry: s.industry || '',
 quoteType: 'EQUITY',
 isYahooFinance: true,
 isLocal: true
@@ -810,7 +981,7 @@ container.innerHTML = '';
 }
 }
 
-function selectStockFromSearchWatchlist(stock) {
+async function selectStockFromSearchWatchlist(stock) {
 _selectedStock = stock;
 
 // Show the fields panel
@@ -819,13 +990,63 @@ document.getElementById('selectedStockFields').classList.remove('hidden');
 // Fill read-only fields
 document.getElementById('qcSymbol').value = stock.symbol || '';
 document.getElementById('qcName').value = stock.name || '';
-document.getElementById('qcExchange').value = stock.exchange || '';
+// Exchange: derive from stock.exchange or local yahooSymbol, default to NSE for local stocks
+let exch = stock.exchange || '';
+if (!exch) {
+    const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
+    if (local && local.yahooSymbol) {
+        exch = local.yahooSymbol.endsWith('.BO') ? 'BSE' : 'NSE';
+    } else if (local) {
+        // Local stock without yahooSymbol — infer from symbol suffix or default NSE
+        if (local.symbol.endsWith('.BO')) exch = 'BSE';
+        else exch = 'NSE';
+    } else if (stock.symbol) {
+        if (stock.symbol.endsWith('.BO')) exch = 'BSE';
+        else if (stock.symbol.endsWith('.NS')) exch = 'NSE';
+    }
+}
+document.getElementById('qcExchange').value = exch;
 
-// Auto-select sector — if Yahoo search didn't return sector, try local data
+// Auto-select sector — if Yahoo search didn't return sector, try local data then Yahoo validate API
 let sector = stock.sector;
+let isLocalStock = allStocks.some(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
 if (!sector) {
 const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
 if (local && local.sector) sector = local.sector;
+}
+// If still no sector OR no industry, fetch via Yahoo validate API (applies to BOTH
+// local stocks missing data and new Yahoo results)
+let _needIndustry = null;
+{
+    const sym = (stock.symbol || '').toUpperCase();
+    const local = allStocks.find(s => s.symbol.toUpperCase() === sym);
+    _needIndustry = stock.industry || (local && local.industry) ? null : 'missing';
+}
+if ((!sector || _needIndustry) && stock.symbol) {
+    // show loading state
+    document.getElementById('qcSector').innerHTML = '<option>Loading...</option>';
+    document.getElementById('qcIndustry').value = 'Loading...';
+    try {
+        const vRes = await validateStockSymbol(stock.symbol);
+        const v = vRes && vRes.data ? vRes.data : vRes;
+        if (v && v.valid && v.sector) sector = v.sector;
+        if (v && v.valid && v.industry && !stock.industry) {
+            stock.industry = v.industry; // cache for industry step below
+        }
+        // restore sector options if we overwrote
+        const sel = document.getElementById('qcSector');
+        if (sel && sel.options.length === 1 && sel.options[0].text === 'Loading...') {
+            sel.innerHTML = '<option value="">Select</option><option>Technology</option><option>Finance</option><option>Healthcare</option><option>Energy</option><option>Consumer Discretionary</option><option>Consumer Staples</option><option>Aero & defence</option><option>Industrial</option><option>Utilities</option><option>Real Estate</option><option>Materials</option><option>Other</option>';
+        }
+        document.getElementById('qcIndustry').value = '';
+    } catch (e) {
+        const sel = document.getElementById('qcSector');
+        if (sel && sel.options.length === 1 && sel.options[0].text === 'Loading...') {
+            sel.innerHTML = '<option value="">Select</option><option>Technology</option><option>Finance</option><option>Healthcare</option><option>Energy</option><option>Consumer Discretionary</option><option>Consumer Staples</option><option>Aero & defence</option><option>Industrial</option><option>Utilities</option><option>Real Estate</option><option>Materials</option><option>Other</option>';
+        }
+        document.getElementById('qcIndustry').value = '';
+        console.warn('validate sector fetch failed', e);
+    }
 }
 
 const sectorSelect = document.getElementById('qcSector');
@@ -848,7 +1069,8 @@ const sectorMap = [
 { keywords: ['finance', 'bank', 'financial', 'insurance', 'credit', 'investment'], match: 'Finance' },
 { keywords: ['consumer discretionary', 'retail', 'auto', 'media', 'entertainment', 'leisure', 'apparel'], match: 'Consumer Discretionary' },
 { keywords: ['consumer staples', 'food', 'beverage', 'household', 'grocery', 'personal'], match: 'Consumer Staples' },
-{ keywords: ['industrial', 'manufacturing', 'aerospace', 'defense', 'transport', 'logistics', 'machinery', 'construction'], match: 'Industrial' },
+{ keywords: ['aerospace', 'defense', 'aero'], match: 'Aero & defence' },
+     { keywords: ['industrial', 'manufacturing', 'transport', 'logistics', 'machinery', 'construction'], match: 'Industrial' },
 { keywords: ['utility', 'utilities', 'electric', 'water', 'gas utility'], match: 'Utilities' },
 { keywords: ['real estate', 'property', 'reit'], match: 'Real Estate' },
 { keywords: ['material', 'mining', 'chemical', 'steel', 'cement', 'forest'], match: 'Materials' },
@@ -869,6 +1091,14 @@ sectorSelect.appendChild(opt);
 sectorSelect.value = sector;
 }
 }
+
+// Auto-fill industry from Yahoo search or local data
+let industry = stock.industry;
+if (!industry) {
+const local = allStocks.find(s => s.symbol.toUpperCase() === (stock.symbol || '').toUpperCase());
+if (local && local.industry) industry = local.industry;
+}
+document.getElementById('qcIndustry').value = industry || '';
 
 // Hide search results
 hideSearchResultsWatchlist();

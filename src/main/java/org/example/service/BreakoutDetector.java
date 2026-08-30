@@ -44,6 +44,18 @@ public class BreakoutDetector {
      * @return breakout detection result with score contribution
      */
     public BreakoutResult detect(List<DailyPrice> prices, Long stockId) {
+        return detectInternal(prices, stockId, null);
+    }
+
+    /**
+     * Detects breakouts using pre-fetched S/R levels (avoids re-querying the DB).
+     * Behaves identically to {@link #detect(List, Long)} when levels are the latest ones.
+     */
+    public BreakoutResult detect(List<DailyPrice> prices, Long stockId, List<SupportResistanceLevel> preFetchedLevels) {
+        return detectInternal(prices, stockId, preFetchedLevels);
+    }
+
+    private BreakoutResult detectInternal(List<DailyPrice> prices, Long stockId, List<SupportResistanceLevel> preFetchedLevels) {
         BreakoutResult result = new BreakoutResult();
 
         if (prices == null || prices.size() < 20) {
@@ -54,7 +66,7 @@ public class BreakoutDetector {
         DailyPrice yesterday = prices.get(prices.size() - 2);
 
         // 1. Volume breakout: price closes above resistance with 2x avg volume
-        detectVolumeBreakout(prices, stockId, today, result);
+        detectVolumeBreakout(prices, stockId, today, result, preFetchedLevels);
 
         // 2. Gap detection
         detectGaps(yesterday, today, result);
@@ -84,11 +96,12 @@ public class BreakoutDetector {
     /**
      * Volume breakout: today's close > resistance AND volume >= 2x 20-day average.
      */
-    private void detectVolumeBreakout(List<DailyPrice> prices, Long stockId, DailyPrice today, BreakoutResult result) {
+    private void detectVolumeBreakout(List<DailyPrice> prices, Long stockId, DailyPrice today, BreakoutResult result, List<SupportResistanceLevel> preFetchedLevels) {
         if (today.getClosingPrice() == null || today.getVolume() == null) return;
 
-        // Get latest resistance levels
-        List<SupportResistanceLevel> allLevels = srRepository.findLatestLevels(stockId);
+        // Get latest resistance levels (use pre-fetched levels if supplied)
+        List<SupportResistanceLevel> allLevels = (preFetchedLevels != null)
+                ? preFetchedLevels : srRepository.findLatestLevels(stockId);
         BigDecimal resistance = null;
         for (SupportResistanceLevel level : allLevels) {
             if (level.getLevelType() == LevelType.MAJOR_RESISTANCE

@@ -19,6 +19,20 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.format.annotation.DateTimeFormat;
+
+/**
+ * REST controller for technical indicator queries.
+ *
+ * NOTE ON RESPONSE SHAPE (intentional, do NOT "fix" to ApiResponse):
+ * - getAllLatestIndicators / getAllIndicatorHistory / getIndicatorHistory / triggerCalculation
+ *   return RAW DTOs (List / IndicatorHistoryDto / Void). The frontend (stock-detail.js)
+ *   consumes these as raw arrays (e.g. `!res.length`, `res.every(...)`), NOT wrapped in ApiResponse.
+ * - fill-gaps / backfill return ApiResponse<Integer> (consumed by index.html via `res.status`).
+ * Both shapes are correct for their respective callers. Changing the raw endpoints to
+ * ApiResponse would break stock-detail.js. Keep this dual convention unless the frontend
+ * is refactored to unwrap `.data` uniformly.
+ */
 @RestController
 @RequestMapping("/api/indicators")
 @RequiredArgsConstructor
@@ -37,6 +51,17 @@ public class TechnicalIndicatorController {
     public ResponseEntity<List<IndicatorDto>> getAllLatestIndicators(@PathVariable Long stockId) {
         List<IndicatorDto> latest = analysisService.getLatestIndicators(stockId);
         return ResponseEntity.ok(latest);
+    }
+
+    @Operation(summary = "Get all indicator history for a date range", description = "Returns all indicator values for all types across a date range for a stock. Useful for per-candle tooltip data.")
+    @GetMapping("/{stockId}/history")
+    public ResponseEntity<List<IndicatorDto>> getAllIndicatorHistory(
+            @Parameter(description = "ID of the stock", required = true) @PathVariable Long stockId,
+            @Parameter(description = "Start date (inclusive, yyyy-MM-dd)") @RequestParam String fromDate,
+            @Parameter(description = "End date (inclusive, yyyy-MM-dd)") @RequestParam String toDate) {
+        LocalDate from = LocalDate.parse(fromDate);
+        LocalDate to = LocalDate.parse(toDate);
+        return ResponseEntity.ok(analysisService.getIndicatorHistoryForRange(stockId, from, to));
     }
 
     @Operation(summary = "Get history of a specific indicator type", description = "Returns historical values for a given indicator type and stock. Optional query parameters allow filtering by date range (inclusive).")
@@ -111,5 +136,22 @@ public class TechnicalIndicatorController {
 
         log.info("Historical indicator backfill complete: {} records saved in {} ms", saved, elapsed);
         return ResponseEntity.ok(org.example.dto.ApiResponse.success("Backfill complete", saved));
+    }
+
+    @Operation(summary = "Hard reset indicators for a single stock", description = "Deletes all existing indicator records for the stock and recalculates them from scratch going back the specified number of days.")
+    @PostMapping("/reset/{stockId}")
+    public ResponseEntity<org.example.dto.ApiResponse<Integer>> resetIndicators(
+            @Parameter(description = "ID of the stock", required = true) @PathVariable Long stockId,
+            @Parameter(description = "Number of days to recalculate (default: 365)") @RequestParam(defaultValue = "365") int days) {
+        int count = analysisService.resetAndRecalculateIndicatorsForStock(stockId, days);
+        return ResponseEntity.ok(org.example.dto.ApiResponse.success("Indicators reset for stock " + stockId, count));
+    }
+
+    @Operation(summary = "Hard reset indicators for all stocks", description = "Deletes all existing indicator records for every stock and recalculates them from scratch going back the specified number of days.")
+    @PostMapping("/reset-all")
+    public ResponseEntity<org.example.dto.ApiResponse<Integer>> resetAllIndicators(
+            @Parameter(description = "Number of days to recalculate (default: 365)") @RequestParam(defaultValue = "365") int days) {
+        int count = analysisService.resetAndRecalculateAllIndicators(days);
+        return ResponseEntity.ok(org.example.dto.ApiResponse.success("Indicators reset for all stocks", count));
     }
 }

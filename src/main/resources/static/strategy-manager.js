@@ -3,10 +3,13 @@
 
     const state = {
         strategies: [],
+        scoreParams: [],
         dirty: false,
         openPanelId: null,
         editingId: null,
-        editingCondId: null
+        editingCondId: null,
+        spikeFactor: 1.5,
+        spikeFactorDirty: false
     };
 
     const strategyContainers = {
@@ -27,7 +30,7 @@
     }
 
     function signalBadge(signal) {
-        const cls = signal === 'BUY' ? 'bg-green-600 text-green-100'
+        const cls = signal === 'BUY' ? 'bg-green-800 text-green-100'
             : signal === 'SELL' ? 'bg-red-600 text-red-100'
                 : 'bg-gray-500 text-gray-100';
         return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ' + cls + '">' + signal + '</span>';
@@ -117,20 +120,29 @@
         } catch (err) {
             showToast('Failed to load strategy config: ' + err.message, 'error');
         }
+        try {
+            const res = await getVolumeSpikeFactor();
+            if (res && res.data != null) {
+                state.spikeFactor = res.data;
+            }
+        } catch (err) {
+            console.warn('Failed to load volume spike factor:', err);
+        }
+        renderSpikeFactor();
     }
 
     function renderStrategies() {
         const html = state.strategies.map((s, idx) => {
             const activeCount = state.strategies.filter(x => x.active).length;
-            strategyContainers.activeCount.textContent = activeCount + ' of 5 active';
-            const disabled = !s.active ? 'opacity-40' : '';
+            strategyContainers.activeCount.textContent = activeCount + ' of ' + state.strategies.length + ' active';
+            const disabled = !s.active ? 'strategy-disabled' : '';
             return `
                 <div class="border-b border-gray-700 last:border-b-0" data-strategy-idx="${idx}">
                     <div class="flex items-center gap-4 px-4 py-4 ${disabled}">
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-white">${s.displayName || s.strategyName}</div>
                             <div class="flex flex-wrap gap-1.5 mt-1">
-                                ${s.tags.map(t => '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-900 text-blue-200">' + t + '</span>').join('')}
+                                ${s.tags.map(t => '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-950 text-blue-300">' + t + '</span>').join('')}
                             </div>
                         </div>
                         <div class="flex items-center gap-2 text-sm text-gray-400">
@@ -138,7 +150,7 @@
                             <span class="stock-count-pill font-mono" data-strategy="${s.strategyName}">
                                 ${s.totalStocksMatched !== undefined ? s.totalStocksMatched : '\u2014'}
                             </span>
-                            <span class="text-xs text-gray-500">stocks matched</span>
+                            <span class="text-xs text-gray-400">stocks matched</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <label class="text-xs text-gray-400">Priority</label>
@@ -148,6 +160,7 @@
                                 ${!s.active ? 'disabled' : ''}>
                             <span class="priority-readout font-mono text-sm w-5 text-center text-white">${s.priority}</span>
                         </div>
+                        ${s.strategyName === 'VOLUME' ? '<div id="spikeFactorSection" class="flex items-center gap-2"></div>' : ''}
                         <button class="px-3 py-1.5 text-sm text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors rules-btn"
                             data-strategy="${s.strategyName}">
                             <i class="fas fa-list-ul mr-1.5"></i>Rules
@@ -199,17 +212,17 @@
                     const content = row.querySelector('.flex.items-center.gap-4');
                     if (content) {
                         if (newActive) {
-                            content.classList.remove('opacity-40');
+                            content.classList.remove('strategy-disabled');
                             content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = false);
                         } else {
-                            content.classList.add('opacity-40');
+                            content.classList.add('strategy-disabled');
                             content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = true);
                         }
                     }
                 }
                 const activeCount = state.strategies.filter(x => x.active).length;
                 if (strategyContainers.activeCount) {
-                    strategyContainers.activeCount.textContent = activeCount + ' of 5 active';
+                    strategyContainers.activeCount.textContent = activeCount + ' of ' + state.strategies.length + ' active';
                 }
                 try {
                     await toggleStrategyConfig(strategyName, newActive);
@@ -220,15 +233,15 @@
                         const content = row.querySelector('.flex.items-center.gap-4');
                         if (content) {
                             if (wasActive) {
-                                content.classList.remove('opacity-40');
+                                content.classList.remove('strategy-disabled');
                                 content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = false);
                             } else {
-                                content.classList.add('opacity-40');
+                                content.classList.add('strategy-disabled');
                                 content.querySelectorAll('.priority-slider').forEach(sl => sl.disabled = true);
                             }
                         }
                     }
-                    strategyContainers.activeCount.textContent = state.strategies.filter(x => x.active).length + ' of 5 active';
+                    strategyContainers.activeCount.textContent = state.strategies.filter(x => x.active).length + ' of ' + state.strategies.length + ' active';
                     showToast('Failed to update strategy: ' + err.message, 'error');
                 }
             });
@@ -283,7 +296,7 @@
                         <i class="fas fa-list-check text-gray-400 mr-1.5"></i>Signal conditions \u00b7 ${s.conditions.length} rules
                     </span>
                     <button class="px-3 py-1 text-sm rounded-lg transition-colors edit-mode-btn
-                        ${isEditing ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}">
+                        ${isEditing ? 'bg-green-800 hover:bg-green-900 text-green-100' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}">
                         <i class="fas ${isEditing ? 'fa-check' : 'fa-pencil'} mr-1"></i>${isEditing ? 'Done editing' : 'Edit rules'}
                     </button>
                 </div>
@@ -426,7 +439,7 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-1 flex-shrink-0">
-                    <button class="condition-toggle px-2 py-1 text-xs rounded transition-colors ${c.enabled ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-600 hover:bg-gray-500 text-gray-300'}"
+                    <button class="condition-toggle px-2 py-1 text-xs rounded transition-colors ${c.enabled ? 'bg-green-800 hover:bg-green-900 text-green-100' : 'bg-gray-600 hover:bg-gray-500 text-gray-200'}"
                         data-strategy="${strategyName}" data-condition-id="${c.conditionId}" data-enabled="${c.enabled}"
                         title="${toggleTitle}">
                         ${c.enabled ? 'ON' : 'OFF'}
@@ -497,11 +510,213 @@
         });
     }
 
+    function renderSpikeFactor() {
+        const container = document.getElementById('spikeFactorSection');
+        if (!container) return;
+        container.innerHTML = `
+            <div class="flex items-center gap-2">
+                <label class="text-xs text-gray-400">Spike Factor</label>
+                <input type="number" min="0.1" max="10" step="0.1" value="${state.spikeFactor}"
+                    class="w-16 px-2 py-1 text-sm rounded bg-gray-800 border border-gray-600 text-white font-mono spike-factor-input">
+                <span class="text-xs text-gray-500">×</span>
+            </div>
+        `;
+        const input = container.querySelector('.spike-factor-input');
+        if (input) {
+            input.addEventListener('input', function () {
+                const val = parseFloat(this.value);
+                if (!isNaN(val) && val > 0 && val <= 10) {
+                    state.spikeFactor = val;
+                    state.spikeFactorDirty = true;
+                    state.dirty = true;
+                    updateSaveButton();
+                }
+            });
+        }
+    }
+
     function updateSaveButton() {
         if (strategyContainers.saveBtn) {
-            strategyContainers.saveBtn.disabled = !state.dirty;
-            strategyContainers.saveBtn.classList.toggle('opacity-50', !state.dirty);
-            strategyContainers.saveBtn.classList.toggle('cursor-not-allowed', !state.dirty);
+            const isDisabled = !state.dirty;
+            strategyContainers.saveBtn.disabled = isDisabled;
+            // Use gray styling instead of opacity to preserve contrast
+            strategyContainers.saveBtn.classList.toggle('cursor-not-allowed', isDisabled);
+            if (isDisabled) {
+                strategyContainers.saveBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+                strategyContainers.saveBtn.classList.add('bg-gray-600', 'text-gray-300');
+            } else {
+                strategyContainers.saveBtn.classList.remove('bg-gray-600', 'text-gray-300');
+                strategyContainers.saveBtn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+            }
+        }
+    }
+
+    async function loadScoreParams() {
+        try {
+            const res = await getScoreParameters();
+            if (!res || res.status !== 'success' || !Array.isArray(res.data)) {
+                console.warn('Score parameters load returned no data');
+                return;
+            }
+            state.scoreParams = res.data;
+            renderScoreParams();
+            updateScoreParamCount();
+        } catch (err) {
+            showToast('Failed to load score parameters: ' + err.message, 'error');
+        }
+    }
+
+    function renderScoreParams() {
+        const container = document.getElementById('scoreParamSections');
+        if (!container) return;
+
+        const order = ['ENGINE', 'TREND', 'MOMENTUM', 'STRUCTURE', 'LIQUIDITY', 'MODIFIERS', 'POST_SCORE'];
+        const byCat = {};
+        state.scoreParams.forEach(p => {
+            (byCat[p.category] = byCat[p.category] || []).push(p);
+        });
+        const categories = order.filter(c => c === 'ENGINE' || (byCat[c] && byCat[c].length));
+
+        container.innerHTML = categories.map(cat => {
+            const engineNote = cat === 'ENGINE'
+                ? '<span class="ml-2 text-xs text-gray-500">(engine strategies)</span>'
+                : '';
+
+            if (cat === 'ENGINE') {
+                const strategies = state.strategies || [];
+                const allActive = strategies.every(s => s.active);
+                const rows = strategies.map(s => `
+                    <label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-800/40 transition-colors border border-gray-700/50 rounded-lg bg-gray-800/30">
+                        <input type="checkbox" class="mt-1 w-4 h-4 rounded accent-purple-500 cursor-pointer engine-strategy-checkbox"
+                            data-strategy="${s.strategyName}" ${s.active ? 'checked' : ''}>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm text-gray-200">${s.displayName}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">${s.strategyName} · ${s.totalStocksMatched || 0} stocks matched</div>
+                        </div>
+                    </label>
+                `).join('');
+
+                return `
+                    <div class="score-param-section" data-section="${cat}">
+                        <div class="flex items-center gap-3 px-4 py-3 bg-gray-800/40">
+                            <input type="checkbox" class="w-4 h-4 rounded accent-purple-500 cursor-pointer score-section-checkbox"
+                                data-section="${cat}" ${allActive ? 'checked' : ''}>
+                            <h3 class="font-semibold text-white">ENGINE${engineNote}</h3>
+                            <span class="ml-auto text-xs text-gray-400">${strategies.filter(s => s.active).length} of ${strategies.length}</span>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">${rows}</div>
+                    </div>
+                `;
+            }
+
+            const params = byCat[cat];
+            const allEnabled = params.every(p => p.enabled);
+            const rows = params.map(p => {
+                const desc = p.description
+                    ? '<div class="text-xs text-gray-400 mt-0.5">' + p.description + '</div>'
+                    : '';
+                return `
+                    <label class="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-800/40 transition-colors border border-gray-700/50 rounded-lg bg-gray-800/30">
+                        <input type="checkbox" class="mt-1 w-4 h-4 rounded accent-purple-500 cursor-pointer score-param-checkbox"
+                            data-param-key="${p.paramKey}" ${p.enabled ? 'checked' : ''}>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm text-gray-200">${p.displayName}</div>
+                            ${desc}
+                        </div>
+                    </label>
+                `;
+            }).join('');
+
+            return `
+                <div class="score-param-section" data-section="${cat}">
+                    <div class="flex items-center gap-3 px-4 py-3 bg-gray-800/40">
+                        <input type="checkbox" class="w-4 h-4 rounded accent-purple-500 cursor-pointer score-section-checkbox"
+                            data-section="${cat}" ${allEnabled ? 'checked' : ''}>
+                        <h3 class="font-semibold text-white">${cat}${engineNote}</h3>
+                        <span class="ml-auto text-xs text-gray-400">${params.filter(p => p.enabled).length} of ${params.length}</span>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">${rows}</div>
+                </div>
+            `;
+        }).join('');
+
+        container.querySelectorAll('.score-section-checkbox').forEach(cb => {
+            cb.addEventListener('change', async function () {
+                const cat = this.dataset.section;
+                const checked = this.checked;
+                if (cat === 'ENGINE') {
+                    const strategies = state.strategies || [];
+                    for (const s of strategies) {
+                        s.active = checked;
+                    }
+                    await Promise.all(strategies.map(s => toggleStrategyConfig(s.strategyName, checked).catch(err => console.error(err))));
+                    updateStatsCounts();
+                } else {
+                    const params = state.scoreParams.filter(p => p.category === cat);
+                    for (const p of params) {
+                        const local = state.scoreParams.find(x => x.paramKey === p.paramKey);
+                        if (local) local.enabled = checked;
+                    }
+                    await Promise.all(params.map(p => updateScoreParameter(p.paramKey, checked).catch(err => console.error(err))));
+                }
+                renderScoreParams();
+                updateScoreParamCount();
+            });
+        });
+
+        container.querySelectorAll('.score-param-checkbox').forEach(cb => {
+            cb.addEventListener('change', async function () {
+                const key = this.dataset.paramKey;
+                const checked = this.checked;
+                const local = state.scoreParams.find(x => x.paramKey === key);
+                if (local) local.enabled = checked;
+                try {
+                    await updateScoreParameter(key, checked);
+                    updateScoreParamCount();
+                } catch (err) {
+                    if (local) local.enabled = !checked;
+                    this.checked = !checked;
+                    console.error('Failed to update score parameter ' + key + ':', err);
+                    showToast('Failed to update ' + key + ': ' + err.message, 'error');
+                }
+            });
+        });
+
+        container.querySelectorAll('.engine-strategy-checkbox').forEach(cb => {
+            cb.addEventListener('change', async function () {
+                const name = this.dataset.strategy;
+                const checked = this.checked;
+                const local = state.strategies.find(s => s.strategyName === name);
+                if (local) local.active = checked;
+                try {
+                    await toggleStrategyConfig(name, checked);
+                    updateStatsCounts();
+                } catch (err) {
+                    if (local) local.active = !checked;
+                    this.checked = !checked;
+                    console.error('Failed to toggle strategy ' + name + ':', err);
+                    showToast('Failed to toggle ' + name + ': ' + err.message, 'error');
+                }
+            });
+        });
+    }
+
+    function updateScoreParamCount() {
+        const legacy = state.scoreParams.filter(p => p.scoreSystem === 'LEGACY');
+        const enabled = legacy.filter(p => p.enabled).length;
+        const badge = document.getElementById('scoreParamCount');
+        if (badge) {
+            badge.textContent = enabled + ' of ' + legacy.length + ' enabled';
+        }
+    }
+
+    async function handleResetScoreParams() {
+        try {
+            await resetScoreParameters();
+            await loadScoreParams();
+            showToast('Score parameters reset', 'success');
+        } catch (err) {
+            showToast('Failed to reset score parameters: ' + err.message, 'error');
         }
     }
 
@@ -519,6 +734,10 @@
                     await saveStrategyConditions(s.strategyName, serializeConditions(s));
                     s.originalConditions = currentConds;
                 }
+            }
+            if (state.spikeFactorDirty) {
+                await updateVolumeSpikeFactor(state.spikeFactor);
+                state.spikeFactorDirty = false;
             }
             state.dirty = false;
             updateSaveButton();
@@ -563,12 +782,16 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         init();
+        loadScoreParams();
 
         const saveBtn = document.getElementById('saveBtn');
         if (saveBtn) saveBtn.addEventListener('click', handleSave);
 
         const resetLink = document.getElementById('resetLink');
         if (resetLink) resetLink.addEventListener('click', handleReset);
+
+        const resetScoreParams = document.getElementById('resetScoreParams');
+        if (resetScoreParams) resetScoreParams.addEventListener('click', handleResetScoreParams);
     });
 
 })();

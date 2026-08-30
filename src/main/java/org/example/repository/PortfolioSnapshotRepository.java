@@ -42,30 +42,34 @@ public interface PortfolioSnapshotRepository extends JpaRepository<PortfolioSnap
     @Query("DELETE FROM PortfolioSnapshot ps WHERE ps.stock.id = :stockId AND ps.portfolio.id = :portfolioId")
     int deleteByPortfolioIdAndStockId(@Param("portfolioId") Long portfolioId, @Param("stockId") Long stockId);
 
+    @Modifying
+    @Query("DELETE FROM PortfolioSnapshot ps WHERE ps.snapshotDate = :date")
+    int deleteBySnapshotDate(@Param("date") LocalDate date);
+
     // ── Portfolio-scoped aggregated queries ─────────────────────────────
 
     @Query(value = "SELECT ps.snapshot_date, " +
-           "COALESCE(SUM(ps.investment), 0), " +
-           "COALESCE(SUM(ps.current_value), 0), " +
-           "COALESCE(SUM(ps.pnl), 0), " +
-           "COUNT(ps.id) " +
-           "FROM portfolio_snapshots ps " +
-           "WHERE ps.snapshot_date >= :fromDate " +
-           "AND ps.portfolio_id = :portfolioId " +
-           "GROUP BY ps.snapshot_date " +
-           "ORDER BY ps.snapshot_date ASC", nativeQuery = true)
+            "COALESCE(SUM(ps.investment), 0), " +
+            "COALESCE(SUM(ps.current_value), 0), " +
+            "COALESCE(SUM(ps.pnl), 0), " +
+            "COUNT(ps.id) " +
+            "FROM portfolio_snapshots ps " +
+            "WHERE ps.snapshot_date >= :fromDate " +
+            "AND ps.portfolio_id = :portfolioId " +
+            "GROUP BY ps.snapshot_date " +
+            "ORDER BY ps.snapshot_date ASC", nativeQuery = true)
     List<Object[]> findAggregatedHistory(@Param("fromDate") LocalDate fromDate,
-                                         @Param("portfolioId") Long portfolioId);
+                                          @Param("portfolioId") Long portfolioId);
 
     @Query(value = "SELECT ps.snapshot_date, " +
-           "COALESCE(SUM(ps.investment), 0), " +
-           "COALESCE(SUM(ps.current_value), 0), " +
-           "COALESCE(SUM(ps.pnl), 0), " +
-           "COUNT(ps.id) " +
-           "FROM portfolio_snapshots ps " +
-           "WHERE ps.portfolio_id = :portfolioId " +
-           "GROUP BY ps.snapshot_date " +
-           "ORDER BY ps.snapshot_date ASC", nativeQuery = true)
+            "COALESCE(SUM(ps.investment), 0), " +
+            "COALESCE(SUM(ps.current_value), 0), " +
+            "COALESCE(SUM(ps.pnl), 0), " +
+            "COUNT(ps.id) " +
+            "FROM portfolio_snapshots ps " +
+            "WHERE ps.portfolio_id = :portfolioId " +
+            "GROUP BY ps.snapshot_date " +
+            "ORDER BY ps.snapshot_date ASC", nativeQuery = true)
     List<Object[]> findAllAggregatedHistory(@Param("portfolioId") Long portfolioId);
 
     // ── Backward compat: un-scoped queries (for transition) ────────────

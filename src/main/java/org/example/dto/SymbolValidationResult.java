@@ -14,5 +14,6 @@ public class SymbolValidationResult {
  private boolean valid;
  private String yahooSymbol;
  private String companyName;
- private String sector;
+  private String sector;
+  private String industry;
 }

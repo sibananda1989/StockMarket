@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.PageRequest;
+
 /**
  * Computes per-stock indicator coverage — which indicators are present
  * for the latest calculation date and which are missing because the
@@ -85,7 +87,7 @@ public class TechnicalIndicatorCoverageService {
      * indicator row for {@code stockId}, or null if the stock has zero rows.
      */
     private LocalDate latestCalculationDate(Long stockId) {
-        List<LocalDate> dates = indicatorRepository.findLatestTwoCalculationDates(stockId);
+        List<LocalDate> dates = indicatorRepository.findLatestTwoCalculationDates(stockId, PageRequest.of(0, 2));
         return (dates == null || dates.isEmpty()) ? null : dates.get(0);
     }
 }

@@ -21,7 +21,7 @@ class TechnicalAnalysisUtilsTest {
             prices.add(createPrice(close, i));
         }
 
-        BigDecimal rsi = TechnicalAnalysisUtils.calculateRsi14(prices);
+        BigDecimal rsi = TechnicalAnalysisUtils.calculateRsi12(prices);
 
         assertNotNull(rsi);
         assertTrue(rsi.compareTo(BigDecimal.ZERO) > 0);
@@ -35,14 +35,14 @@ class TechnicalAnalysisUtilsTest {
             prices.add(createPrice(100, i));
         }
 
-        BigDecimal rsi = TechnicalAnalysisUtils.calculateRsi14(prices);
+        BigDecimal rsi = TechnicalAnalysisUtils.calculateRsi12(prices);
 
         assertNull(rsi);
     }
 
     @Test
     void testCalculateRsi14_NullInput() {
-        assertNull(TechnicalAnalysisUtils.calculateRsi14(null));
+        assertNull(TechnicalAnalysisUtils.calculateRsi12(null));
     }
 
     @Test

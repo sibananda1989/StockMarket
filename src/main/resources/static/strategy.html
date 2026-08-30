@@ -11,7 +11,10 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 .strategy-toggle { position: relative; width: 44px; height: 24px; background: #374151; border-radius: 12px; cursor: pointer; transition: background 0.3s; flex-shrink: 0; }
-.strategy-toggle.active { background: #22c55e; }
+.strategy-toggle.active { background: #166534; }
+/* Disabled strategy — muted but still WCAG AA compliant colors instead of opacity reduction */
+.strategy-disabled .strategy-toggle { opacity: 0.5; }
+.strategy-disabled .priority-slider { opacity: 0.5; }
 .strategy-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.3s; }
 .strategy-toggle.active::after { transform: translateX(20px); }
 .priority-slider::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #3b82f6; cursor: pointer; }
@@ -31,7 +34,7 @@ code { background: #1e293b; padding: 1px 4px; border-radius: 3px; font-size: 0.7
         <div class="flex items-center gap-3">
             <span id="activeCount" class="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-700 text-gray-200">0 of 5 active</span>
             <button id="saveBtn" disabled
-                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors opacity-50 cursor-not-allowed">
+                class="px-4 py-2 rounded-lg font-medium transition-colors cursor-not-allowed bg-gray-600 text-gray-300">
                 <i class="fas fa-floppy-disk mr-2"></i>Save
             </button>
         </div>
@@ -41,6 +44,17 @@ code { background: #1e293b; padding: 1px 4px; border-radius: 3px; font-size: 0.7
 
     <div class="card rounded-xl shadow-lg overflow-hidden">
         <div id="strategyList" class="divide-y divide-gray-700"></div>
+    </div>
+
+    <div class="card rounded-xl shadow-lg overflow-hidden mt-6">
+        <div class="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="text-lg font-semibold"><i class="fas fa-sliders-h text-purple-400 mr-2"></i>Score Parameters</h2>
+            <span id="scoreParamCount" class="px-3 py-1.5 rounded-full text-sm font-medium bg-gray-700 text-gray-200"></span>
+        </div>
+        <div id="scoreParamSections" class="divide-y divide-gray-700"></div>
+        <div class="flex justify-end px-4 py-3">
+            <button id="resetScoreParams" class="text-sm text-red-400 hover:text-red-300 cursor-pointer"><i class="fas fa-rotate-left mr-1"></i>Reset score parameters</button>
+        </div>
     </div>
 
     <div class="flex items-center justify-between mt-6 px-1">

@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
  * then backfills signal_records with consistent recommendation/compositeScore values.
  *
  * This is critical after code changes that modify scoring thresholds or
- * recommendation logic — without this, stale cached DTOs and persisted
- * records would continue using the old logic until the next DhanSync.
+     * recommendation logic — without this, stale cached DTOs and persisted
+     * records would continue using the old logic until the next stock sync.
  */
 @Component
 @RequiredArgsConstructor

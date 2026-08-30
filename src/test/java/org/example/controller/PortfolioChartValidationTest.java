@@ -1,6 +1,8 @@
 package org.example.controller;
 
 import org.example.dto.PortfolioAggregateDTO;
+import org.example.service.PortfolioDailyValueService;
+import org.example.service.PortfolioHistoryService;
 import org.example.service.PortfolioSnapshotService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +31,12 @@ class PortfolioChartValidationTest {
 
     @Mock
     private PortfolioSnapshotService snapshotService;
+
+    @Mock
+    private PortfolioHistoryService historyService;
+
+    @Mock
+    private PortfolioDailyValueService dailyValueService;
 
     @InjectMocks
     private PortfolioController portfolioController;
@@ -125,7 +133,7 @@ class PortfolioChartValidationTest {
 
     @Test
     void getHistory_ShouldReturnDataForValidPeriod() {
-        when(snapshotService.getAggregatedHistory(anyInt()))
+        when(historyService.getHistory(anyInt()))
                 .thenReturn(mockHistory);
 
         ResponseEntity<?> response = portfolioController.getHistory(365, false);
@@ -143,7 +151,7 @@ class PortfolioChartValidationTest {
 
     @Test
     void getHistory_ShouldReturnSuccessForEmptyData() {
-        when(snapshotService.getAggregatedHistory(anyInt()))
+        when(historyService.getHistory(anyInt()))
                 .thenReturn(Collections.emptyList());
 
         ResponseEntity<?> response = portfolioController.getHistory(365, false);
@@ -160,7 +168,7 @@ class PortfolioChartValidationTest {
 
     @Test
     void getHistory_ShouldHandleNullResultFromService() {
-        when(snapshotService.getAggregatedHistory(anyInt()))
+        when(historyService.getHistory(anyInt()))
                 .thenReturn(null);
 
         ResponseEntity<?> response = portfolioController.getHistory(365, false);
@@ -201,7 +209,7 @@ class PortfolioChartValidationTest {
 
     @Test
     void getAllAggregatedHistory_ShouldReturnCompleteData() {
-        when(snapshotService.getAllAggregatedHistory())
+        when(historyService.getAllHistory())
                 .thenReturn(mockHistory);
 
         ResponseEntity<?> response = portfolioController.getHistory(365, true);
@@ -214,7 +222,7 @@ class PortfolioChartValidationTest {
 
     @Test
     void getAllAggregatedHistory_ShouldHandleEmptyResult() {
-        when(snapshotService.getAllAggregatedHistory())
+        when(historyService.getAllHistory())
                 .thenReturn(Collections.emptyList());
 
         ResponseEntity<?> response = portfolioController.getHistory(365, true);

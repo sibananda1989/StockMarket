@@ -51,6 +51,13 @@ public class PortfolioHolding {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /**
+     * Timestamp of the last manual edit via PATCH /holdings/{id}.
+     * Used by the healer to skip auto-heal for user-overridden positions.
+     */
+    @Column(name = "last_manual_edit_at")
+    private LocalDateTime lastManualEditAt;
+
     // ── Computed fields (not persisted) ──────────────────────────────────
 
     @Transient

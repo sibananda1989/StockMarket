@@ -47,6 +47,7 @@ class WatchlistOpportunityServiceTest {
                 .symbol("RELIANCE")
                 .name("Reliance Industries Ltd")
                 .sector("Energy")
+                .industry(null)
                 .quantity(10)
                 .avgPrice(new BigDecimal("2500.00"))
                 .build();
@@ -58,6 +59,7 @@ class WatchlistOpportunityServiceTest {
                 .symbol("TCS")
                 .name("Tata Consultancy Services")
                 .sector("IT")
+                .industry(null)
                 .quantity(5)
                 .avgPrice(new BigDecimal("3500.00"))
                 .build();

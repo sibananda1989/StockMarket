@@ -45,7 +45,7 @@ public class MovingAverageCrossoverStrategy extends TradingStrategy {
 
         double sma20 = sma20Opt.get();
         double sma50 = sma50Opt.get();
-        double price = prices.get(0).getClosingPrice().doubleValue();
+        double price = prices.get(prices.size() - 1).getClosingPrice().doubleValue();
 
         // Detect SMA crossover
         Optional<Double> prevSma20Opt = resolvePreviousIndicator(indicators, IndicatorType.SMA_20);
