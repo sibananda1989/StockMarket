@@ -19,7 +19,7 @@ const PortfolioTransactions = (() => {
       stockSearch: '',
       dateFrom: null,
       dateTo: null,
-      status: 'all'
+      status: ['OPEN', 'PARTIALLY_SOLD', 'SOLD']
     }
   };
 
@@ -51,12 +51,15 @@ const PortfolioTransactions = (() => {
     els.filterStock = document.getElementById('filter-stock');
     els.filterDateFrom = document.getElementById('filter-date-from');
     els.filterDateTo = document.getElementById('filter-date-to');
-    els.filterStatus = document.getElementById('filter-status');
+    els.filterStatusBtn = document.getElementById('filter-status-btn');
+    els.filterStatusDropdown = document.getElementById('filter-status-dropdown');
+    els.filterStatusLabel = document.getElementById('filter-status-label');
   }
 
   // ─── INIT ───
   async function init() {
     cacheElements();
+    updateStatusLabel();
     bindEvents();
     await loadAll();
   }
@@ -81,10 +84,31 @@ const PortfolioTransactions = (() => {
       state.filters.dateTo = e.target.value || null;
       applyFiltersAndRender();
     });
-    if (els.filterStatus) els.filterStatus.addEventListener('change', (e) => {
-      state.filters.status = e.target.value;
-      applyFiltersAndRender();
+    if (els.filterStatusBtn && els.filterStatusDropdown) {
+      els.filterStatusBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        els.filterStatusDropdown.classList.toggle('hidden');
+      });
+      document.addEventListener('click', (e) => {
+        const wrapper = document.getElementById('filter-status-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+          els.filterStatusDropdown.classList.add('hidden');
+        }
+      });
+    }
+    document.querySelectorAll('.status-checkbox').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const checked = Array.from(document.querySelectorAll('.status-checkbox:checked')).map(c => c.value);
+        // If none checked, treat as none (show empty); if all checked, show all
+        state.filters.status = checked;
+        updateStatusLabel();
+        applyFiltersAndRender();
+      });
     });
+    const selAll = document.getElementById('status-select-all');
+    if (selAll) selAll.addEventListener('click', (e) => { e.stopPropagation(); selectAllStatus(true); });
+    const selNone = document.getElementById('status-select-none');
+    if (selNone) selNone.addEventListener('click', (e) => { e.stopPropagation(); selectAllStatus(false); });
     const buySearchEl = document.getElementById('buy-stock-search');
     if (buySearchEl) buySearchEl.addEventListener('input', (e) => {
       clearTimeout(buySearchTimer);
@@ -203,7 +227,14 @@ const PortfolioTransactions = (() => {
     if (state.filters.dateTo) {
       filtered = filtered.filter(l => l.transactionDate && l.transactionDate.slice(0,10) <= state.filters.dateTo);
     }
-    if (state.filters.status !== 'all') {
+    if (Array.isArray(state.filters.status)) {
+      if (state.filters.status.length === 0) {
+        filtered = [];
+      } else if (state.filters.status.length < 3) {
+        const allowed = new Set(state.filters.status);
+        filtered = filtered.filter(l => allowed.has(l.status));
+      }
+    } else if (state.filters.status !== 'all') {
       filtered = filtered.filter(l => l.status === state.filters.status);
     }
 
@@ -808,14 +839,36 @@ const PortfolioTransactions = (() => {
   }
 
   // ─── FILTERS ───
+  function updateStatusLabel() {
+    if (!els.filterStatusLabel) return;
+    const sel = state.filters.status;
+    if (!Array.isArray(sel) || sel.length === 3) els.filterStatusLabel.textContent = 'All';
+    else if (sel.length === 0) els.filterStatusLabel.textContent = 'None';
+    else if (sel.length === 1) {
+      const map = { OPEN: 'Open', PARTIALLY_SOLD: 'Partially Sold', SOLD: 'Sold' };
+      els.filterStatusLabel.textContent = map[sel[0]] || sel[0];
+    } else {
+      els.filterStatusLabel.textContent = sel.length + ' selected';
+    }
+  }
+
+  function selectAllStatus(selectAll) {
+    const boxes = document.querySelectorAll('.status-checkbox');
+    boxes.forEach(cb => { cb.checked = selectAll; });
+    state.filters.status = selectAll ? ['OPEN', 'PARTIALLY_SOLD', 'SOLD'] : [];
+    updateStatusLabel();
+    applyFiltersAndRender();
+  }
+
   function clearFilters() {
     clearTimeout(debounceTimer);
-    state.filters = { portfolioId: 'all', stockSearch: '', dateFrom: null, dateTo: null, status: 'all' };
+    state.filters = { portfolioId: 'all', stockSearch: '', dateFrom: null, dateTo: null, status: ['OPEN', 'PARTIALLY_SOLD', 'SOLD'] };
     if (els.filterPortfolio) els.filterPortfolio.value = 'all';
     if (els.filterStock) els.filterStock.value = '';
     if (els.filterDateFrom) els.filterDateFrom.value = '';
     if (els.filterDateTo) els.filterDateTo.value = '';
-    if (els.filterStatus) els.filterStatus.value = 'all';
+    document.querySelectorAll('.status-checkbox').forEach(cb => { cb.checked = true; });
+    updateStatusLabel();
     state.expandedLotId = null;
     applyFiltersAndRender();
   }
@@ -951,7 +1004,7 @@ const PortfolioTransactions = (() => {
   // Public API
   return { init, sortBy, prevPage, nextPage, goToPage, changePageSize, clearFilters, exportCSV,
            toggleExpand, openSellModal, closeSellModal, submitSell, deleteSell,
-           openBuyModal, closeBuyModal, submitBuy, clearSelectedBuyStock, selectBuyStock, selectBuyStockEncoded };
+           openBuyModal, closeBuyModal, submitBuy, clearSelectedBuyStock, selectBuyStock, selectBuyStockEncoded, selectAllStatus };
 })();
 
 document.addEventListener('DOMContentLoaded', PortfolioTransactions.init);

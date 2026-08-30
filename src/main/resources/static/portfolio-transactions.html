@@ -124,15 +124,22 @@
                            class="px-3 py-2 rounded-lg border border-gray-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
             </div>
-            <div class="flex flex-col gap-1 min-w-[140px]">
-                <label for="filter-status" class="text-xs font-semibold uppercase tracking-wider text-secondary">Status</label>
-                <select id="filter-status"
-                        class="px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="all">All</option>
-                    <option value="OPEN">Open</option>
-                    <option value="PARTIALLY_SOLD">Partially Sold</option>
-                    <option value="SOLD">Sold</option>
-                </select>
+            <div class="flex flex-col gap-1 min-w-[160px] relative" id="filter-status-wrapper">
+                <label class="text-xs font-semibold uppercase tracking-wider text-secondary">Status</label>
+                <button type="button" id="filter-status-btn"
+                        class="px-3 py-2 rounded-lg border border-gray-600 bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex justify-between items-center gap-2">
+                    <span id="filter-status-label">All</span>
+                    <i class="fas fa-chevron-down text-xs text-secondary"></i>
+                </button>
+                <div id="filter-status-dropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-20 p-2 space-y-1">
+                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-700 rounded cursor-pointer text-sm text-white"><input type="checkbox" class="status-checkbox accent-blue-500" value="OPEN" checked> Open</label>
+                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-700 rounded cursor-pointer text-sm text-white"><input type="checkbox" class="status-checkbox accent-blue-500" value="PARTIALLY_SOLD" checked> Partially Sold</label>
+                    <label class="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-700 rounded cursor-pointer text-sm text-white"><input type="checkbox" class="status-checkbox accent-blue-500" value="SOLD" checked> Sold</label>
+                    <div class="flex gap-3 mt-2 pt-2 border-t border-gray-700 px-2">
+                        <button type="button" id="status-select-all" class="text-xs text-blue-400 hover:text-blue-300">All</button>
+                        <button type="button" id="status-select-none" class="text-xs text-blue-400 hover:text-blue-300">None</button>
+                    </div>
+                </div>
             </div>
             <div class="flex flex-col gap-1 min-w-[130px]">
                 <label for="filter-pl" class="text-xs font-semibold uppercase tracking-wider text-secondary">P/L</label>

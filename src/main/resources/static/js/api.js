@@ -686,6 +686,10 @@ async function getMultiStrategySignalHistory(stockId, days = 365, activeStrategi
 function getStrategyResults() { return apiCall('/strategy-results'); }
 function getStrategyResultsFor(strategyName) { return apiCall(`/strategy-results/${encodeURIComponent(strategyName)}`); }
 function refreshStrategyResults() { return apiCall('/strategy-results/refresh', { method: 'POST' }); }
+function getTopStrategyResults(limit = 5, includeInactive = false) {
+    const p = new URLSearchParams({ limit: String(limit), includeInactive: String(includeInactive) });
+    return apiCall(`/strategy-results/top?${p.toString()}`);
+}
 
 // ─── Strategy Config API ────────────────────────────────────────────────────
 

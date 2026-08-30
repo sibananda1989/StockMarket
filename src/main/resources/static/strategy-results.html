@@ -7,6 +7,7 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="apple-touch-icon-precomposed.png">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <link rel="stylesheet" href="css/theme.css?v=v20260808_hoverfix1">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -27,17 +28,67 @@
 
     <div id="loading" class="hidden text-center py-12 text-gray-400">
         <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
-        <p>Computing strategy results…</p>
+        <p>Computing strategy results...</p>
     </div>
 
+    <!-- ── KPI summary cards ─────────────────────────────────────────────── -->
+    <div id="kpiRow" class="hidden grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+
+    <!-- ── Charts ────────────────────────────────────────────────────────── -->
+    <div id="chartsRow" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <div class="card rounded-xl shadow-lg p-4 lg:col-span-2">
+            <h2 class="text-base font-semibold mb-3"><i class="fas fa-chart-simple text-blue-400 mr-2"></i>Signal distribution by strategy</h2>
+            <div class="relative h-72"><canvas id="distributionChart"></canvas></div>
+        </div>
+        <div class="card rounded-xl shadow-lg p-4">
+            <h2 class="text-base font-semibold mb-3"><i class="fas fa-chart-pie text-purple-400 mr-2"></i>Overall sentiment</h2>
+            <div class="relative h-72"><canvas id="sentimentMixChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- ── Top 5 consensus ─────────────────────────────────────────────────── -->
+    <div id="top5Row" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div class="card rounded-xl shadow-lg p-4">
+            <h2 class="text-base font-semibold mb-3"><i class="fas fa-arrow-trend-up text-green-400 mr-2"></i>Top 5 BUY — Most Consensus</h2>
+            <ol id="topBuysList" class="space-y-2"></ol>
+            <p id="topBuysEmpty" class="hidden text-sm text-gray-500 py-4 text-center">No BUY signals</p>
+        </div>
+        <div class="card rounded-xl shadow-lg p-4">
+            <h2 class="text-base font-semibold mb-3"><i class="fas fa-arrow-trend-down text-red-400 mr-2"></i>Top 5 SELL — Most Consensus</h2>
+            <ol id="topSellsList" class="space-y-2"></ol>
+            <p id="topSellsEmpty" class="hidden text-sm text-gray-500 py-4 text-center">No SELL signals</p>
+        </div>
+    </div>
+
+    <!-- ── Results table ─────────────────────────────────────────────────── -->
     <div class="card rounded-xl shadow-lg overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-gray-700">
+            <h2 class="text-lg font-semibold"><i class="fas fa-table-list text-blue-400 mr-2"></i>Results by strategy</h2>
+            <div class="flex items-center gap-3">
+                <span id="snapshotMeta" class="text-xs text-gray-500"></span>
+                <label class="flex items-center gap-1.5 text-xs text-gray-300 cursor-pointer select-none"
+                       title="Show only enabled strategies. Disabled ones are reference-only and do not drive the live signal.">
+                    <input type="checkbox" id="activeOnlyToggle" class="accent-blue-500"> Active only
+                </label>
+                <label for="sortSelect" class="text-xs text-gray-400">Sort</label>
+                <select id="sortSelect"
+                    class="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    <option value="priority">Priority</option>
+                    <option value="net-bull">Net (most bullish)</option>
+                    <option value="net-bear">Net (most bearish)</option>
+                    <option value="total">Total signals</option>
+                </select>
+            </div>
+        </div>
         <table id="strategy-results-table" class="w-full text-sm">
             <thead>
                 <tr class="text-left text-gray-400 border-b border-gray-700">
                     <th class="px-4 py-3">Strategy</th>
+                    <th class="px-4 py-3 text-center">Net</th>
                     <th class="px-4 py-3 text-center">BUY</th>
                     <th class="px-4 py-3 text-center">SELL</th>
                     <th class="px-4 py-3 text-center">HOLD</th>
+                    <th class="px-4 py-3">Signal mix</th>
                 </tr>
             </thead>
             <tbody id="strategy-results-tbody" class="divide-y divide-gray-800"></tbody>

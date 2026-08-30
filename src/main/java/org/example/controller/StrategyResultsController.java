@@ -5,12 +5,14 @@ import org.example.dto.ApiResponse;
 import org.example.dto.RefreshSummary;
 import org.example.dto.StrategyCountDTO;
 import org.example.dto.StrategyStockResultDTO;
+import org.example.dto.TopStocksResponse;
 import org.example.service.StrategyResultsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -32,6 +34,18 @@ public class StrategyResultsController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<StrategyCountDTO>>> getCounts() {
         return ResponseEntity.ok(ApiResponse.success(strategyResultsService.getCounts()));
+    }
+
+    /**
+     * Top 5 consensus — stocks with most BUY (or SELL) votes across strategies.
+     * Count-based ranking: how many strategies agree, high→low.
+     */
+    @GetMapping("/top")
+    public ResponseEntity<ApiResponse<TopStocksResponse>> getTop(
+            @RequestParam(defaultValue = "5") int limit,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        return ResponseEntity.ok(ApiResponse.success(strategyResultsService.getTopStocks(safeLimit, includeInactive)));
     }
 
     /**

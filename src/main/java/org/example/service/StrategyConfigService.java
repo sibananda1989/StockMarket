@@ -81,6 +81,24 @@ public class StrategyConfigService {
      * Safe to call on every startup.
      */
     private void reconcileSeeds() {
+        // One-time rename: fix the display name if it hasn't been updated yet.
+        // Placed BEFORE the early-return guard below so it runs on every startup
+        // (existing DBs hit the early return on the seed block and would skip this).
+        repository.findByStrategyName("EMA_CROSSOVER").ifPresent(config -> {
+            if ("EMA Crossover".equals(config.getDisplayName())) {
+                config.setDisplayName("EMA 20/50 Cross");
+                repository.save(config);
+                log.info("Renamed EMA_CROSSOVER display name to 'EMA 20/50 Cross'");
+            }
+        });
+        repository.findByStrategyName("MA_CROSSOVER").ifPresent(config -> {
+            if ("MA Crossover".equals(config.getDisplayName())) {
+                config.setDisplayName("SMA 20/50 Cross & Alignment");
+                repository.save(config);
+                log.info("Renamed MA_CROSSOVER display name to 'SMA 20/50 Cross & Alignment'");
+            }
+        });
+
         // Legacy one-time cleanup: CANDLESTICK was split into AT_SUPPORT/AT_RESISTANCE.
         repository.findByStrategyName("CANDLESTICK").ifPresent(config -> {
             log.info("Removing legacy CANDLESTICK strategy config");
@@ -90,7 +108,7 @@ public class StrategyConfigService {
         List<StrategyConfig> seeds = List.of(
                 new StrategyConfig("RSI", true, "RSI Strategy", rsiPriority),
                 new StrategyConfig("MACD", true, "MACD Strategy", macdPriority),
-                new StrategyConfig("MA_CROSSOVER", true, "MA Crossover", maCrossoverPriority),
+                new StrategyConfig("MA_CROSSOVER", true, "SMA 20/50 Cross & Alignment", maCrossoverPriority),
                 new StrategyConfig("BOLLINGER", true, "Bollinger Band", bollingerPriority),
                 new StrategyConfig("VOLUME", true, "Volume Strategy", volumePriority),
                 new StrategyConfig("CANDLESTICK_AT_SUPPORT", true, "Candlestick at Support", atSupportPriority),
@@ -99,7 +117,7 @@ public class StrategyConfigService {
                 new StrategyConfig("CANDLESTICK_PATTERN", true, "Candlestick Patterns", candlestickPatternPriority),
                 new StrategyConfig("LIQUIDITY", true, "Liquidity Assessment", liquidityPriority),
                 new StrategyConfig("SMA44_PULLBACK", true, "SMA44 Pullback Bounce", sma44PullbackPriority),
-                new StrategyConfig("EMA_CROSSOVER", true, "EMA Crossover", emaCrossoverPriority)
+                new StrategyConfig("EMA_CROSSOVER", true, "EMA 20/50 Cross", emaCrossoverPriority)
         );
 
         Set<String> existing = repository.findAll().stream()

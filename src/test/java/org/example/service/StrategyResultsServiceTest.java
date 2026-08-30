@@ -3,6 +3,7 @@ package org.example.service;
 import org.example.dto.StrategyCountDTO;
 import org.example.dto.StrategyStockResultDTO;
 import org.example.entity.Stock;
+import org.example.entity.StrategyConfig;
 import org.example.entity.StrategyStockResult;
 import org.example.repository.StockRepository;
 import org.example.repository.StrategyStockResultRepository;
@@ -48,6 +49,9 @@ class StrategyResultsServiceTest {
 
     @Mock
     private MultiStrategySignalEngine engine;
+
+    @Mock
+    private StrategyConfigService strategyConfigService;
 
     @InjectMocks
     private StrategyResultsService service;
@@ -95,6 +99,15 @@ class StrategyResultsServiceTest {
         });
 
         when(stockRepository.findAll()).thenAnswer(inv -> new ArrayList<>(stocks));
+
+        // Display-name + active lookup (lenient; only reached by getCounts/refreshAll).
+        when(strategyConfigService.getAllConfigs()).thenReturn(List.of(
+                new StrategyConfig("RSI", true, "RSI Strategy", 7),
+                new StrategyConfig("MACD", true, "MACD Strategy", 5),
+                new StrategyConfig("VOLUME", true, "Volume Strategy", 5),
+                new StrategyConfig("EMA_CROSSOVER", true, "EMA 20/50 Cross", 7),
+                new StrategyConfig("BOLLINGER", false, "Bollinger Band", 6)
+        ));
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -149,7 +162,7 @@ class StrategyResultsServiceTest {
         store.put("1|RSI|" + yesterday, row(1, "RSI", "BUY", yesterday));
 
         stocks.add(stock(1, "RELIANCE"));
-        when(engine.evaluate(1L)).thenReturn(agg(
+        when(engine.evaluate(eq(1L), anySet())).thenReturn(agg(
                 StrategyResult.withoutContributionWithEventDate(StrategySignal.BUY, 0.9, "RSI oversold", "RSI", 7, LocalDate.of(2026, 8, 27)),
                 StrategyResult.withoutContribution(StrategySignal.SELL, 0.6, "MACD bearish", "MACD", 5)));
 
@@ -188,8 +201,8 @@ class StrategyResultsServiceTest {
         stocks.add(stock(1, "BROKEN"));
         stocks.add(stock(2, "HEALTHY"));
 
-        when(engine.evaluate(1L)).thenThrow(new RuntimeException("no price data"));
-        when(engine.evaluate(2L)).thenReturn(agg(
+        when(engine.evaluate(eq(1L), anySet())).thenThrow(new RuntimeException("no price data"));
+        when(engine.evaluate(eq(2L), anySet())).thenReturn(agg(
                 StrategyResult.withoutContribution(StrategySignal.BUY, 0.8, "good", "RSI", 7)));
 
         var summary = service.refreshAll();
@@ -204,18 +217,27 @@ class StrategyResultsServiceTest {
     @Test
     void getCounts_autoSeedsWhenEmpty() {
         stocks.add(stock(1, "RELIANCE"));
-        when(engine.evaluate(1L)).thenReturn(agg(
+        when(engine.evaluate(eq(1L), anySet())).thenReturn(agg(
                 StrategyResult.withoutContribution(StrategySignal.BUY, 0.9, "oversold", "RSI", 7),
                 StrategyResult.withoutContribution(StrategySignal.BUY, 0.8, "bullish", "MACD", 5),
-                StrategyResult.withoutContribution(StrategySignal.SELL, 0.7, "overbought", "VOLUME", 5)));
+                StrategyResult.withoutContribution(StrategySignal.SELL, 0.7, "overbought", "VOLUME", 5),
+                StrategyResult.withoutContribution(StrategySignal.HOLD, 0.0, "disabled", "BOLLINGER", 6)));
 
         List<StrategyCountDTO> counts = service.getCounts();
 
         verify(repository).saveAll(anyList()); // auto-seed ran a refresh
-        assertEquals(3, counts.size());
+        assertEquals(4, counts.size());
         assertEquals(1, counts.get(0).buyCount()); // RSI priority 7 sorts first
         assertEquals("RSI", counts.get(0).strategyName());
+        assertEquals("RSI Strategy", counts.get(0).displayName()); // friendly label resolved from config
         assertEquals(7, counts.get(0).priority());
+        // active flag resolved from config: RSI enabled, BOLLINGER disabled
+        assertTrue(counts.get(0).active()); // RSI active
+        StrategyCountDTO boll = counts.stream().filter(c -> c.strategyName().equals("BOLLINGER")).findFirst().orElseThrow();
+        assertFalse(boll.active());         // BOLLINGER disabled
+        assertEquals(0, boll.buyCount());
+        assertEquals(0, boll.sellCount());
+        assertEquals(1, boll.holdCount());
     }
 
     @Test
