@@ -30,7 +30,7 @@
 | Monitoring | Spring Boot Actuator + Micrometer Prometheus | — |
 | API Docs | springdoc OpenAPI UI | 1.6.14 |
 | HTTP Client | Spring WebFlux `WebClient` | — |
-| Frontend | Tailwind CSS + Chart.js 4.4.0 + Font Awesome 6.4 + Lightweight Charts 5.2.0 | CDN |
+| Frontend | Tailwind CSS + Chart.js 4.4.0 + Font Awesome 6.4 + Lightweight Charts 4.2.0 | CDN |
 | Testing | JUnit 5 + Mockito + Playwright | — |
 | Code Coverage | JaCoCo | 0.8.11 |
 | Utilities | Lombok, Netty DNS | — |
@@ -48,16 +48,16 @@ org.example
 ├── config/
 │   ├── CorsConfig.java                    # CORS: all origins on /api/**
 │   └── ClientAbortSilencerFilter.java     # Broken-pipe exception handler
-├── controller/                            # 27 controllers (26 @RestController + 1 @Controller)
-├── dto/                                   # 59 Data Transfer Objects (including nested classes)
-├── entity/                                # 29 JPA entities (including 3 enums)
-├── exception/                             # 6 custom exceptions + GlobalExceptionHandler
+├── controller/                            # 28 controllers (27 @RestController + 1 @Controller)
+├── dto/                                   # 69 Data Transfer Objects (including nested classes)
+├── entity/                                # 31 JPA entities (28 classes + 3 enums: IndicatorType, LevelType, TransactionType)
+├── exception/                             # 7 custom exceptions + GlobalExceptionHandler
 ├── metrics/                               # InstitutionalMetrics (Micrometer counters/timers)
-├── repository/                            # 26 Spring Data JPA repositories
-├── scheduler/                             # 7 scheduled task classes (12 cron jobs + startup indicators)
-├── startup/                               # 6 startup tasks
-└── service/                               # 37 services
-    ├── calculator/                        # 34 technical indicator calculators (1 interface + 32 impls + 1 orchestration service)
+├── repository/                            # 27 Spring Data JPA repositories
+├── scheduler/                             # 10 scheduled task classes (11 @Scheduled jobs + startup indicators)
+├── startup/                               # 7 startup tasks
+└── service/                               # 42 services
+    ├── calculator/                        # 35 technical indicator calculators (1 interface + 33 impls + 1 orchestration service)
     └── institutional/                     # 8 institutional activity services
 ```
 
@@ -69,7 +69,7 @@ org.example
 - **EAV pattern for indicators:** Single `technical_indicators` table stores all 31 indicator types via `IndicatorType` enum
 - **No authentication:** All endpoints are public; CORS allows all origins
 - **DDL auto-management:** `spring.jpa.hibernate.ddl-auto=update` with manual SQL migration scripts
-- **View controller:** `StockHistoryViewController` is the only `@Controller` (returns Thymeleaf view); all others are `@RestController`
+- **View controller:** `HomeController` is the only `@Controller` (returns Thymeleaf view); all others are `@RestController`
 
 ---
 
@@ -243,22 +243,7 @@ org.example
 
 ---
 
-#### 4.3.8 `rsi_values` — RsiValue (DEPRECATED)
-
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| `id` | BIGINT | PK, AUTO_INCREMENT | |
-| `stock_id` | BIGINT | FK → `stocks.id`, NOT NULL | `@ManyToOne(LAZY)` |
-| `rsi14` | DECIMAL(5,2) | NOT NULL | `@DecimalMin("0.00")`, `@DecimalMax("100.00")` |
-| `calculation_date` | DATE | NOT NULL | `@PastOrPresent` |
-| `created_at` | DATETIME | NOT NULL | `@CreationTimestamp` |
-
-**Unique constraint:** `(stock_id, calculation_date)`
-**Index:** `idx_stock_rsi_date` on `(stock_id, calculation_date DESC)`
-
----
-
-#### 4.3.9 `signal_records` — SignalRecord
+#### 4.3.8 `signal_records` — SignalRecord
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -282,7 +267,7 @@ org.example
 
 ---
 
-#### 4.3.10 `signal_historical_performance` — SignalHistoricalPerformance
+#### 4.3.9 `signal_historical_performance` — SignalHistoricalPerformance
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -297,7 +282,7 @@ org.example
 
 ---
 
-#### 4.3.11 `support_resistance_levels` — SupportResistanceLevel
+#### 4.3.10 `support_resistance_levels` — SupportResistanceLevel
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -317,7 +302,7 @@ org.example
 
 ---
 
-#### 4.3.12 `fiidii_data` — FiiDiiData
+#### 4.3.11 `fiidii_data` — FiiDiiData
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -333,7 +318,7 @@ org.example
 
 ---
 
-#### 4.3.13 `corporate_events` — CorporateEvent
+#### 4.3.12 `corporate_events` — CorporateEvent
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -350,7 +335,7 @@ org.example
 
 ---
 
-#### 4.3.14 `institutional_holdings` — InstitutionalHolding
+#### 4.3.13 `institutional_holdings` — InstitutionalHolding
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -378,7 +363,7 @@ org.example
 
 ---
 
-#### 4.3.15 `bulk_deals` — BulkDeal
+#### 4.3.14 `bulk_deals` — BulkDeal
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -400,7 +385,7 @@ org.example
 
 ---
 
-#### 4.3.16 `block_deals` — BlockDeal
+#### 4.3.15 `block_deals` — BlockDeal
 
 Same schema as `bulk_deals`.
 
@@ -409,7 +394,7 @@ Same schema as `bulk_deals`.
 
 ---
 
-#### 4.3.17 `watchlists` — Watchlist
+#### 4.3.16 `watchlists` — Watchlist
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -423,7 +408,7 @@ Same schema as `bulk_deals`.
 
 ---
 
-#### 4.3.18 `watchlist_items` — WatchlistItem
+#### 4.3.17 `watchlist_items` — WatchlistItem
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -438,7 +423,7 @@ Same schema as `bulk_deals`.
 
 ---
 
-#### 4.3.19 `strategy_config` — StrategyConfig (NEW)
+#### 4.3.18 `strategy_config` — StrategyConfig (NEW)
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -450,13 +435,13 @@ Same schema as `bulk_deals`.
 | `created_at` | DATETIME | NOT NULL | `@CreationTimestamp` |
 | `updated_at` | DATETIME | nullable | `@UpdateTimestamp` |
 
-**Auto-seed:** On first startup, all 10 strategies are seeded as active (backward compatible). `DataIntegrityViolationException` handled for concurrency safety.
+**Auto-seed:** On first startup, all 12 strategies are seeded as active (backward compatible). `DataIntegrityViolationException` handled for concurrency safety.
 
 **Used by:** `MultiStrategySignalEngine` reads `active = true` entries as the default set when no `?active=` query param is provided. The `?active=` param still works as a per-request override.
 
 ---
 
-#### 4.3.20 `strategy_condition_groups` — StrategyConditionGroup (NEW)
+#### 4.3.19 `strategy_condition_groups` — StrategyConditionGroup (NEW)
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -474,11 +459,11 @@ Same schema as `bulk_deals`.
 
 **Unique constraint:** `(strategy_name, condition_id)`
 
-**Auto-seed:** ~5 default conditions per strategy (~50 total for 10 strategies) seeded on `ApplicationReadyEvent`.
+**Auto-seed:** ~5 default conditions per strategy (~60 total for 12 strategies) seeded on `ApplicationReadyEvent`.
 
 ---
 
-#### 4.3.21 `strategy_condition_stats_cache` — StrategyConditionStatsCache (NEW)
+#### 4.3.20 `strategy_condition_stats_cache` — StrategyConditionStatsCache (NEW)
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -494,7 +479,7 @@ Same schema as `bulk_deals`.
 
 ---
 
-#### 4.3.22 `shadow_signal_records` — ShadowSignalRecord (NEW)
+#### 4.3.21 `shadow_signal_records` — ShadowSignalRecord (NEW)
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
@@ -559,7 +544,7 @@ Same schema as `bulk_deals`.
 
 ---
 
-### 4.4 Entity Relationship Diagram (22 entities + 1 `@ElementCollection`)
+### 4.4 Entity Relationship Diagram (21 entities + 1 `@ElementCollection`)
 
 ```
 Watchlist  1 ──── * WatchlistItem * ──── 1 Stock
@@ -788,22 +773,7 @@ All endpoints return `ApiResponse<T>` with envelope `{status, message, data, tim
 |--------|------|---------|----------|-------------|
 | GET | `/api/backtest/stock/{stockId}` | `?stopLoss=true, positionSizePct=0.02` | `BacktestResultDTO` | Run backtest |
 
-### 5.17 DhanController (`/api/dhan`)
-
-| Method | Path | Request | Response | Description |
-|--------|------|---------|----------|-------------|
-| POST | `/api/dhan/sync-holdings` | — | String | Sync holdings from Dhan |
-| POST | `/api/dhan/sync-prices` | — | String | Sync daily prices + RSI |
-
-### 5.18 StockHistoryViewController (`/stocks`)
-
-**Note:** This is a `@Controller` (not `@RestController`). Returns a Thymeleaf view name.
-
-| Method | Path | Request | Response | Description |
-|--------|------|---------|----------|-------------|
-| GET | `/stocks/history` | — | String (view: `stock-history`) | Renders stock-history HTML page |
-
-### 5.19 StrategyConfigController (`/api/strategy-config`) **(NEW)**
+### 5.17 StrategyConfigController (`/api/strategy-config`) **(NEW)**
 
 | Method | Path | Request | Response | Description |
 |--------|------|---------|----------|-------------|
@@ -815,20 +785,20 @@ All endpoints return `ApiResponse<T>` with envelope `{status, message, data, tim
 | POST | `/api/strategy-config/conditions/reset` | — | `ApiResponse<Void>` | Reset all conditions to defaults; triggers async recompute |
 | PUT | `/api/strategy-config/{strategyName}/priority` | `?priority=1-10` | `ApiResponse<StrategyConfigDTO>` | Update strategy priority |
 
-**Note:** On first startup, `StrategyConfigService` auto-seeds all 10 strategies as active. `MultiStrategySignalEngine` reads DB state as the default active set when no `?active=` query param is provided. `StrategyConditionService` seeds ~50 default conditions (~5 per strategy) on `ApplicationReadyEvent`.
+**Note:** On first startup, `StrategyConfigService` auto-seeds all 12 strategies as active. `MultiStrategySignalEngine` reads DB state as the default active set when no `?active=` query param is provided. `StrategyConditionService` seeds ~60 default conditions (~5 per strategy) on `ApplicationReadyEvent`.
 
-### 5.20 Summary
+### 5.19 Summary
 
 | HTTP Method | Count |
 |-------------|-------|
-| GET | ~84 |
-| POST | ~48 |
-| PUT | ~9 |
-| PATCH | 2 |
-| DELETE | ~10 |
-| **Total (REST)** | **~152** |
+| GET | 89 |
+| POST | 53 |
+| PUT | 8 |
+| PATCH | 3 |
+| DELETE | 8 |
+| **Total (REST)** | **161** |
 | View (Thymeleaf) | 1 |
-| **Grand Total** | **~153** |
+| **Grand Total** | **162** |
 
 ---
 
@@ -836,7 +806,7 @@ All endpoints return `ApiResponse<T>` with envelope `{status, message, data, tim
 
 ### 6.1 Signal Engine (`SignalService.java`)
 
-Multi-factor weighted scoring model generating BUY/SELL/HOLD recommendations. Uses 27 scoring factors in `computeWeightedScore()`.
+Multi-factor weighted scoring model generating BUY/SELL/HOLD recommendations. Uses 19 scoring factors in `computeWeightedScore()` (see `computeIndicatorCoverage()` for the factor coverage count).
 
 #### Scoring Factors
 

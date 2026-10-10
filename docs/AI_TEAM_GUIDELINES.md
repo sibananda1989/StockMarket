@@ -4,7 +4,8 @@
 
 | Agent | Responsibility |
 |-------|---------------|
-| **project-manager** | Entry point for all tasks. Analyzes requirements, breaks into subtasks, assigns to specialized agents, tracks dependencies, verifies output |
+| **plan (skill/command)** | Analyze the task, define scope and risks, break into steps before implementation |
+| **build (skill)** | Implement changes in minimal, verified slices |
 | **business-analyst** | Converts business requirements → user stories, acceptance criteria, workflows |
 | **solution-architect** | Designs module boundaries, API contracts, integration strategy |
 | **stock-market-expert** | Price action, S/R, trends, chart patterns, swing trading logic |
@@ -19,8 +20,8 @@
 
 ## Task Routing Rules
 
-### When to Route to project-manager
-- ALL new requirements first go to project-manager
+### When to Route to plan → build
+- ALL new requirements start by planning (scope + risks) before implementation
 - Ambiguous or multi-step requests
 - Tasks spanning multiple domains (e.g., "add new indicator" → backend + signal + frontend + tests)
 

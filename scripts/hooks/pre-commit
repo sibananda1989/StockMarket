@@ -1,69 +1,7 @@
 #!/bin/sh
-# pre-commit — reject commits touching src/** unless fresh full-cycle artifacts exist.
-# Requires .full-cycle/review.md and .full-cycle/verify.md to exist and be newer
-# than the oldest staged src file. Bypass with: git commit --no-verify
+# pre-commit — minimal pass-through hook.
+# The full-cycle gate (blocking src/** commits unless .full-cycle artifacts existed)
+# was removed along with the full-cycle lifecycle machinery.
 set -eu
-
-WORKDIR="$(git rev-parse --show-toplevel)"
-REVIEW="$WORKDIR/.full-cycle/review.md"
-VERIFY="$WORKDIR/.full-cycle/verify.md"
-
-# Portable mtime (BSD stat first, GNU stat fallback).
-mtime_of() {
-  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1"
-}
-
-# Added/copied/modified/renamed src paths (deletions have no on-disk mtime).
-staged_src="$(git diff --cached --name-only --diff-filter=ACMR -- src)"
-deleted_src="$(git diff --cached --name-only --diff-filter=D -- src)"
-
-if [ -z "$staged_src" ] && [ -z "$deleted_src" ]; then
-  exit 0
-fi
-
-missing=""
-[ -f "$REVIEW" ] || missing="$missing $REVIEW"
-[ -f "$VERIFY" ] || missing="$missing $VERIFY"
-
-if [ -n "$missing" ]; then
-  cat >&2 <<EOF
-
-pre-commit: REJECTED — commit touches src/** but required full-cycle artifacts are missing:$missing
-Fix: run the full cycle first:  full-cycle.sh "<task description>"
-Bypass (use sparingly, only with justification): git commit --no-verify
-EOF
-  exit 1
-fi
-
-# Deletion-only commits: artifact existence is sufficient (nothing to compare mtimes against).
-if [ -z "$staged_src" ]; then
-  exit 0
-fi
-
-oldest=""
-while IFS= read -r f; do
-  [ -n "$f" ] || continue
-  [ -f "$f" ] || continue
-  m="$(mtime_of "$f")"
-  if [ -z "$oldest" ] || [ "$m" -lt "$oldest" ]; then
-    oldest="$m"
-  fi
-done <<EOF2
-$staged_src
-EOF2
-
-stale=""
-[ "$(mtime_of "$REVIEW")" -ge "$oldest" ] || stale="$stale review.md"
-[ "$(mtime_of "$VERIFY")" -ge "$oldest" ] || stale="$stale verify.md"
-
-if [ -n "$stale" ]; then
-  cat >&2 <<EOF3
-
-pre-commit: REJECTED — full-cycle artifacts older than oldest staged src file.$stale
-Fix: re-run the full cycle for your change:  full-cycle.sh "<task description>"
-Bypass (use sparingly, only with justification): git commit --no-verify
-EOF3
-  exit 1
-fi
 
 exit 0
