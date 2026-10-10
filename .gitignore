@@ -77,4 +77,7 @@ check-nvidia-models.sh
 check-nvidia-provider.sh
 list-free-nvidia-models.sh
 probe-*.sh
+probe-secrets.env
+*.bak.*
 stock-detail-top.png
+dsa/

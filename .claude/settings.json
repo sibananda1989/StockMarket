@@ -1,9 +1,0 @@
-{
-  "theme": "dark",
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://localhost:8082",
-    "ANTHROPIC_AUTH_TOKEN": "1989",
-    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "190000"
-  }
-}
