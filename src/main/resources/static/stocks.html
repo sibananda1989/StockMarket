@@ -19,6 +19,8 @@
         .alert-row { outline: 2px solid #f59e0b !important; outline-offset: -2px; }
         .alert-row-danger { outline: 2px solid #ef4444 !important; outline-offset: -2px; }
         th { white-space: nowrap; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; }
+        th.sort-asc::after  { content: ' \25B2'; font-size: 0.75em; }
+        th.sort-desc::after { content: ' \25BC'; font-size: 0.75em; }
         .table td { vertical-align: middle; font-size: 0.875rem; }
         #alertToastContainer .toast { min-width: 300px; }
         #stocksTable tbody tr { transition: background 0.15s; }
@@ -114,19 +116,27 @@
                 <table class="w-full" id="stocksTable">
                     <thead>
                         <tr class="border-b border-gray-700">
-                            <th class="px-2 py-2 text-left cursor-pointer hover:bg-gray-700" onclick="sortBy('symbol')">
-                                Symbol <i class="fas fa-sort ml-1"></i>
-                            </th>
                             <th class="px-2 py-2 text-left cursor-pointer hover:bg-gray-700" onclick="sortBy('name')">
                                 Name <i class="fas fa-sort ml-1"></i>
                             </th>
-                            <th class="px-2 py-2 text-left">Sector</th>
-                            <th class="px-2 py-2 text-left">Industry</th>
-                            <th class="px-2 py-2 text-right">Qty</th>
-                            <th class="px-2 py-2 text-right">Avg Price</th>
-                            <th class="px-2 py-2 text-right">LTP</th>
-                            <th class="px-2 py-2 text-right">Investment</th>
-                            <th class="px-2 py-2 text-right">Curr Value</th>
+                            <th class="px-2 py-2 text-left cursor-pointer hover:bg-gray-700" onclick="sortBy('sector')">
+                                Sector <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-2 py-2 text-right cursor-pointer hover:bg-gray-700" onclick="sortBy('quantity')">
+                                Qty <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-2 py-2 text-right cursor-pointer hover:bg-gray-700" onclick="sortBy('avgPrice')">
+                                Avg Price <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-2 py-2 text-right cursor-pointer hover:bg-gray-700" onclick="sortBy('lastTradedPrice')">
+                                LTP <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-2 py-2 text-right cursor-pointer hover:bg-gray-700" onclick="sortBy('investment')">
+                                Investment <i class="fas fa-sort ml-1"></i>
+                            </th>
+                            <th class="px-2 py-2 text-right cursor-pointer hover:bg-gray-700" onclick="sortBy('currentValue')">
+                                Curr Value <i class="fas fa-sort ml-1"></i>
+                            </th>
                             <th class="px-2 py-2 text-right cursor-pointer hover:bg-gray-700" onclick="sortBy('pnl')">
                                 P&L <i class="fas fa-sort ml-1"></i>
                             </th>
@@ -137,7 +147,7 @@
                         </tr>
                     </thead>
                     <tbody id="stocksTableBody">
-                        <tr><td colspan="12" class="text-center py-8">Loading stocks...</td></tr>
+                        <tr><td colspan="10" class="text-center py-8">Loading stocks...</td></tr>
                     </tbody>
                 </table>
             </div>

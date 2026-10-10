@@ -158,5 +158,5 @@ function showSuccessAlert() {
 }
 
 function viewStockDetail(id) {
-    window.location.href = `stock-detail.html?id=${id}`;
+    window.open(`stock-detail.html?id=${id}`, '_blank', 'noopener');
 }

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.FiiDiiData;
 import org.example.repository.FiiDiiDataRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -81,6 +82,7 @@ public class FiiDiiService {
         return 0;
     }
 
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     public FiiDiiData fetchAndSave() {
         try {
             rateLimiter.acquire("nse-fiidii", NSE_RATE_LIMIT_MS);
@@ -149,6 +151,7 @@ public class FiiDiiService {
     }
 
     @Scheduled(cron = "0 30 15 * * MON-FRI", zone = "UTC")
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     public void scheduledFetch() {
         log.info("Scheduled FII/DII data fetch from NSE");
         fetchAndSave();

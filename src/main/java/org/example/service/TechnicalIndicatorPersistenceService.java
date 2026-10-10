@@ -6,6 +6,7 @@ import org.example.entity.IndicatorType;
 import org.example.entity.Stock;
 import org.example.entity.TechnicalIndicator;
 import org.example.repository.TechnicalIndicatorRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -21,6 +22,7 @@ public class TechnicalIndicatorPersistenceService {
 
     private final TechnicalIndicatorRepository indicatorRepository;
 
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = DataIntegrityViolationException.class)
     public void saveOrUpdateIndicator(Stock stock, IndicatorType type, BigDecimal value, LocalDate date) {
         try {

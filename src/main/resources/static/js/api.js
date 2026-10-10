@@ -347,6 +347,13 @@ async function deleteTransaction(portfolioId, txId) {
     });
 }
 
+async function updateTransaction(portfolioId, txId, payload) {
+    return apiCall(`/portfolios/${portfolioId}/transactions/${txId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+    });
+}
+
 // ─── Buy lots (lot-based sell matching) ──────────────────────────────
 
 async function getBuyLots(portfolioId, stockId) {

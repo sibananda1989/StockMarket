@@ -117,7 +117,6 @@ public class PortfolioTransactionService {
 
         try {
             snapshotWriter.saveSnapshots(buyTx.getStock(), tx.getTransactionDate());
-            snapshotWriter.rebuildSnapshotsFrom(buyTx.getStock(), tx.getTransactionDate());
         } catch (Exception e) {
             log.warn("Snapshot creation failed after lot sell for {}: {}", buyTx.getStock().getSymbol(), e.getMessage());
         }
@@ -287,7 +286,6 @@ public class PortfolioTransactionService {
         syncHoldingsFromReplay(portfolioId, stock);
         try {
             snapshotWriter.saveSnapshots(stock, tx.getTransactionDate());
-            snapshotWriter.rebuildSnapshotsFrom(stock, tx.getTransactionDate());
         } catch (Exception e) {
             log.warn("Snapshot creation failed after BUY for {}: {}", stock.getSymbol(), e.getMessage());
         }
@@ -349,7 +347,6 @@ public class PortfolioTransactionService {
         syncHoldingsFromReplay(portfolioId, stock);
         try {
             snapshotWriter.saveSnapshots(stock, tx.getTransactionDate());
-            snapshotWriter.rebuildSnapshotsFrom(stock, tx.getTransactionDate());
         } catch (Exception e) {
             log.warn("Snapshot creation failed after SELL for {}: {}", stock.getSymbol(), e.getMessage());
         }
@@ -405,7 +402,6 @@ public class PortfolioTransactionService {
 
         try {
             snapshotWriter.saveSnapshots(tx.getStock(), tx.getTransactionDate());
-            snapshotWriter.rebuildSnapshotsFrom(tx.getStock(), tx.getTransactionDate());
         } catch (Exception e) {
             log.warn("Snapshot creation failed after transaction delete for {}: {}", tx.getStock().getSymbol(), e.getMessage());
         }
@@ -416,6 +412,119 @@ public class PortfolioTransactionService {
             }
         } catch (Exception e) {
             log.warn("Daily value rebuild failed after delete for portfolio {}: {}", portfolioId, e.getMessage());
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Update (partial)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Applies a partial update to an existing transaction in place.
+     *
+     * <p>Only quantity, price, fees, transactionDate and notes may change — the
+     * stock and the BUY/SELL type are fixed. Mutating in place (rather than
+     * delete + recreate) is deliberate: {@code linked_buy_id} on existing sells
+     * keeps pointing at a live BUY row, so lot linkage and stored realized P/L
+     * stay intact.
+     *
+     * <p>A {@code null} argument means "leave unchanged".
+     */
+    @CacheEvict(cacheNames = {"signals", "signalDto", "portfolioHistory"}, allEntries = true)
+    public TransactionDTO updateTransaction(Long portfolioId, Long txId,
+                                            Integer quantity, BigDecimal price, BigDecimal fees,
+                                            LocalDate transactionDate, String notes) {
+        PortfolioTransaction tx = transactionRepository.findById(txId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + txId));
+        if (!tx.getPortfolio().getId().equals(portfolioId)) {
+            throw new ResourceNotFoundException(
+                    "Transaction " + txId + " does not belong to portfolio " + portfolioId);
+        }
+
+        LocalDate previousDate = tx.getTransactionDate();
+        // Captured BEFORE mutation — tx is a managed entity, so re-reading it
+        // afterwards would return the already-updated values.
+        BigDecimal previousPrice = tx.getPrice();
+
+        if (quantity != null) {
+            tx.setQuantity(quantity);
+        }
+        if (price != null) {
+            tx.setPrice(price);
+        }
+        if (fees != null) {
+            tx.setFees(fees);
+        }
+        if (transactionDate != null) {
+            tx.setTransactionDate(transactionDate);
+        }
+        if (notes != null) {
+            tx.setNotes(notes);
+        }
+
+        // Validate the MERGED result, not just the incoming fields
+        validateCommon(tx.getQuantity(), tx.getPrice());
+
+        // A BUY's price/fees change invalidates the realized P/L already stored
+        // against every sell linked to this lot — recompute those rows, otherwise
+        // lot totals (which sum the stored values) silently go stale.
+        if (tx.getType() == TransactionType.BUY
+                && (previousPrice == null || !tx.getPrice().equals(previousPrice))) {
+            recomputeLinkedSellPnl(txId);
+        }
+
+        transactionRepository.save(tx);
+
+        Long stockId = tx.getStock().getId();
+        Stock stock = tx.getStock();
+
+        // Full replay overwrites all holdings for this portfolio
+        Map<Long, PortfolioPositionReplayer.PositionState> states = replayer.replay(portfolioId);
+        applyReplayToHoldings(portfolioId, states, stockId);
+
+        try {
+            snapshotWriter.saveSnapshots(stock, tx.getTransactionDate());
+        } catch (Exception e) {
+            log.warn("Snapshot creation failed after edit for {}: {}", stock.getSymbol(), e.getMessage());
+        }
+
+        try {
+            // Rebuild from the EARLIER of the two dates: an edit that moves a
+            // transaction backwards would otherwise leave every portfolio_daily_values
+            // row between the old and new date holding pre-edit numbers.
+            LocalDate rebuildFrom = previousDate != null && (tx.getTransactionDate() == null
+                    || previousDate.isBefore(tx.getTransactionDate()))
+                    ? previousDate
+                    : tx.getTransactionDate();
+            if (rebuildFrom != null) {
+                dailyValueService.rebuildFromDate(portfolioId, rebuildFrom);
+            }
+        } catch (Exception e) {
+            log.warn("Daily value rebuild failed after edit for portfolio {}: {}", portfolioId, e.getMessage());
+        }
+
+        return toDTO(tx);
+    }
+
+    /**
+     * Recomputes and stores realized P/L for every SELL linked to the given BUY,
+     * using the BUY's current price. Mirrors the formula in
+     * {@link #recordSellAgainstLot}: (sellPrice - buyPrice) * qty - fees.
+     */
+    private void recomputeLinkedSellPnl(Long buyTxId) {
+        PortfolioTransaction buyTx = transactionRepository.findById(buyTxId).orElse(null);
+        if (buyTx == null) {
+            return;
+        }
+        for (PortfolioTransaction sell : transactionRepository.findByLinkedBuyIdOrderByTransactionDateAscIdAsc(buyTxId)) {
+            BigDecimal feeAmount = sell.getFees() != null ? sell.getFees() : BigDecimal.ZERO;
+            BigDecimal realized = sell.getPrice()
+                    .subtract(buyTx.getPrice())
+                    .multiply(BigDecimal.valueOf(sell.getQuantity()))
+                    .subtract(feeAmount)
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+            sell.setRealizedPnl(realized);
+            transactionRepository.save(sell);
         }
     }
 

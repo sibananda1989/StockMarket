@@ -2,7 +2,6 @@ package org.example.startup;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.service.SignalService;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +10,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class SignalAccuracyStartupTask implements StartupTask {
 
-    private final SignalService signalService;
     private final CacheManager cacheManager;
 
     @Override
@@ -26,7 +24,7 @@ public class SignalAccuracyStartupTask implements StartupTask {
 
     @Override
     public String getDescription() {
-        return "Create historical signal records (forward accuracy runs daily at 3 AM)";
+        return "Clear signal cache (historical backfill disabled on startup; forward accuracy runs daily at 3 AM)";
     }
 
     @Override
@@ -47,17 +45,10 @@ public class SignalAccuracyStartupTask implements StartupTask {
     @Override
     public void execute() {
         try {
-            // Clear signal cache so new scoring logic takes effect
             clearSignalCache();
-
-            log.info("Starting signal accuracy backfill...");
-
-            int created = signalService.backfillSignalRecords();
-            log.info("Created {} historical signal records", created);
-
-            log.info("Signal accuracy backfill complete (forward accuracy will be marked by daily scheduler)");
+            log.info("Signal accuracy startup task: cache cleared (historical backfill disabled on startup - forward accuracy runs daily at 3 AM)");
         } catch (Exception e) {
-            log.error("Signal accuracy backfill failed: {}", e.getMessage(), e);
+            log.error("Signal accuracy startup task failed: {}", e.getMessage(), e);
         }
     }
 

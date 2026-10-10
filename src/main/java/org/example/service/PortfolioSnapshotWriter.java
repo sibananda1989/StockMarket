@@ -40,9 +40,4 @@ public class PortfolioSnapshotWriter {
     public PortfolioSnapshot saveSnapshot(Stock stock, LocalDate date, Portfolio portfolio) {
         return snapshotService.saveOrUpdate(stock, date, portfolio);
     }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void rebuildSnapshotsFrom(Stock stock, LocalDate fromDate) {
-        snapshotService.rebuildSnapshotsForStockFrom(stock, fromDate);
-    }
 }

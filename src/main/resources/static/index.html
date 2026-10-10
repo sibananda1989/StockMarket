@@ -453,7 +453,7 @@
     </div>
 
     <script src="js/api.js?v=20260709"></script>
-    <script src="js/portfolio.js?v=20260718txn"></script>
+    <script src="js/portfolio.js?v=20260916tab"></script>
     <script src="js/navigation.js"></script>
     <script>
         // Theme toggle (must be in global scope for inline onclick="toggleTheme()")
@@ -655,8 +655,8 @@
                 return;
             }
 
-            // Select all tasks and run sequentially
-            const allTaskIds = startupTasks.map(t => t.id);
+            // Select all tasks except heavy signal-performance (must be run individually)
+            const allTaskIds = startupTasks.filter(t => t.id !== 'signal-performance').map(t => t.id);
             const { progressText, progressBar, progressDetail } = showProgressOverlay();
 
             const totalTasks = allTaskIds.length;

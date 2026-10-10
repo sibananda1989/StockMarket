@@ -8,6 +8,7 @@ import org.example.entity.Stock;
 import org.example.repository.DailyPriceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +34,7 @@ public class YahooFinanceSyncService {
     // dependency (TechnicalAnalysisService depends on this service for auto-backfill).
     // Instead, callers of syncHistory() trigger indicator recalculation themselves.
 
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     @Transactional
     public int syncHistory(Long stockId, int days) {
         Stock stock = stockService.getStockById(stockId);

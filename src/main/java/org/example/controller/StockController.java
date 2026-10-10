@@ -10,6 +10,7 @@ import org.example.service.PortfolioSnapshotService;
 import org.example.service.StockService;
 import org.example.service.TechnicalAnalysisService;
 import org.example.service.YahooFinanceService;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -87,6 +88,7 @@ public class StockController {
     }
 
     @PostMapping("/recalculate-portfolio")
+    @CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
     public ResponseEntity<ApiResponse<String>> recalculateAllPortfolios() {
         int count = stockService.recalculateAllPortfolios();
         return ResponseEntity.ok(ApiResponse.success("Portfolio recalculated for " + count + " stocks", null));

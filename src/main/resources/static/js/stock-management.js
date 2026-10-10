@@ -24,7 +24,9 @@ function getPnlRowClass(pnl) {
     if (pnl <= -30)  return 'pnl-loss-30';
     if (pnl <= -20)  return 'pnl-loss-20';
     if (pnl <= -10)  return 'pnl-loss-10';
-    if (pnl < 10)    return 'pnl-neutral';
+    if (pnl < -5)    return 'pnl-loss-5';
+    if (pnl <= 0)    return 'pnl-neutral';
+    if (pnl < 10)    return 'pnl-gain-5';
     if (pnl < 20)    return 'pnl-gain-10';
     if (pnl < 30)    return 'pnl-gain-20';
     if (pnl < 40)    return 'pnl-gain-30';
@@ -91,7 +93,7 @@ async function loadStocks() {
         checkAllAlerts();
     } catch (error) {
         document.getElementById('stocksTableBody').innerHTML =
-            '<tr><td colspan="12" class="text-center text-danger">Error loading stocks</td></tr>';
+            '<tr><td colspan="10" class="text-center text-danger">Error loading stocks</td></tr>';
     }
 }
 
@@ -108,7 +110,7 @@ function populateSectorDropdown() {
 function displayStocks(stocks) {
     const tbody = document.getElementById('stocksTableBody');
     if (!stocks.length) {
-        tbody.innerHTML = '<tr><td colspan="12" class="text-center py-3">No stocks found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center py-3">No stocks found</td></tr>';
         return;
     }
 
@@ -123,10 +125,8 @@ function displayStocks(stocks) {
         const detailUrl = `stock-detail.html?id=${sId}`;
 
         return `<tr class="${pnlClass} ${rowAlert}">
-            <td><a href="${detailUrl}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(stock.symbol)}</a></td>
-            <td><a href="${detailUrl}" class="hover:text-blue-400 transition-colors">${escHtml(stock.name)}</a></td>
+            <td><a href="${detailUrl}" target="_blank" rel="noopener" class="hover:text-blue-400 transition-colors">${escHtml(stock.name)}</a></td>
             <td><span class="badge badge-neutral text-xs">${escHtml(stock.sector || '--')}</span></td>
-            <td>${escHtml(stock.industry || '--')}</td>
             <td class="text-right">${stock.quantity ?? '--'}</td>
             <td class="text-right">${fmt(stock.avgPrice)}</td>
             <td class="text-right">${fmt(stock.lastTradedPrice)}</td>
@@ -140,7 +140,7 @@ function displayStocks(stocks) {
                     <button class="btn-action btn-watchlist" onclick="openWatchlistDropdown(event, ${sId})" title="Manage Watchlist">
                         <i class="fas fa-list"></i>
                     </button>
-                    <button class="btn-action btn-view" onclick="window.location.href='${detailUrl}'" title="View Details">
+                    <button class="btn-action btn-view" onclick="window.open('${detailUrl}', '_blank', 'noopener')" title="View Details">
                         <i class="fas fa-eye"></i>
                     </button>
                     <button class="btn-action btn-edit" onclick="openEditModal(${currentPortfolioId ? stock.id : sId})" title="Edit Stock">
@@ -306,14 +306,19 @@ function sortBy(field) {
     else { sortField = field; sortDir = 'asc'; }
 
     document.querySelectorAll('#stocksTable thead th').forEach(th => th.classList.remove('sort-asc', 'sort-desc'));
-    const fields = ['symbol', 'name', null, null, null, null, null, null, null, 'pnl', 'pnlPercent'];
+    const fields = ['name', 'sector', 'quantity', 'avgPrice', 'lastTradedPrice', 'investment', 'currentValue', 'pnl', 'pnlPercent'];
     const idx = fields.indexOf(field);
     if (idx >= 0) document.querySelectorAll('#stocksTable thead th')[idx].classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
 
     const sorted = [...allStocks].sort((a, b) => {
-        const av = a[field] ?? (sortDir === 'asc' ? Infinity : -Infinity);
-        const bv = b[field] ?? (sortDir === 'asc' ? Infinity : -Infinity);
-        if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+        const av = a[field], bv = b[field];
+        if (av == null && bv == null) return 0;
+        if (av == null) return sortDir === 'asc' ? 1 : -1;
+        if (bv == null) return sortDir === 'asc' ? -1 : 1;
+        if (typeof av === 'string' || typeof bv === 'string') {
+            const cmp = String(av).localeCompare(String(bv));
+            return sortDir === 'asc' ? cmp : -cmp;
+        }
         return sortDir === 'asc' ? av - bv : bv - av;
     });
     displayStocks(sorted);

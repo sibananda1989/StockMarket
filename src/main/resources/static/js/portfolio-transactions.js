@@ -329,7 +329,7 @@ const PortfolioTransactions = (() => {
         <tr class="border-b border-gray-800 hover:bg-gray-800/50 cursor-pointer ${isExpanded ? 'bg-gray-800/40' : ''}" onclick="PortfolioTransactions.toggleExpand(${l.id})">
           <td class="lot-sym font-medium">
             <i class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-secondary text-xs mr-2"></i>
-            <a href="stock-detail.html?id=${l.stockId}&portfolioId=${l.portfolioId}" onclick="event.stopPropagation()" class="font-bold text-white hover:text-blue-400 transition-colors">${escHtml(l.stockSymbol || '—')}</a>
+            <a href="stock-detail.html?id=${l.stockId}&portfolioId=${l.portfolioId}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="font-bold text-white hover:text-blue-400 transition-colors">${escHtml(l.stockSymbol || '—')}</a>
             <div class="text-xs text-secondary">${escHtml(l.stockName || '')}</div>
           </td>
           <td class="px-4 py-2 whitespace-nowrap">${fmtDate(l.transactionDate)}</td>
@@ -345,9 +345,12 @@ const PortfolioTransactions = (() => {
           <td class="px-4 py-1.5 text-right align-top">${openPlCell}</td>
           <td class="px-4 py-1.5 text-right align-top">${realizedCell}</td>
           <td class="px-4 py-2 text-center">
-            ${canSell
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="event.stopPropagation();PortfolioTransactions.openEditModal(${l.portfolioId}, ${l.id}, 'BUY')" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs" title="Edit this buy record"><i class="fas fa-pen"></i></button>
+              ${canSell
               ? `<button onclick="event.stopPropagation();PortfolioTransactions.openSellModal(${l.id})" class="px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs font-medium"><i class="fas fa-tag mr-1"></i>Sell</button>`
               : '<span class="text-gray-600 text-xs">—</span>'}
+            </div>
           </td>
         </tr>
         ${isExpanded ? renderSellsRow(l) : ''}
@@ -366,7 +369,10 @@ const PortfolioTransactions = (() => {
             <td class="px-4 py-2 text-right whitespace-nowrap ${s.realizedPnl > 0.005 ? 'pl-profit' : s.realizedPnl < -0.005 ? 'pl-loss' : 'pl-neutral'}">${fmtPriceWithSign(s.realizedPnl)}</td>
             <td class="px-4 py-2 text-xs text-secondary">${escHtml(s.notes || '—')}</td>
             <td class="px-4 py-2 text-center">
-              <button onclick="PortfolioTransactions.deleteSell(${l.portfolioId}, ${s.id})" class="px-2 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs" title="Delete this sell (restores lot quantity)"><i class="fas fa-trash"></i></button>
+              <div class="flex items-center justify-center gap-1">
+                <button onclick="PortfolioTransactions.openEditModal(${l.portfolioId}, ${s.id}, 'SELL')" class="px-2 py-1 bg-blue-600/80 hover:bg-blue-700 text-white rounded text-xs" title="Edit this sell"><i class="fas fa-pen"></i></button>
+                <button onclick="PortfolioTransactions.deleteSell(${l.portfolioId}, ${s.id})" class="px-2 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs" title="Delete this sell (restores lot quantity)"><i class="fas fa-trash"></i></button>
+              </div>
             </td>
           </tr>`).join('')
       : `<tr><td colspan="7" class="px-4 py-3 text-secondary text-xs text-center">No sells from this buy record yet — click <b>Sell</b> to mark a sale against it.</td></tr>`;
@@ -507,6 +513,95 @@ const PortfolioTransactions = (() => {
 
   function closeSellModal() {
     document.getElementById('sell-modal').classList.add('hidden');
+  }
+
+  // ─── EDIT MODAL (correct a wrongly entered transaction) ───
+  async function openEditModal(portfolioId, txId, kind) {
+    const errEl = document.getElementById('edit-error');
+    errEl.classList.add('hidden');
+    document.getElementById('edit-tx-id').value = txId;
+    document.getElementById('edit-portfolio-id').value = portfolioId;
+
+    let tx = null;
+    try {
+      const res = await getTransactions(portfolioId);
+      const rows = (res && res.data) || [];
+      tx = rows.find(t => Number(t.id) === Number(txId)) || null;
+    } catch (err) {
+      errEl.textContent = err.message || 'Failed to load transaction';
+      errEl.classList.remove('hidden');
+      document.getElementById('edit-modal').classList.remove('hidden');
+      return;
+    }
+    if (!tx) {
+      errEl.textContent = 'Transaction not found. It may have been deleted — refresh the page.';
+      errEl.classList.remove('hidden');
+      document.getElementById('edit-modal').classList.remove('hidden');
+      return;
+    }
+
+    const info = document.getElementById('edit-tx-info');
+    info.textContent = `${tx.type} · ${tx.stockSymbol || tx.stockName || 'stock'} · transaction #${tx.id}`
+      + (tx.linkedBuyId ? ` (linked to buy #${tx.linkedBuyId})` : '');
+
+    document.getElementById('edit-qty').value = tx.quantity != null ? tx.quantity : '';
+    document.getElementById('edit-price').value = tx.price != null ? tx.price : '';
+    document.getElementById('edit-fees').value = tx.fees != null ? tx.fees : '0';
+    document.getElementById('edit-date').value = tx.transactionDate || new Date().toLocaleDateString('en-CA');
+    document.getElementById('edit-notes').value = tx.notes || '';
+
+    document.getElementById('edit-modal').classList.remove('hidden');
+    document.getElementById('edit-qty').focus();
+  }
+
+  function closeEditModal() {
+    document.getElementById('edit-modal').classList.add('hidden');
+  }
+
+  async function submitEdit(event) {
+    event.preventDefault();
+    const txId = document.getElementById('edit-tx-id').value;
+    const portfolioId = document.getElementById('edit-portfolio-id').value;
+    const qty = parseInt(document.getElementById('edit-qty').value, 10);
+    const price = parseFloat(document.getElementById('edit-price').value);
+    const fees = parseFloat(document.getElementById('edit-fees').value || '0');
+    const notes = document.getElementById('edit-notes').value.trim();
+    const dateVal = document.getElementById('edit-date').value;
+    const errEl = document.getElementById('edit-error');
+    const btn = document.getElementById('edit-submit');
+
+    if (!qty || qty <= 0) {
+      errEl.textContent = 'Quantity must be at least 1.';
+      errEl.classList.remove('hidden');
+      return false;
+    }
+    if (Number.isNaN(price) || price < 0) {
+      errEl.textContent = 'Price must be zero or positive.';
+      errEl.classList.remove('hidden');
+      return false;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      await updateTransaction(portfolioId, txId, {
+        quantity: qty,
+        price: price,
+        fees: fees,
+        transactionDate: dateVal || undefined,
+        notes: notes || undefined
+      });
+      closeEditModal();
+      showToast('Transaction updated', 'success');
+      await loadAll(); // holdings, avg cost and P/L are recomputed server-side
+    } catch (err) {
+      errEl.textContent = err.message || 'Failed to update transaction';
+      errEl.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Changes';
+    }
+    return false;
   }
 
   async function submitSell(event) {
@@ -1004,6 +1099,7 @@ const PortfolioTransactions = (() => {
   // Public API
   return { init, sortBy, prevPage, nextPage, goToPage, changePageSize, clearFilters, exportCSV,
            toggleExpand, openSellModal, closeSellModal, submitSell, deleteSell,
+           openEditModal, closeEditModal, submitEdit,
            openBuyModal, closeBuyModal, submitBuy, clearSelectedBuyStock, selectBuyStock, selectBuyStockEncoded, selectAllStatus };
 })();
 

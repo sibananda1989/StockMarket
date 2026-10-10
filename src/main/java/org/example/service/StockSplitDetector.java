@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.DailyPrice;
 import org.example.repository.DailyPriceRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -35,6 +36,7 @@ public class StockSplitDetector {
      * @param stockId the stock ID to check
      * @return the number of records adjusted, or 0 if no split detected
      */
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     public int detectAndFixSplits(Long stockId) {
         List<DailyPrice> prices = dailyPriceRepository.findAllByStockIdOrderByPriceDateAsc(stockId);
 

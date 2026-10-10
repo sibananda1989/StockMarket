@@ -8,8 +8,9 @@
         detailsCache: new Map(),        // strategyName -> List (lazy fetch, cached)
         counts: [],                     // raw per-strategy counts from the API
         sortMode: 'priority',           // priority | net-bull | net-bear | total
-        activeOnly: false,              // true = show only enabled strategies (default: show all)
-        detailFilter: {}                // strategyName -> 'SIGNALS' | 'BUY' | 'SELL' | 'ALL'
+activeOnly: false,              // true = show only enabled strategies (default: show all)
+detailFilter: {},               // strategyName -> 'SIGNALS' | 'BUY' | 'SELL' | 'ALL'
+detailSort: {}                  // strategyName -> { key: 'name'|'signal'|'confidence'|'eventDate', dir: 'asc'|'desc'|'none' }
     };
 
     const els = {
@@ -257,29 +258,144 @@
         return rows.filter(r => r.signal === 'BUY' || r.signal === 'SELL'); // 'SIGNALS'
     }
 
-    function paintExpansionList(container, strategyName, rows) {
-        const visible = filterRows(currentFilter(strategyName), rows);
+    // ── Per-stock expansion sorting ────────────────────────────────────
+
+// Each sortable column starts on its most natural order: text ascending for
+// Name/Signal, newest date first is NOT used — dates start oldest-first, and
+// Confidence starts highest-first because that is the useful default.
+const DETAIL_SORT_DEFAULT_DIR = {
+    name: 'asc',
+    signal: 'asc',
+    eventDate: 'asc',
+    confidence: 'desc'
+};
+
+const DETAIL_SORT_LABEL = {
+    name: 'Name',
+    signal: 'Signal',
+    confidence: 'Confidence',
+    eventDate: 'Date'
+};
+
+function currentDetailSort(strategyName) {
+    return state.detailSort[strategyName] || { key: null, dir: 'none' };
+}
+
+/**
+ * Advances a column through its three states:
+ *   none -> natural first order -> reversed -> none (API default order)
+ */
+function cycleDetailSort(strategyName, key) {
+    const cur = currentDetailSort(strategyName);
+    let next;
+    if (cur.key !== key) {
+        next = { key: key, dir: DETAIL_SORT_DEFAULT_DIR[key] };
+    } else if (cur.dir === DETAIL_SORT_DEFAULT_DIR[key]) {
+        next = { key: key, dir: DETAIL_SORT_DEFAULT_DIR[key] === 'asc' ? 'desc' : 'asc' };
+    } else {
+        next = { key: null, dir: 'none' };
+    }
+    state.detailSort[strategyName] = next;
+    return next;
+}
+
+// Null/absent confidence or date always sorts last, regardless of direction,
+// so blank rows never masquerade as the best (or worst) entry.
+function compareNullable(a, b, dir) {
+    const aMissing = a === null || a === undefined;
+    const bMissing = b === null || b === undefined;
+    if (aMissing && bMissing) return 0;
+    if (aMissing) return 1;
+    if (bMissing) return -1;
+    const cmp = a < b ? -1 : a > b ? 1 : 0;
+    return dir === 'desc' ? -cmp : cmp;
+}
+
+function sortDetailRows(rows, strategyName) {
+    const s = currentDetailSort(strategyName);
+    if (!s.key || s.dir === 'none' || !rows.length) return rows;
+    const arr = [...rows];
+    arr.sort((x, y) => {
+        switch (s.key) {
+            case 'name': {
+                // Falls back to symbol so stocks without a name still order sensibly.
+                const xa = (x.name || x.symbol || '').toLowerCase();
+                const ya = (y.name || y.symbol || '').toLowerCase();
+                const cmp = xa < ya ? -1 : xa > ya ? 1 : 0;
+                return s.dir === 'desc' ? -cmp : cmp;
+            }
+            case 'signal':
+                return compareNullable(x.signal, y.signal, s.dir);
+            case 'confidence':
+                return compareNullable(x.confidence, y.confidence, s.dir);
+            case 'eventDate':
+                return compareNullable(x.eventDate, y.eventDate, s.dir);
+            default:
+                return 0;
+        }
+    });
+    return arr;
+}
+
+function paintExpansionList(container, strategyName, rows) {
+    const filtered = filterRows(currentFilter(strategyName), rows);
+    const visible = sortDetailRows(filtered, strategyName);
+    const hasDates = rows.some(r => r.eventDate);
         container.className = 'expansion-list mt-2';
         container.innerHTML = ''; // clear any previous render so re-filtering doesn't accumulate
         if (visible.length === 0) {
             container.innerHTML = '<p class="text-gray-500 text-xs py-2">No signals in this view.</p>';
             return;
         }
+        const sort = currentDetailSort(strategyName);
+        const header = document.createElement('div');
+        header.className = 'flex items-center gap-3 py-2 text-xs text-gray-400 border-b border-gray-700 font-medium uppercase tracking-wide';
+
+        // Sortable columns render as buttons carrying the 3-state cycle.
+        // Reason is intentionally not sortable — it is free text, not a value.
+        const sortBtn = (key, width, align) => {
+            const active = sort.key === key;
+            const arrow = active ? (sort.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = width + (align ? ' ' + align : '') +
+                ' uppercase tracking-wide font-medium text-left transition-colors hover:text-gray-200 cursor-pointer' +
+                (active ? ' text-gray-100' : '');
+            b.textContent = DETAIL_SORT_LABEL[key] + arrow;
+            b.title = 'Sort by ' + DETAIL_SORT_LABEL[key].toLowerCase();
+            b.addEventListener('click', () => {
+                cycleDetailSort(strategyName, key);
+                paintExpansionList(container, strategyName, rows);
+            });
+            return b;
+        };
+
+        header.appendChild(sortBtn('name', 'w-56', ''));
+        header.appendChild(sortBtn('signal', 'w-20', ''));
+        header.appendChild(sortBtn('confidence', 'w-24', 'text-right'));
+        if (hasDates) header.appendChild(sortBtn('eventDate', 'w-24', ''));
+        const reasonLabel = document.createElement('span');
+        reasonLabel.className = 'flex-1';
+        reasonLabel.textContent = 'Reason';
+        header.appendChild(reasonLabel);
+        container.appendChild(header);
         const ul = document.createElement('ul');
         ul.className = 'space-y-2';
         visible.forEach(r => {
             const li = document.createElement('li');
             li.className = 'flex items-start gap-3 py-1 border-b border-gray-800 last:border-0 hover:bg-gray-800/50 rounded';
-            const symbol = r.symbol || '?';
+            const displayName = r.name || r.symbol || '?';
             const stockId = r.stockId || '';
-            const symbolLink = '<a href="/stock-detail.html?id=' + encodeURIComponent(stockId) + '&portfolioId=1" class="font-medium text-blue-400 hover:text-blue-300 hover:underline truncate block w-32">' + escapeHtml(symbol) + '</a>';
-            li.innerHTML = symbolLink +
-                 signalBadge(r.signal) +
+            const nameLink = '<a href="/stock-detail.html?id=' + encodeURIComponent(stockId) + '&portfolioId=1" target="_blank" rel="noopener" class="font-medium text-blue-400 hover:text-blue-300 hover:underline truncate block w-56" title="' + escapeHtml(r.symbol || '') + '">' + escapeHtml(displayName) + '</a>';
+            li.innerHTML = nameLink +
+                 '<span class="w-20 inline-flex">' + signalBadge(r.signal) + '</span>' +
                  (r.confidence != null
-                     ? '<span class="text-xs text-gray-500 w-16 text-right">' + Math.round(r.confidence * 100) + '%</span>'
-                     : '<span class="text-xs text-gray-600 w-16 text-right">—</span>') +
-                 (r.eventDate
-                     ? '<span class="text-xs text-gray-400 w-24 whitespace-nowrap" title="Signal event date">' + escapeHtml(r.eventDate) + '</span>'
+                     ? '<span class="text-xs text-gray-500 w-24 text-right">' + Math.round(r.confidence * 100) + '%</span>'
+                     : '<span class="text-xs text-gray-600 w-24 text-right">—</span>') +
+                 (hasDates
+                     ? (r.eventDate
+                         ? '<span class="text-xs text-gray-400 w-24 whitespace-nowrap" title="Signal event date">' + escapeHtml(r.eventDate) + '</span>'
+                         : '<span class="w-24"></span>')
                      : '') +
                  '<span class="text-xs text-gray-400 flex-1">' + escapeHtml(r.reason || '') + '</span>';
             ul.appendChild(li);
@@ -417,7 +533,7 @@
             const li = document.createElement('li');
             li.className = 'flex items-center gap-3 py-2 px-2 rounded hover:bg-gray-800/50';
             const rank = '<span class="w-6 text-center text-xs font-bold text-gray-400">#' + (idx + 1) + '</span>';
-            const sym = '<a href="/stock-detail.html?id=' + encodeURIComponent(it.stockId) + '&portfolioId=1" class="font-medium text-blue-400 hover:text-blue-300 hover:underline w-24 truncate">' + escapeHtml(it.symbol) + '</a>';
+            const sym = '<a href="/stock-detail.html?id=' + encodeURIComponent(it.stockId) + '&portfolioId=1" target="_blank" rel="noopener" class="font-medium text-blue-400 hover:text-blue-300 hover:underline w-24 truncate">' + escapeHtml(it.symbol) + '</a>';
             const badge = '<span class="px-2 py-0.5 rounded-full text-xs font-bold ' + (it.count >= 3 ? 'bg-green-800 text-green-100' : 'bg-gray-700 text-gray-300') + '" title="' + escapeHtml((it.strategyDisplayNames || it.strategyNames || []).join(', ')) + '">' + it.count + ' strategies</span>';
             const conf = it.avgConfidence != null ? '<span class="text-xs text-gray-500 ml-auto">' + Math.round(it.avgConfidence * 100) + '% avg</span>' : '';
             li.innerHTML = rank + sym + badge + conf;

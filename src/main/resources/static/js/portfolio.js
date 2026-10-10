@@ -690,7 +690,7 @@ function renderSortedSignals() {
       : '';
 
     return `<tr class="signal-row">
-      <td><a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" class="font-bold hover:text-blue-400 transition-colors">${s.symbol}</a></td>
+      <td><a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" target="_blank" rel="noopener" class="font-bold hover:text-blue-400 transition-colors">${s.symbol}</a></td>
       <td class="strategy-tooltip-cell">
         <span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeClass} strat-breakdown-toggle" data-strategy-tip="${strategyTip.replace(/"/g, '&quot;').replace(/'/g, '&#39;')}">${displayRec}${highConvBadge}</span>
       </td>
@@ -930,7 +930,7 @@ function renderOpportunityCards(data) {
       <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-green-500/50 transition-colors">
         <div class="flex items-center gap-3">
           <div class="flex flex-col">
-            <a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" class="font-bold text-white hover:text-blue-400 text-sm">${s.symbol}</a>
+            <a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" target="_blank" rel="noopener" class="font-bold text-white hover:text-blue-400 text-sm">${s.symbol}</a>
             <span class="text-xs text-secondary">${s.name || ''}</span>
           </div>
           <span class="px-2 py-0.5 rounded text-xs font-bold text-white ${badgeClass}">${displayRec}</span>
@@ -949,7 +949,7 @@ function renderOpportunityCards(data) {
       <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700/50 hover:border-red-500/50 transition-colors">
         <div class="flex items-center gap-3">
           <div class="flex flex-col">
-            <a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" class="font-bold text-white hover:text-blue-400 text-sm">${s.symbol}</a>
+            <a href="stock-detail.html?id=${s.stockId}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" target="_blank" rel="noopener" class="font-bold text-white hover:text-blue-400 text-sm">${s.symbol}</a>
             <span class="text-xs text-secondary">${s.name || ''}</span>
           </div>
           <span class="px-2 py-0.5 rounded text-xs font-bold text-white ${getRecommendationBadge(s.recommendation)}">${s.recommendation}</span>
@@ -990,7 +990,7 @@ function renderPerformerList(stocks, isTop) {
     return `<div class="flex items-center justify-between py-2 border-b border-gray-700 last:border-0">
       <div class="flex items-center gap-2">
         <i class="fas ${icon} ${cls}"></i>
-        <a href="stock-detail.html?id=${s.stockId || s.id}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" class="font-medium hover:text-blue-400">${s.symbol}</a>
+        <a href="stock-detail.html?id=${s.stockId || s.id}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}" target="_blank" rel="noopener" class="font-medium hover:text-blue-400">${s.symbol}</a>
         <span class="text-sm text-secondary">${s.name}</span>
       </div>
       <span class="font-semibold ${cls}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</span>
@@ -1020,7 +1020,7 @@ function renderHoldingsTable() {
     const badgeCls = pnl >= 0 ? 'bg-green-600' : 'bg-red-600';
     const linkUrl = `stock-detail.html?id=${s.stockId || s.id}${currentPortfolioId ? `&portfolioId=${currentPortfolioId}` : ''}`;
     return `<tr>
-      <td><a href="${linkUrl}" class="font-bold hover:text-blue-400 transition-colors">${s.name || '--'}</a></td>
+      <td><a href="${linkUrl}" target="_blank" rel="noopener" class="font-bold hover:text-blue-400 transition-colors">${s.name || '--'}</a></td>
       <td>${s.sector || '--'}</td>
       <td class="text-right">${s.quantity ?? '--'}</td>
       <td class="text-right">${fmtPrice(s.avgPrice)}</td>

@@ -126,7 +126,7 @@ public class PortfolioHistoryService {
         List<Long> stockIdList = new ArrayList<>(stockIds);
 
         // 3) Batch load prices
-        List<org.example.entity.DailyPrice> priceRows = dailyPriceRepository.findPricesForStockIdsSince(stockIdList, fromDate.minusDays(30));
+        List<org.example.entity.DailyPrice> priceRows = dailyPriceRepository.findPricesForStockIdsSince(stockIdList, LocalDate.of(1970, 1, 1));
         Map<Long, NavigableMap<LocalDate, BigDecimal>> priceMap = new HashMap<>();
         for (org.example.entity.DailyPrice dp : priceRows) {
             priceMap.computeIfAbsent(dp.getStock().getId(), k -> new TreeMap<>()).put(dp.getPriceDate(), dp.getClosingPrice());
@@ -225,7 +225,6 @@ public class PortfolioHistoryService {
             Map.Entry<LocalDate, BigDecimal> e = map.floorEntry(date);
             if (e != null) return e.getValue();
         }
-        // fallback single query (cached by batch mostly)
-        return dailyPriceRepository.findClosingPriceOnOrBeforeDate(stockId, date).orElse(null);
+        return null;
     }
 }

@@ -457,7 +457,7 @@ const tbody = document.getElementById('detailTableBody');
   const records = s.recordCount != null ? s.recordCount + ' days' : '0';
   const recordsCls = s.recordCount > 0 ? 'text-green-400' : 'text-secondary';
   return `<tr class="stock-row border-b border-gray-700">
-  <td><a href="stock-detail.html?id=${s.id}" class="font-bold hover:text-blue-400 transition-colors">${escHtml(s.symbol)}</a></td>
+  <td><a href="stock-detail.html?id=${s.id}" target="_blank" rel="noopener" class="font-bold hover:text-blue-400 transition-colors">${escHtml(s.symbol)}</a></td>
   <td>${escHtml(s.name || '--')}</td>
   <td><span class="badge badge-neutral">${escHtml(s.sector || '--')}</span></td>
   <td>${escHtml(s.industry || '--')}</td>

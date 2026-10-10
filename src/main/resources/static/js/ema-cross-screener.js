@@ -61,7 +61,7 @@ function renderEmaCrosses(data) {
     tableBody.innerHTML = signals.map(s => `
         <tr class="border-b border-gray-800 hover:bg-gray-800/40">
             <td class="px-4 py-3">
-                <a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol}</a>
+                <a href="stock-detail.html?id=${s.stockId}" target="_blank" rel="noopener" class="text-blue-400 hover:underline font-medium">${s.symbol}</a>
             </td>
             <td class="px-4 py-3 text-secondary">${s.companyName || '-'}</td>
             <td class="px-4 py-3 text-right text-green-400">${formatNum(s.ema20AtCross)}</td>

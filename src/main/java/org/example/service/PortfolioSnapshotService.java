@@ -321,28 +321,6 @@ public class PortfolioSnapshotService {
         log.info("Backfill complete: {} snapshot records processed", total);
     }
 
-    /**
-     * Rebuild snapshots for a single stock from the given date through today.
-     * Used after a transaction to correct the forward trend (investment/value) that
-     * was previously flattened by using current qty for all dates.
-     */
-    @Transactional
-    public void rebuildSnapshotsForStockFrom(Stock stock, LocalDate fromDate) {
-        List<LocalDate> tradingDates = dailyPriceRepository.findDistinctTradingDatesAfter(fromDate);
-        if (tradingDates.isEmpty()) {
-            // No price history — at least ensure today exists
-            tradingDates = List.of(fromDate, LocalDate.now());
-        }
-        for (LocalDate date : tradingDates) {
-            if (date.isBefore(fromDate) || date.isAfter(LocalDate.now())) continue;
-            saveOrUpdate(stock, date);
-        }
-        // Ensure today snapshot if not a trading date (e.g., weekend)
-        if (!tradingDates.contains(LocalDate.now())) {
-            saveOrUpdate(stock, LocalDate.now());
-        }
-    }
-
     @Transactional
     public void backfillMissingSnapshots(LocalDate fromDate) {
         List<LocalDate> tradingDates = dailyPriceRepository.findDistinctTradingDatesAfter(fromDate);

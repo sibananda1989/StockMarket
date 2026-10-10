@@ -4,11 +4,14 @@ import org.example.dto.ApiResponse;
 import org.example.dto.SignalDTO;
 import org.example.dto.SignalHistoryPoint;
 import org.example.entity.DailyPrice;
+import org.example.entity.Portfolio;
+import org.example.entity.PortfolioHolding;
 import org.example.entity.Stock;
 import org.example.entity.SignalRecord;
 import org.example.entity.TechnicalIndicator;
 import org.example.entity.IndicatorType;
 import org.example.repository.*;
+import org.example.service.StockSplitDetector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,6 +71,15 @@ class SignalControllerIntegrationTest {
 
     @Autowired
     private CacheManager cacheManager;
+
+    @Autowired
+    private PortfolioRepository portfolioRepository;
+
+    @Autowired
+    private PortfolioHoldingRepository portfolioHoldingRepository;
+
+    @Autowired
+    private StockSplitDetector stockSplitDetector;
 
     private Stock testStock;
 
@@ -543,5 +555,50 @@ class SignalControllerIntegrationTest {
             assertNull(p.getForwardReturn(), "forwardReturn should be null without SignalRecord");
             assertNull(p.getWasAccurate(), "wasAccurate should be null without SignalRecord");
         }
+    }
+
+    private Long createPortfolioWithTestStock(String name) {
+        Portfolio portfolio = portfolioRepository.save(new Portfolio(name, "signals cache test", false));
+        PortfolioHolding holding = new PortfolioHolding();
+        holding.setPortfolio(portfolio);
+        holding.setStock(testStock);
+        holding.setQuantity(10);
+        portfolioHoldingRepository.save(holding);
+        return portfolio.getId();
+    }
+
+    @Test
+    void getSignalsForPortfolio_ShouldCacheAndReuseResult() {
+        Long portfolioId = createPortfolioWithTestStock("Cache Hit Test");
+
+        ResponseEntity<ApiResponse<List<SignalDTO>>> first =
+                signalController.getAllSignals(portfolioId);
+        assertEquals(HttpStatus.OK, first.getStatusCode());
+        List<SignalDTO> firstData = first.getBody().getData();
+        assertNotNull(firstData);
+        assertFalse(firstData.isEmpty(), "Portfolio with a holding should return signals");
+
+        org.springframework.cache.Cache cache = cacheManager.getCache("signals");
+        assertNotNull(cache, "signals cache should be registered");
+        assertNotNull(cache.get(portfolioId), "First read should populate the signals cache");
+
+        ResponseEntity<ApiResponse<List<SignalDTO>>> second =
+                signalController.getAllSignals(portfolioId);
+        assertSame(firstData, second.getBody().getData(),
+                "Second read must be served from cache (same instance, no recompute)");
+    }
+
+    @Test
+    void detectAndFixSplits_ShouldEvictSignalsCache() {
+        Long portfolioId = createPortfolioWithTestStock("Cache Evict Test");
+
+        signalController.getAllSignals(portfolioId);
+        org.springframework.cache.Cache cache = cacheManager.getCache("signals");
+        assertNotNull(cache, "signals cache should be registered");
+        assertNotNull(cache.get(portfolioId), "Cache should be populated by first read");
+
+        stockSplitDetector.detectAndFixSplits(testStock.getId());
+
+        assertNull(cache.get(portfolioId), "Data writer call must evict the signals cache");
     }
 }

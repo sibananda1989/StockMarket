@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -162,10 +163,8 @@ public class ShadowSignalRecord {
     @Column(name = "gate_blocked")
     private boolean gateBlocked;
 
-    @ElementCollection
-    @CollectionTable(name = "shadow_signal_gate_block_reasons", joinColumns = @JoinColumn(name = "shadow_signal_record_id"))
-    @Column(name = "reason")
-    private List<String> gateBlockReasons;
+    @OneToMany(mappedBy = "shadowSignalRecord", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = false)
+    private List<ShadowSignalGateBlockReason> gateBlockReasons = new ArrayList<>();
 
     @Column(name = "is_divergent")
     private Boolean isDivergent;

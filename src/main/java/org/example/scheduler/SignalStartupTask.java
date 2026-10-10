@@ -2,25 +2,20 @@ package org.example.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.service.SignalService;
 import org.example.startup.StartupTask;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
 
 /**
- * Clears the signal cache so the latest scoring logic takes effect immediately,
- * then backfills signal_records with consistent recommendation/compositeScore values.
- *
- * This is critical after code changes that modify scoring thresholds or
-     * recommendation logic — without this, stale cached DTOs and persisted
-     * records would continue using the old logic until the next stock sync.
+ * Clears the signal cache so the latest scoring logic takes effect immediately.
+ * Historical signal backfill is NOT run on startup (removed to avoid heavy
+ * O(stocks × days) computation and slow startup); run it manually if needed.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class SignalStartupTask implements StartupTask {
 
-    private final SignalService signalService;
     private final CacheManager cacheManager;
 
     @Override
@@ -35,7 +30,7 @@ public class SignalStartupTask implements StartupTask {
 
     @Override
     public String getDescription() {
-        return "Clear signal cache and backfill records";
+        return "Clear signal cache (backfill removed from startup)";
     }
 
     @Override
@@ -56,12 +51,8 @@ public class SignalStartupTask implements StartupTask {
     @Override
     public void execute() {
         try {
-            // 1. Clear signal cache so new scoring logic takes effect
             clearSignalCache();
-
-            // 2. Backfill signal_records with consistent recommendation/compositeScore
-            int backfilled = signalService.backfillSignalRecords();
-            log.info("Signal startup task complete: cache cleared, {} signal records backfilled", backfilled);
+            log.info("Signal startup task complete: cache cleared (backfill disabled on startup)");
         } catch (Exception e) {
             log.error("Signal startup task failed: {}", e.getMessage(), e);
         }

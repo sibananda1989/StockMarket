@@ -184,6 +184,7 @@ public class PortfolioManagementController {
     }
 
     @PostMapping("/{id}/recalculate")
+    @CacheEvict(cacheNames = {"signals", "signalDto"}, allEntries = true)
     public ResponseEntity<ApiResponse<String>> recalculate(@PathVariable Long id) {
         int count = portfolioService.recalculatePortfolio(id);
         return ResponseEntity.ok(ApiResponse.success("Recalculated " + count + " holdings"));
@@ -260,6 +261,21 @@ public class PortfolioManagementController {
             @PathVariable Long txId) {
         transactionService.deleteTransaction(id, txId);
         return ResponseEntity.ok(ApiResponse.success("Transaction deleted"));
+    }
+
+    @PatchMapping("/{id}/transactions/{txId}")
+    public ResponseEntity<ApiResponse<TransactionDTO>> updateTransaction(
+            @PathVariable Long id,
+            @PathVariable Long txId,
+            @Valid @RequestBody UpdateTransactionRequest request) {
+        TransactionDTO dto = transactionService.updateTransaction(
+                id, txId,
+                request.getQuantity(),
+                request.getPrice(),
+                request.getFees(),
+                request.getTransactionDate(),
+                request.getNotes());
+        return ResponseEntity.ok(ApiResponse.success("Transaction updated", dto));
     }
 
     @GetMapping("/all/transactions-by-stock")

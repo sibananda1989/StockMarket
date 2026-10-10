@@ -275,4 +275,160 @@ class PortfolioTransactionServiceTest {
 
         verify(portfolioService).updateHolding(10L, 100L, 15, new BigDecimal("107.33"));
     }
+
+    // ─── updateTransaction (partial edit) ─────────────────────────────────
+
+    private PortfolioTransaction existingTx(TransactionType type, int qty, String price,
+                                            String fees, LocalDate date) {
+        PortfolioTransaction t = new PortfolioTransaction();
+        t.setId(7L);
+        t.setPortfolio(portfolio);
+        t.setStock(stock);
+        t.setType(type);
+        t.setQuantity(qty);
+        t.setPrice(new BigDecimal(price));
+        t.setFees(fees == null ? null : new BigDecimal(fees));
+        t.setTransactionDate(date);
+        return t;
+    }
+
+    private void stubReplaySingleStock(String qty, String avg) {
+        when(replayer.replay(10L)).thenReturn(Map.of(1L,
+                new PortfolioPositionReplayer.PositionState(new BigDecimal(qty), new BigDecimal(avg))));
+        when(holdingRepository.findByPortfolioIdAndStockId(10L, 1L)).thenReturn(Optional.of(holding));
+        when(holdingRepository.findByStockId(1L)).thenReturn(List.of(holding));
+    }
+
+    @Test
+    void updateTransaction_OnlyNonNullFieldsAreChanged() {
+        stubPortfolioAndStock();
+        PortfolioTransaction tx = existingTx(TransactionType.BUY, 10, "100.00", "5.00", LocalDate.of(2024, 5, 1));
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+        stubReplaySingleStock("20", "120.00");
+
+        // price only
+        transactionService.updateTransaction(10L, 7L, null, new BigDecimal("150.00"), null, null, null);
+
+        assertEquals(10, tx.getQuantity(), "quantity must be untouched when null is sent");
+        assertEquals(new BigDecimal("150.00"), tx.getPrice());
+        assertEquals(new BigDecimal("5.00"), tx.getFees(), "fees must be untouched when null is sent");
+        assertEquals(LocalDate.of(2024, 5, 1), tx.getTransactionDate(), "date must be untouched");
+        verify(transactionRepository).save(tx);
+    }
+
+    @Test
+    void updateTransaction_BuyPriceChange_RecomputesLinkedSellRealizedPnl() {
+        stubPortfolioAndStock();
+        PortfolioTransaction buy = existingTx(TransactionType.BUY, 10, "100.00", "0.00", LocalDate.of(2024, 5, 1));
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(buy));
+
+        PortfolioTransaction sell = new PortfolioTransaction();
+        sell.setId(8L);
+        sell.setType(TransactionType.SELL);
+        sell.setQuantity(4);
+        sell.setPrice(new BigDecimal("150.00"));
+        sell.setFees(BigDecimal.ZERO);
+        sell.setRealizedPnl(new BigDecimal("200.00")); // stale: based on the OLD 100 buy price
+        when(transactionRepository.findByLinkedBuyIdOrderByTransactionDateAscIdAsc(7L))
+                .thenReturn(List.of(sell));
+        stubReplaySingleStock("10", "120.00");
+
+        transactionService.updateTransaction(10L, 7L, null, new BigDecimal("120.00"), null, null, null);
+
+        // (150 - 120) * 4 - 0 = 120.00
+        assertEquals(new BigDecimal("120.00"), sell.getRealizedPnl(),
+                "linked sell realized P/L must be recomputed against the new buy price");
+        verify(transactionRepository).save(sell);
+    }
+
+    @Test
+    void updateTransaction_BuyPriceUnchanged_DoesNotRecomputeLinkedSells() {
+        stubPortfolioAndStock();
+        PortfolioTransaction buy = existingTx(TransactionType.BUY, 10, "100.00", "0.00", LocalDate.of(2024, 5, 1));
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(buy));
+        stubReplaySingleStock("20", "110.00");
+
+        transactionService.updateTransaction(10L, 7L, 20, null, null, null, null);
+
+        verify(transactionRepository, never()).findByLinkedBuyIdOrderByTransactionDateAscIdAsc(anyLong());
+    }
+
+    @Test
+    void updateTransaction_DateMovedEarlier_RebuildsFromTheEarlierDate() {
+        stubPortfolioAndStock();
+        LocalDate oldDate = LocalDate.of(2024, 8, 1);
+        PortfolioTransaction tx = existingTx(TransactionType.BUY, 10, "100.00", "0.00", oldDate);
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+        stubReplaySingleStock("10", "100.00");
+
+        transactionService.updateTransaction(10L, 7L, null, null, null, LocalDate.of(2024, 5, 1), null);
+
+        verify(dailyValueService).rebuildFromDate(10L, LocalDate.of(2024, 5, 1));
+    }
+
+    @Test
+    void updateTransaction_DateMovedLater_RebuildsFromTheOldDate() {
+        stubPortfolioAndStock();
+        LocalDate oldDate = LocalDate.of(2024, 5, 1);
+        PortfolioTransaction tx = existingTx(TransactionType.BUY, 10, "100.00", "0.00", oldDate);
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+        stubReplaySingleStock("10", "100.00");
+
+        transactionService.updateTransaction(10L, 7L, null, null, null, LocalDate.of(2024, 8, 1), null);
+
+        // min(old, new) — rows between the two dates must not keep pre-edit numbers
+        verify(dailyValueService).rebuildFromDate(10L, oldDate);
+    }
+
+    @Test
+    void updateTransaction_NeverRebuildsFromTheLaterDate() {
+        stubPortfolioAndStock();
+        LocalDate oldDate = LocalDate.of(2024, 5, 1);
+        PortfolioTransaction tx = existingTx(TransactionType.BUY, 10, "100.00", "0.00", oldDate);
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+        stubReplaySingleStock("10", "100.00");
+
+        transactionService.updateTransaction(10L, 7L, null, null, null, LocalDate.of(2024, 8, 1), null);
+
+        verify(dailyValueService, never()).rebuildFromDate(10L, LocalDate.of(2024, 8, 1));
+    }
+
+    @Test
+    void updateTransaction_WrongPortfolio_ThrowsResourceNotFound() {
+        Portfolio other = new Portfolio("Other", "d", false);
+        other.setId(99L);
+        PortfolioTransaction tx = new PortfolioTransaction();
+        tx.setId(7L);
+        tx.setPortfolio(other);
+        tx.setStock(stock);
+        tx.setType(TransactionType.BUY);
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+
+        assertThrows(ResourceNotFoundException.class, () ->
+                transactionService.updateTransaction(10L, 7L, 5, new BigDecimal("1.00"), null, null, null));
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    void updateTransaction_NonPositiveQuantityOnMergedResult_Throws() {
+        stubPortfolioAndStock();
+        // Stored qty is 0; the edit only sets price, so validation must catch the merged qty.
+        PortfolioTransaction tx = existingTx(TransactionType.BUY, 0, "100.00", "0.00", LocalDate.of(2024, 5, 1));
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                transactionService.updateTransaction(10L, 7L, null, new BigDecimal("120.00"), null, null, null));
+    }
+
+    @Test
+    void updateTransaction_RecomputesHoldingViaReplay() {
+        stubPortfolioAndStock();
+        PortfolioTransaction tx = existingTx(TransactionType.BUY, 10, "100.00", "0.00", LocalDate.of(2024, 5, 1));
+        when(transactionRepository.findById(7L)).thenReturn(Optional.of(tx));
+        stubReplaySingleStock("15", "112.50");
+
+        transactionService.updateTransaction(10L, 7L, 15, new BigDecimal("112.50"), null, null, null);
+
+        verify(portfolioService).updateHolding(10L, 100L, 15, new BigDecimal("112.50"));
+    }
 }

@@ -27,6 +27,10 @@ body {
 .text-secondary {
     color: var(--text-secondary);
 }
+.text-danger { color: #dc3545; }
+.text-success { color: #198754; }
+.dark .text-danger { color: #f87171; }
+.dark .text-success { color: #4ade80; }
 /* Consistent form control styling — match <select> to <input> */
 select {
     appearance: none;
@@ -307,24 +311,76 @@ table td {
 .dark .hover\:bg-indigo-700:hover,
 [data-theme="dark"] .hover\:bg-indigo-700:hover { background-color: #3730a3 !important; }
 
-/* P&L cell overrides for dark mode — ensure colored text on dark backgrounds passes contrast */
-.dark .pnl-loss-20 {
-    background-color: #7f1d1d !important;
-    color: #fecaca !important;
+/* P&L cell pill base (styles.css not loaded on all pages) */
+.pnl-cell {
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 2px 8px;
+    display: inline-block;
 }
-.dark .pnl-loss-10 {
-    background-color: #7f1d1d !important;
-    color: #fecaca !important;
-}
+
+/* P&L cell overrides for dark mode — deeper magnitude = deeper (darker) color.
+   Neutral band: -5% .. +5% (small moves are "normal"). */
 .dark .pnl-neutral {
     background-color: #374151 !important;
     color: #d1d5db !important;
 }
+.dark .pnl-loss-5 {
+    background-color: #dc2626 !important;
+    color: #fee2e2 !important;
+}
+.dark .pnl-loss-10 {
+    background-color: #b91c1c !important;
+    color: #fee2e2 !important;
+}
+.dark .pnl-loss-20 {
+    background-color: #991b1b !important;
+    color: #fecaca !important;
+}
+.dark .pnl-loss-30 {
+    background-color: #7f1d1d !important;
+    color: #fecaca !important;
+}
+.dark .pnl-loss-40 {
+    background-color: #6b0000 !important;
+    color: #fecaca !important;
+}
+.dark .pnl-loss-50 {
+    background-color: #4c0000 !important;
+    color: #fecaca !important;
+}
+.dark .pnl-loss-100 {
+    background-color: #330000 !important;
+    color: #fecaca !important;
+}
+.dark .pnl-gain-5 {
+    background-color: #15803d !important;
+    color: #f0fdf4 !important;
+}
 .dark .pnl-gain-10 {
-    background-color: #14532d !important;
-    color: #bbf7d0 !important;
+    background-color: #166534 !important;
+    color: #dcfce7 !important;
 }
 .dark .pnl-gain-20 {
     background-color: #14532d !important;
     color: #bbf7d0 !important;
+}
+.dark .pnl-gain-30,
+.dark .pnl-gain-40 {
+    background-color: #0b3d20 !important;
+    color: #bbf7d0 !important;
+}
+.dark .pnl-gain-50,
+.dark .pnl-gain-70 {
+    background-color: #061a0e !important;
+    color: #a7f3d0 !important;
+}
+.dark .pnl-gain-100,
+.dark .pnl-gain-150 {
+    background-color: #04120a !important;
+    color: #a7f3d0 !important;
+}
+.dark .pnl-gain-200 {
+    background-color: #020b06 !important;
+    color: #86efac !important;
 }

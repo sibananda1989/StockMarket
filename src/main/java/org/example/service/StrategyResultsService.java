@@ -209,13 +209,18 @@ public class StrategyResultsService {
             return List.of();
         }
 
-        Map<Long, String> symbolById = stockRepository.findAll().stream()
+        List<Stock> allStocks = stockRepository.findAll();
+        Map<Long, String> symbolById = allStocks.stream()
                 .collect(Collectors.toMap(Stock::getId, Stock::getSymbol));
+        Map<Long, String> nameById = allStocks.stream()
+                .collect(Collectors.toMap(Stock::getId, s -> s.getName() == null ? "" : s.getName(),
+                        (a, b) -> a));
 
         return strategyResultsRepository.findAllByStrategyNameAndSnapshotDate(strategyName, maxDate).stream()
                 .map(row -> new StrategyStockResultDTO(
                         row.getStockId(),
                         symbolById.getOrDefault(row.getStockId(), ""),
+                        nameById.getOrDefault(row.getStockId(), ""),
                         row.getSignalType(),
                         row.getConfidence(),
                         row.getReason(),

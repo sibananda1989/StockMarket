@@ -142,8 +142,10 @@ tr.pnl-loss-40  { background-color: rgba(192, 57, 43, 0.18) !important; }
 tr.pnl-loss-30  { background-color: rgba(231, 76, 60, 0.18) !important; }
 tr.pnl-loss-20  { background-color: rgba(231, 76, 60, 0.12) !important; }
 tr.pnl-loss-10  { background-color: rgba(231, 76, 60, 0.07) !important; }
+tr.pnl-loss-5   { background-color: rgba(231, 76, 60, 0.05) !important; }
 tr.pnl-neutral  { background-color: transparent             !important; }
 tr.pnl-gain-10  { background-color: rgba(39, 174, 96, 0.07) !important; }
+tr.pnl-gain-5   { background-color: rgba(39, 174, 96, 0.05) !important; }
 tr.pnl-gain-20  { background-color: rgba(39, 174, 96, 0.12) !important; }
 tr.pnl-gain-30  { background-color: rgba(39, 174, 96, 0.18) !important; }
 tr.pnl-gain-40  { background-color: rgba(39, 174, 96, 0.25) !important; }
@@ -166,8 +168,10 @@ tr.pnl-gain-100 td a, tr.pnl-gain-150 td a, tr.pnl-gain-200 td a { color: #fff !
 .pnl-loss-30  { background-color: #e74c3c; color: #fff0f0; }
 .pnl-loss-20  { background-color: #f1948a; color: #5c0000; }
 .pnl-loss-10  { background-color: #fadbd8; color: #7b0000; }
+.pnl-loss-5   { background-color: #fee2e2; color: #7b0000; }
 .pnl-neutral  { background-color: #e9ecef; color: #555;    }
 .pnl-gain-10  { background-color: #d5f5e3; color: #0a3d1f; }
+.pnl-gain-5   { background-color: #ecfdf5; color: #0a3d1f; }
 .pnl-gain-20  { background-color: #a9dfbf; color: #0a3d1f; }
 .pnl-gain-30  { background-color: #7dcea0; color: #052912; }
 .pnl-gain-40  { background-color: #52be80; color: #052912; }

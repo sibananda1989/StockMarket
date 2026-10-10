@@ -11,6 +11,7 @@ import org.example.exception.StockNotFoundException;
 import org.example.repository.DailyPriceRepository;
 
 import org.example.service.PortfolioSnapshotService;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
@@ -32,6 +33,7 @@ public class DailyPriceService {
     private final PortfolioSnapshotService snapshotService;
     private final EntityManager entityManager;
 
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     @Transactional(noRollbackFor = PriceAlreadyExistsException.class)
     public DailyPrice saveDailyPrice(Long stockId, BigDecimal closingPrice, LocalDate priceDate,
                                      BigDecimal openingPrice, BigDecimal highPrice,
@@ -66,6 +68,7 @@ public class DailyPriceService {
         return saved;
     }
 
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     @Transactional(noRollbackFor = PriceAlreadyExistsException.class)
     public DailyPrice saveDailyPrice(DailyPriceDTO dto) {
         return saveDailyPrice(dto.getStockId(), dto.getClosingPrice(), dto.getPriceDate(),

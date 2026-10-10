@@ -101,7 +101,7 @@ function renderTable() {
         const deClass = r.debtToEquity ? (r.debtToEquity <= 0.5 ? 'text-green-400' : r.debtToEquity <= 1.5 ? 'text-yellow-400' : 'text-red-400') : '';
 
         return '<tr class="border-b border-gray-700 hover:bg-gray-700/50 transition-colors">' +
-            '<td class="px-3 py-3"><a href="stock-detail.html?id=' + r.stockId + '" class="font-bold hover:text-blue-400 transition-colors">' + escHtml(r.symbol) + '</a></td>' +
+            '<td class="px-3 py-3"><a href="stock-detail.html?id=' + r.stockId + '" target="_blank" rel="noopener" class="font-bold hover:text-blue-400 transition-colors">' + escHtml(r.symbol) + '</a></td>' +
             '<td class="px-3 py-3">' + escHtml(r.name || '—') + '</td>' +
             '<td class="px-3 py-3"><span class="text-xs bg-gray-600/50 px-1.5 py-0.5 rounded">' + escHtml(r.sector || '—') + '</span></td>' +
             '<td class="px-3 py-3 text-right font-medium">' + formatCr(r.marketCap) + '</td>' +

@@ -324,6 +324,7 @@ public class SignalService {
      * the portfolio does not exist or has no holdings. Server-side filtering avoids
      * sending the entire stock universe over the wire for users with many portfolios.
      */
+    @Cacheable(cacheNames = "signals", key = "#portfolioId", sync = true)
     public List<SignalDTO> getSignalsForPortfolio(Long portfolioId) {
         var holdings = portfolioHoldingRepository.findHoldingsOrderBySymbol(portfolioId);
         if (holdings.isEmpty()) {

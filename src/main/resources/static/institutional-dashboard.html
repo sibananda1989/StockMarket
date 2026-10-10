@@ -626,7 +626,7 @@
             scores.forEach((s, i) => {
                 html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
                     <td class="p-2 text-secondary">${i + 1}</td>
-                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
+                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" target="_blank" rel="noopener" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
                     <td class="p-2 text-secondary max-w-[200px] truncate">${s.name || '-'}</td>
                     <td class="p-2 text-center font-bold">${s.totalScore ?? 0}</td>
                     <td class="p-2 text-center">${scoreBadge(s.totalScore)}</td>
@@ -780,7 +780,7 @@
                 const holding = type === 'FII' ? s.fiiChangeQoq : type === 'DII' ? s.diiChangeQoq : s.mutualFundChangeQoq;
                 const pct = type === 'FII' ? s.fiiHoldingPct : type === 'DII' ? s.diiHoldingPct : s.mutualFundHoldingPct;
                 html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
-                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
+                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" target="_blank" rel="noopener" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
                     <td class="p-2 text-secondary max-w-[200px] truncate">${s.name || '-'}</td>
                     <td class="p-2 text-center font-medium">${fmtPct(pct)}</td>
                     <td class="p-2 text-center ${changeColor(holding)} font-medium">${fmtPct(holding)}</td>
@@ -800,7 +800,7 @@
             let html = '';
             data.forEach(s => {
                 html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
-                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
+                    <td class="p-2"><a href="stock-detail.html?id=${s.stockId}" target="_blank" rel="noopener" class="text-blue-400 hover:underline font-medium">${s.symbol || '-'}</a></td>
                     <td class="p-2 text-center font-bold">${s.institutionalScore ?? 0}</td>
                     <td class="p-2 text-center">${fmtPrice(s.latestPrice)}</td>
                     <td class="p-2 text-center">${signalBadge(s.signalRecommendation)}</td>
@@ -843,7 +843,7 @@
             data.slice(0, 100).forEach(d => {
                 html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
                     <td class="p-2 text-secondary">${fmtDate(d.dealDate)}</td>
-                    <td class="p-2"><a href="stock-detail.html?id=${d.stockId}" class="text-blue-400 hover:underline">${d.symbol || '-'}</a></td>
+                    <td class="p-2"><a href="stock-detail.html?id=${d.stockId}" target="_blank" rel="noopener" class="text-blue-400 hover:underline">${d.symbol || '-'}</a></td>
                     <td class="p-2 text-xs max-w-[200px] truncate" title="${d.clientName}">${d.clientName || '-'}</td>
                     <td class="p-2 text-center font-medium ${d.buySell === 'BUY' ? 'text-green-400' : 'text-red-400'}">${d.buySell || '-'}</td>
                     <td class="p-2 text-center text-xs">${fmtQty(d.quantity)}</td>
@@ -874,7 +874,7 @@
             let html = '';
             data.forEach(h => {
                 html += `<tr class="border-b border-gray-700 hover:bg-gray-800/50">
-                    <td class="p-2"><a href="stock-detail.html?id=${h.stockId}" class="text-blue-400 hover:underline font-medium">${h.symbol || '-'}</a></td>
+                    <td class="p-2"><a href="stock-detail.html?id=${h.stockId}" target="_blank" rel="noopener" class="text-blue-400 hover:underline font-medium">${h.symbol || '-'}</a></td>
                     <td class="p-2 text-secondary text-xs">${h.quarterEndDate || '-'}</td>
                     <td class="p-2 text-center">${fmtPct(h.promoterHoldingPct)}</td>
                     <td class="p-2 text-center">${fmtPct(h.fiiHoldingPct)}</td>

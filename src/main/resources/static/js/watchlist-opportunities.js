@@ -126,7 +126,7 @@ function createOpportunityCard(opp) {
 
                 <!-- Symbol & Name -->
                 <div class="flex-1 min-w-[150px]">
-                    <a href="stock-detail.html?id=${opp.stockId}" class="font-bold text-lg text-blue-400 hover:underline">${opp.symbol}</a>
+                    <a href="stock-detail.html?id=${opp.stockId}" target="_blank" rel="noopener" class="font-bold text-lg text-blue-400 hover:underline">${opp.symbol}</a>
                     <div class="text-sm text-secondary truncate max-w-[200px]">${opp.companyName || ''}</div>
                 </div>
 

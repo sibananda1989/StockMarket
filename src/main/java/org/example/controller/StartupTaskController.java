@@ -63,6 +63,11 @@ public class StartupTaskController {
     );
 
     /**
+     * Tasks excluded from bulk Run All (heavy, must be triggered individually via Run One).
+     */
+    private static final Set<String> EXCLUDED_FROM_RUN_ALL = Set.of("signal-performance");
+
+    /**
      * Categories to exclude from the popup (auto-run tasks).
      */
     private static final Set<String> EXCLUDED_CATEGORIES = Set.of("Config");
@@ -102,6 +107,15 @@ public class StartupTaskController {
 
     @PostMapping("/run")
     public ResponseEntity<ApiResponse<Void>> runStartupTasks(@RequestBody List<String> taskIds) {
+        // Guard: strip heavy tasks from bulk run (use /run-one/ for individual trigger)
+        List<String> filteredIds = taskIds.stream()
+                .filter(id -> !EXCLUDED_FROM_RUN_ALL.contains(id))
+                .collect(Collectors.toList());
+        if (filteredIds.size() != taskIds.size()) {
+            log.info("Excluded from bulk Run All: {}", 
+                    taskIds.stream().filter(EXCLUDED_FROM_RUN_ALL::contains).collect(Collectors.toList()));
+        }
+        taskIds = filteredIds;
         Map<String, StartupTask> taskMap = getTaskMap();
         LocalDate today = LocalDate.now();
 

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.example.entity.CorporateEvent;
 import org.example.repository.CorporateEventRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -59,6 +60,7 @@ public class CorporateEventService {
                 symbol.toUpperCase(), signalDate, signalDate.plusDays(EVENT_WINDOW_DAYS));
     }
 
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     public int fetchAndSaveEvents() {
         int count = 0;
         try {
@@ -121,6 +123,7 @@ public class CorporateEventService {
     }
 
     @Scheduled(cron = "0 0 9 * * MON-FRI", zone = "UTC")
+    @CacheEvict(cacheNames = "signals", allEntries = true)
     public void scheduledRefresh() {
         log.info("Scheduled corporate events refresh from NSE calendar");
         fetchAndSaveEvents();

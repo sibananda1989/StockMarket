@@ -78,10 +78,10 @@ public class Stock {
     @Column
     private Long volume;
 
-    @OneToMany(mappedBy = "stock", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "stock", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = false)
     private List<DailyPrice> dailyPrices = new ArrayList<>();
 
-    @OneToMany(mappedBy = "stock", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "stock", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = false)
     private List<TechnicalIndicator> technicalIndicators = new ArrayList<>();
 
     public Stock(String symbol, String name, String sector) {
