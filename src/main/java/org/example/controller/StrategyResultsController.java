@@ -2,6 +2,7 @@ package org.example.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.example.dto.ApiResponse;
+import org.example.dto.ConsensusStockDTO;
 import org.example.dto.RefreshSummary;
 import org.example.dto.StrategyCountDTO;
 import org.example.dto.StrategyStockResultDTO;
@@ -46,6 +47,22 @@ public class StrategyResultsController {
             @RequestParam(defaultValue = "false") boolean includeInactive) {
         int safeLimit = Math.max(1, Math.min(limit, 20));
         return ResponseEntity.ok(ApiResponse.success(strategyResultsService.getTopStocks(safeLimit, includeInactive)));
+    }
+
+    /**
+     * Full consensus ranking for one signal — every stock that strategies agree
+     * on, ranked by agreement count. Reuses the same persisted snapshot day as
+     * {@link #getTop}; the difference is row count, the stock name, and the
+     * denominator behind each count.
+     */
+    @GetMapping("/consensus")
+    public ResponseEntity<ApiResponse<List<ConsensusStockDTO>>> getConsensus(
+            @RequestParam(defaultValue = "BUY") String signal,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        int safeLimit = Math.max(1, Math.min(limit, StrategyResultsService.CONSENSUS_MAX_ROWS));
+        return ResponseEntity.ok(ApiResponse.success(
+                strategyResultsService.getConsensus(signal, includeInactive, safeLimit)));
     }
 
     /**

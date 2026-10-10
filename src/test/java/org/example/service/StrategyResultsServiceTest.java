@@ -1,5 +1,6 @@
 package org.example.service;
 
+import org.example.dto.ConsensusStockDTO;
 import org.example.dto.StrategyCountDTO;
 import org.example.dto.StrategyStockResultDTO;
 import org.example.entity.Stock;
@@ -298,5 +299,145 @@ class StrategyResultsServiceTest {
         // No stocks → refreshAll writes nothing → findMaxSnapshotDate returns null → empty list
         List<StrategyCountDTO> counts = service.getCounts();
         assertTrue(counts.isEmpty());
+    }
+
+    // ── getConsensus ─────────────────────────────────────────────────────────
+
+    private void seedConsensusDay() {
+        LocalDate d = LocalDate.now();
+        // Stock 1: 3 BUY (RSI, MACD, VOLUME) + 1 HOLD (EMA)
+        store.put(key(row(1, "RSI", "BUY", d)), row(1, "RSI", "BUY", d));
+        store.put(key(row(1, "MACD", "BUY", d)), row(1, "MACD", "BUY", d));
+        store.put(key(row(1, "VOLUME", "BUY", d)), row(1, "VOLUME", "BUY", d));
+        store.put(key(row(1, "EMA_CROSSOVER", "HOLD", d)), row(1, "EMA_CROSSOVER", "HOLD", d));
+        // Stock 2: 1 BUY
+        store.put(key(row(2, "RSI", "BUY", d)), row(2, "RSI", "BUY", d));
+        // Stock 3: 2 SELL
+        store.put(key(row(3, "MACD", "SELL", d)), row(3, "MACD", "SELL", d));
+        store.put(key(row(3, "VOLUME", "SELL", d)), row(3, "VOLUME", "SELL", d));
+
+        Stock s1 = stock(1, "AAA");
+        s1.setName("Alpha Ltd");
+        Stock s2 = stock(2, "BBB");
+        s2.setName("Beta Ltd");
+        Stock s3 = stock(3, "CCC");
+        s3.setName("Gamma Ltd");
+        stocks.add(s1);
+        stocks.add(s2);
+        stocks.add(s3);
+    }
+
+    @Test
+    void getConsensus_ranksByAgreementCountThenConfidenceThenSymbol() {
+        seedConsensusDay();
+
+        List<ConsensusStockDTO> buys = service.getConsensus("BUY", true, 50);
+
+        assertEquals(2, buys.size());
+        assertEquals("AAA", buys.get(0).symbol(), "3 agreeing strategies outrank 1");
+        assertEquals(3, buys.get(0).agreeCount());
+        assertEquals("Alpha Ltd", buys.get(0).name());
+        assertEquals("BBB", buys.get(1).symbol());
+        assertEquals(1, buys.get(1).agreeCount());
+    }
+
+    @Test
+    void getConsensus_separatesBuyFromSell() {
+        seedConsensusDay();
+
+        List<ConsensusStockDTO> sells = service.getConsensus("SELL", true, 50);
+
+        assertEquals(1, sells.size());
+        assertEquals("CCC", sells.get(0).symbol());
+        assertEquals(2, sells.get(0).agreeCount());
+        assertEquals("SELL", sells.get(0).signal());
+    }
+
+    @Test
+    void getConsensus_reportsDenominatorOfStrategiesThatProducedAVerdict() {
+        seedConsensusDay();
+
+        List<ConsensusStockDTO> buys = service.getConsensus("BUY", true, 50);
+
+        // Stock 1 has 4 rows total (3 BUY + 1 HOLD); only 3 agreed on BUY.
+        assertEquals(4, buys.get(0).totalStrategies());
+        assertEquals(3, buys.get(0).agreeCount());
+        // Stock 2 has 1 row, which agreed.
+        assertEquals(1, buys.get(1).totalStrategies());
+    }
+
+    @Test
+    void getConsensus_listsTheAgreeingStrategiesWithDisplayNames() {
+        seedConsensusDay();
+
+        List<ConsensusStockDTO> buys = service.getConsensus("BUY", true, 50);
+
+        List<String> names = buys.get(0).strategyNames();
+        assertTrue(names.containsAll(List.of("RSI", "MACD", "VOLUME")));
+        assertTrue(buys.get(0).strategyDisplayNames().contains("RSI Strategy"));
+        assertFalse(buys.get(0).strategyDisplayNames().contains("EMA 20/50 Cross"),
+                "HOLD strategies must not appear as agreeing");
+    }
+
+    @Test
+    void getConsensus_capsRowsAtRequestedLimit() {
+        seedConsensusDay();
+
+        assertEquals(1, service.getConsensus("BUY", true, 1).size());
+    }
+
+    @Test
+    void getConsensus_clampsLimitToTheConfiguredMaximum() {
+        seedConsensusDay();
+        // Only 2 BUY rows exist, so seed enough agreeing stocks to exceed the cap.
+        for (long id = 10; id <= 10 + StrategyResultsService.CONSENSUS_MAX_ROWS; id++) {
+            store.put(key(row(id, "RSI", "BUY", LocalDate.now())), row(id, "RSI", "BUY", LocalDate.now()));
+            stocks.add(stock(id, "SYM" + id));
+        }
+
+        List<ConsensusStockDTO> buys = service.getConsensus("BUY", true, 999);
+
+        assertEquals(StrategyResultsService.CONSENSUS_MAX_ROWS, buys.size(),
+                "an oversized limit must clamp to CONSENSUS_MAX_ROWS, not the full match set");
+        assertEquals(10, StrategyResultsService.CONSENSUS_MAX_ROWS,
+                "consensus cap is deliberately small — the table is a shortlist, not a full ranking");
+    }
+
+    @Test
+    void getConsensus_excludesDisabledStrategiesWhenIncludeInactiveIsFalse() {
+        LocalDate d = LocalDate.now();
+        // BOLLINGER is configured disabled in setUp().
+        store.put(key(row(1, "RSI", "BUY", d)), row(1, "RSI", "BUY", d));
+        store.put(key(row(1, "BOLLINGER", "BUY", d)), row(1, "BOLLINGER", "BUY", d));
+        stocks.add(stock(1, "AAA"));
+
+        assertEquals(2, service.getConsensus("BUY", true, 50).get(0).agreeCount());
+        assertEquals(1, service.getConsensus("BUY", false, 50).get(0).agreeCount(),
+                "disabled BOLLINGER must be excluded");
+    }
+
+    @Test
+    void getConsensus_treatsHoldsAsNonAgreement() {
+        LocalDate d = LocalDate.now();
+        store.put(key(row(1, "RSI", "HOLD", d)), row(1, "RSI", "HOLD", d));
+        store.put(key(row(1, "MACD", "HOLD", d)), row(1, "MACD", "HOLD", d));
+        stocks.add(stock(1, "AAA"));
+
+        assertTrue(service.getConsensus("BUY", true, 50).isEmpty(),
+                "HOLD is non-directional and must never appear as agreement");
+        assertTrue(service.getConsensus("SELL", true, 50).isEmpty());
+    }
+
+    @Test
+    void getConsensus_rejectsNonDirectionalSignal() {
+        seedConsensusDay();
+
+        assertThrows(IllegalArgumentException.class, () -> service.getConsensus("HOLD", true, 50));
+        assertThrows(IllegalArgumentException.class, () -> service.getConsensus(null, true, 50));
+    }
+
+    @Test
+    void getConsensus_emptyWhenNoSnapshotExists() {
+        assertTrue(service.getConsensus("BUY", true, 50).isEmpty());
     }
 }

@@ -697,6 +697,12 @@ function getTopStrategyResults(limit = 5, includeInactive = false) {
     const p = new URLSearchParams({ limit: String(limit), includeInactive: String(includeInactive) });
     return apiCall(`/strategy-results/top?${p.toString()}`);
 }
+function getStrategyConsensus(signal = 'BUY', limit = 10, includeInactive = false) {
+    const p = new URLSearchParams({
+        signal: signal, limit: String(limit), includeInactive: String(includeInactive)
+    });
+    return apiCall(`/strategy-results/consensus?${p.toString()}`);
+}
 
 // ─── Strategy Config API ────────────────────────────────────────────────────
 

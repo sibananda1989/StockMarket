@@ -2,6 +2,7 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.ConsensusStockDTO;
 import org.example.dto.RefreshSummary;
 import org.example.dto.StrategyCountDTO;
 import org.example.dto.StrategyStockResultDTO;
@@ -40,6 +41,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class StrategyResultsService {
+
+    /** Upper bound on rows returned by {@link #getConsensus}. */
+    public static final int CONSENSUS_MAX_ROWS = 10;
 
     private final StrategyStockResultRepository strategyResultsRepository;
     private final StockRepository stockRepository;
@@ -174,6 +178,86 @@ public class StrategyResultsService {
                 rankBySignal(filtered, symbolById, displayNames, "BUY", limit),
                 rankBySignal(filtered, symbolById, displayNames, "SELL", limit)
         );
+    }
+
+    /**
+     * Full cross-strategy consensus ranking for one signal, derived from the
+     * latest persisted snapshot day.
+     *
+     * <p>Reuses the same snapshot fetch as {@link #getTopStocks} and the same
+     * agreement grouping, so it costs no extra query. Unlike that method it
+     * returns more rows (up to {@code CONSENSUS_MAX_ROWS}) and carries the stock
+     * name plus the denominator behind each agreement count.
+     *
+     * <p>Only directional signals are meaningful here, so HOLD is not accepted.
+     *
+     * @param signal          BUY or SELL
+     * @param includeInactive when false, disabled strategies are excluded
+     * @param limit           maximum rows to return, clamped to [1, {@value #CONSENSUS_MAX_ROWS}]
+     */
+    public List<ConsensusStockDTO> getConsensus(String signal, boolean includeInactive, int limit) {
+        if (signal == null || (!"BUY".equalsIgnoreCase(signal) && !"SELL".equalsIgnoreCase(signal))) {
+            throw new IllegalArgumentException("signal must be BUY or SELL");
+        }
+        String target = signal.toUpperCase();
+
+        LocalDate maxDate = strategyResultsRepository.findMaxSnapshotDate();
+        if (maxDate == null) {
+            return List.of();
+        }
+        List<StrategyStockResult> rows = strategyResultsRepository.findAllBySnapshotDate(maxDate);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        List<StrategyConfig> configs = strategyConfigService.getAllConfigs();
+        Map<String, Boolean> activeFlags = configs.stream()
+                .collect(Collectors.toMap(StrategyConfig::getStrategyName, StrategyConfig::isActive, (a, b) -> a));
+        Map<String, String> displayNames = configs.stream()
+                .collect(Collectors.toMap(StrategyConfig::getStrategyName,
+                        c -> c.getDisplayName() == null ? c.getStrategyName() : c.getDisplayName(), (a, b) -> a));
+
+        List<StrategyStockResult> filtered = includeInactive ? rows
+                : rows.stream().filter(r -> Boolean.TRUE.equals(activeFlags.get(r.getStrategyName()))).toList();
+
+        Map<Long, Stock> stocksById = stockRepository.findAll().stream()
+                .collect(Collectors.toMap(Stock::getId, s -> s, (a, b) -> a));
+
+        // Denominator: strategies that produced any verdict for this stock in
+        // the filtered set, so "3 of 12" reflects the strategies that actually ran.
+        Map<Long, Long> evaluatedPerStock = filtered.stream()
+                .collect(Collectors.groupingBy(StrategyStockResult::getStockId, Collectors.counting()));
+
+        Map<Long, List<StrategyStockResult>> agreeing = filtered.stream()
+                .filter(r -> target.equals(r.getSignalType()))
+                .collect(Collectors.groupingBy(StrategyStockResult::getStockId));
+
+        return agreeing.entrySet().stream()
+                .map(e -> {
+                    Long stockId = e.getKey();
+                    List<StrategyStockResult> list = e.getValue();
+                    Stock stock = stocksById.get(stockId);
+                    double avgConf = list.stream()
+                            .mapToDouble(r -> r.getConfidence() == null ? 0.0 : r.getConfidence())
+                            .average().orElse(0.0);
+                    List<String> names = list.stream().map(StrategyStockResult::getStrategyName).sorted().toList();
+                    List<String> disp = names.stream().map(n -> displayNames.getOrDefault(n, n)).toList();
+                    return new ConsensusStockDTO(
+                            stockId,
+                            stock == null ? "" : stock.getSymbol(),
+                            stock == null || stock.getName() == null ? "" : stock.getName(),
+                            target,
+                            list.size(),
+                            evaluatedPerStock.getOrDefault(stockId, (long) list.size()).intValue(),
+                            avgConf,
+                            names,
+                            disp);
+                })
+                .sorted(Comparator.comparingInt(ConsensusStockDTO::agreeCount).reversed()
+                        .thenComparing(Comparator.comparingDouble(ConsensusStockDTO::avgConfidence).reversed())
+                        .thenComparing(ConsensusStockDTO::symbol))
+                .limit(Math.max(1, Math.min(limit, CONSENSUS_MAX_ROWS)))
+                .toList();
     }
 
     private List<TopStockDTO> rankBySignal(List<StrategyStockResult> rows, Map<Long, String> symbolById,

@@ -46,17 +46,43 @@
         </div>
     </div>
 
-    <!-- ── Top 5 consensus ─────────────────────────────────────────────────── -->
-    <div id="top5Row" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <div class="card rounded-xl shadow-lg p-4">
-            <h2 class="text-base font-semibold mb-3"><i class="fas fa-arrow-trend-up text-green-400 mr-2"></i>Top 5 BUY — Most Consensus</h2>
-            <ol id="topBuysList" class="space-y-2"></ol>
-            <p id="topBuysEmpty" class="hidden text-sm text-gray-500 py-4 text-center">No BUY signals</p>
+    <!-- ── Consensus ranking (cross-strategy agreement) ───────────────────── -->
+    <div id="consensusRow" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <div class="card rounded-xl shadow-lg p-4 flex flex-col">
+            <h2 class="text-base font-semibold mb-1"><i class="fas fa-arrow-trend-up text-green-400 mr-2"></i>Consensus BUY</h2>
+            <p class="text-xs text-gray-500 mb-3">Stocks most strategies agree are worth buying, most-agreeing first</p>
+            <div class="overflow-y-auto max-h-96">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-gray-900 z-10">
+                        <tr class="text-left text-gray-400 text-xs border-b border-gray-700">
+                            <th class="px-2 py-2 w-8">#</th>
+                            <th class="px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200" data-consensus-key="name" data-consensus-side="BUY">Stock</th>
+                            <th class="px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200 text-center" data-consensus-key="agreeCount" data-consensus-side="BUY">Agree</th>
+                            <th class="px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200 text-right" data-consensus-key="avgConfidence" data-consensus-side="BUY">Conf</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consensusBuysBody" class="divide-y divide-gray-800"></tbody>
+                </table>
+            </div>
+            <p id="consensusBuysEmpty" class="hidden text-sm text-gray-500 py-4 text-center">No BUY signals</p>
         </div>
-        <div class="card rounded-xl shadow-lg p-4">
-            <h2 class="text-base font-semibold mb-3"><i class="fas fa-arrow-trend-down text-red-400 mr-2"></i>Top 5 SELL — Most Consensus</h2>
-            <ol id="topSellsList" class="space-y-2"></ol>
-            <p id="topSellsEmpty" class="hidden text-sm text-gray-500 py-4 text-center">No SELL signals</p>
+        <div class="card rounded-xl shadow-lg p-4 flex flex-col">
+            <h2 class="text-base font-semibold mb-1"><i class="fas fa-arrow-trend-down text-red-400 mr-2"></i>Consensus SELL</h2>
+            <p class="text-xs text-gray-500 mb-3">Stocks most strategies agree are worth selling, most-agreeing first</p>
+            <div class="overflow-y-auto max-h-96">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-gray-900 z-10">
+                        <tr class="text-left text-gray-400 text-xs border-b border-gray-700">
+                            <th class="px-2 py-2 w-8">#</th>
+                            <th class="px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200" data-consensus-key="name" data-consensus-side="SELL">Stock</th>
+                            <th class="px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200 text-center" data-consensus-key="agreeCount" data-consensus-side="SELL">Agree</th>
+                            <th class="px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200 text-right" data-consensus-key="avgConfidence" data-consensus-side="SELL">Conf</th>
+                        </tr>
+                    </thead>
+                    <tbody id="consensusSellsBody" class="divide-y divide-gray-800"></tbody>
+                </table>
+            </div>
+            <p id="consensusSellsEmpty" class="hidden text-sm text-gray-500 py-4 text-center">No SELL signals</p>
         </div>
     </div>
 

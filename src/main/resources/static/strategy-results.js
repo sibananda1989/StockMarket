@@ -10,7 +10,9 @@
         sortMode: 'priority',           // priority | net-bull | net-bear | total
 activeOnly: false,              // true = show only enabled strategies (default: show all)
 detailFilter: {},               // strategyName -> 'SIGNALS' | 'BUY' | 'SELL' | 'ALL'
-detailSort: {}                  // strategyName -> { key: 'name'|'signal'|'confidence'|'eventDate', dir: 'asc'|'desc'|'none' }
+detailSort: {},                 // strategyName -> { key, dir } for the per-stock expansion table
+        consensus: { BUY: [], SELL: [] },   // consensus rows per side
+        consensusSort: {}          // 'BUY'|'SELL' -> { key: 'name'|'agreeCount'|'avgConfidence', dir }
     };
 
     const els = {
@@ -25,11 +27,11 @@ detailSort: {}                  // strategyName -> { key: 'name'|'signal'|'confi
         snapshotMeta: null,
         sortSelect: null,
         activeOnlyToggle: null,
-        top5Row: null,
-        topBuysList: null,
-        topSellsList: null,
-        topBuysEmpty: null,
-        topSellsEmpty: null
+        consensusRow: null,
+        consensusBuysBody: null,
+        consensusSellsBody: null,
+        consensusBuysEmpty: null,
+        consensusSellsEmpty: null
     };
 
     function showLoading(show) {
@@ -523,44 +525,112 @@ function paintExpansionList(container, strategyName, rows) {
         renderDistributionChart(sorted);
     }
 
-    function renderTopList(listEl, emptyEl, items) {
-        listEl.innerHTML = '';
-        const has = items && items.length > 0;
-        emptyEl.classList.toggle('hidden', has);
-        listEl.classList.toggle('hidden', !has);
-        if (!has) return;
-        items.forEach((it, idx) => {
-            const li = document.createElement('li');
-            li.className = 'flex items-center gap-3 py-2 px-2 rounded hover:bg-gray-800/50';
-            const rank = '<span class="w-6 text-center text-xs font-bold text-gray-400">#' + (idx + 1) + '</span>';
-            const sym = '<a href="/stock-detail.html?id=' + encodeURIComponent(it.stockId) + '&portfolioId=1" target="_blank" rel="noopener" class="font-medium text-blue-400 hover:text-blue-300 hover:underline w-24 truncate">' + escapeHtml(it.symbol) + '</a>';
-            const badge = '<span class="px-2 py-0.5 rounded-full text-xs font-bold ' + (it.count >= 3 ? 'bg-green-800 text-green-100' : 'bg-gray-700 text-gray-300') + '" title="' + escapeHtml((it.strategyDisplayNames || it.strategyNames || []).join(', ')) + '">' + it.count + ' strategies</span>';
-            const conf = it.avgConfidence != null ? '<span class="text-xs text-gray-500 ml-auto">' + Math.round(it.avgConfidence * 100) + '% avg</span>' : '';
-            li.innerHTML = rank + sym + badge + conf;
-            listEl.appendChild(li);
-        });
-    }
+    // ── Consensus ranking ───────────────────────────────────────
 
-    async function loadTopStocks() {
-        try {
-            const includeInactive = !state.activeOnly;
-            const res = await getTopStrategyResults(5, includeInactive);
-            const data = res && res.data ? res.data : { topBuys: [], topSells: [] };
-            if (els.top5Row) els.top5Row.classList.remove('hidden');
-            renderTopList(els.topBuysList, els.topBuysEmpty, data.topBuys || []);
-            renderTopList(els.topSellsList, els.topSellsEmpty, data.topSells || []);
-        } catch (e) {
-            console.error('Failed to load top stocks', e);
-            if (els.top5Row) els.top5Row.classList.add('hidden');
-        }
+function compareConsensus(a, b, key) {
+    let x, y;
+    if (key === 'name') {
+        x = (a.name || a.symbol || '').toLowerCase();
+        y = (b.name || b.symbol || '').toLowerCase();
+    } else if (key === 'avgConfidence') {
+        x = a.avgConfidence == null ? 0 : a.avgConfidence;
+        y = b.avgConfidence == null ? 0 : b.avgConfidence;
+    } else {
+        x = a.agreeCount;
+        y = b.agreeCount;
     }
+    if (x === y) return (a.symbol || '').localeCompare(b.symbol || '');
+    return x < y ? -1 : 1;
+}
+
+function renderConsensusTable(bodyEl, emptyEl, side, rows) {
+    const has = rows && rows.length > 0;
+    emptyEl.classList.toggle('hidden', has);
+    bodyEl.classList.toggle('hidden', !has);
+    if (!has) { bodyEl.innerHTML = ''; return; }
+
+    const s = state.consensusSort[side] || { key: 'agreeCount', dir: 'desc' };
+    const sorted = [...rows].sort((a, b) => {
+        const c = compareConsensus(a, b, s.key);
+        return s.dir === 'desc' ? -c : c;
+    });
+
+    bodyEl.innerHTML = sorted.map((it, idx) => {
+        const label = it.name || it.symbol || '?';
+        const badgeCls = it.agreeCount >= 3
+            ? 'bg-green-800 text-green-100'
+            : 'bg-gray-700 text-gray-300';
+        const strategies = (it.strategyDisplayNames || it.strategyNames || []).join(', ');
+        return '<tr class="hover:bg-gray-800/50" title="' + escapeHtml(strategies) + '">' +
+            '<td class="px-2 py-1.5 text-center text-xs font-bold text-gray-400">' + (idx + 1) + '</td>' +
+            '<td class="px-2 py-1.5">' +
+                '<a href="/stock-detail.html?id=' + encodeURIComponent(it.stockId) + '&portfolioId=1" ' +
+                   'target="_blank" rel="noopener" class="font-medium text-blue-400 hover:text-blue-300 hover:underline block truncate">' +
+                   escapeHtml(label) + '</a>' +
+                '<span class="text-[10px] text-gray-500">' + escapeHtml(it.symbol || '') + '</span>' +
+            '</td>' +
+            '<td class="px-2 py-1.5 text-center">' +
+                '<span class="px-1.5 py-0.5 rounded-full text-[10px] font-bold ' + badgeCls + '">' +
+                    it.agreeCount + '/' + it.totalStrategies + '</span>' +
+            '</td>' +
+            '<td class="px-2 py-1.5 text-right text-xs text-gray-400">' +
+                (it.avgConfidence != null ? Math.round(it.avgConfidence * 100) + '%' : '—') +
+            '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function updateConsensusSortArrows(side) {
+    const s = state.consensusSort[side] || { key: 'agreeCount', dir: 'desc' };
+    document.querySelectorAll('.consensus-sort[data-consensus-side="' + side + '"]').forEach(th => {
+        const active = th.dataset.consensusKey === s.key;
+        const base = 'px-2 py-2 consensus-sort cursor-pointer hover:text-gray-200';
+        const align = th.classList.contains('text-center') ? ' text-center' : (th.classList.contains('text-right') ? ' text-right' : '');
+        th.className = base + align + (active ? ' text-gray-100 font-semibold' : '');
+        const label = th.dataset.consensusKey === 'name' ? 'Stock' : (th.dataset.consensusKey === 'agreeCount' ? 'Agree' : 'Conf');
+        th.textContent = label + (active ? (s.dir === 'desc' ? ' ▼' : ' ▲') : '');
+    });
+}
+
+function cycleConsensusSort(side, key) {
+    const cur = state.consensusSort[side] || { key: null, dir: 'none' };
+    const natural = key === 'name' ? 'asc' : 'desc';
+    if (cur.key !== key) state.consensusSort[side] = { key: key, dir: natural };
+    else if (cur.dir === natural) state.consensusSort[side] = { key: key, dir: natural === 'asc' ? 'desc' : 'asc' };
+    else state.consensusSort[side] = { key: 'agreeCount', dir: 'desc' };
+    renderConsensusTable(
+        side === 'BUY' ? els.consensusBuysBody : els.consensusSellsBody,
+        side === 'BUY' ? els.consensusBuysEmpty : els.consensusSellsEmpty,
+        side, state.consensus[side] || []);
+    updateConsensusSortArrows(side);
+}
+
+async function loadConsensus() {
+    try {
+        const includeInactive = !state.activeOnly;
+        const [buys, sells] = await Promise.all([
+            getStrategyConsensus('BUY', 10, includeInactive),
+            getStrategyConsensus('SELL', 10, includeInactive)
+        ]);
+        state.consensus.BUY = (buys && buys.data) || [];
+        state.consensus.SELL = (sells && sells.data) || [];
+        if (els.consensusRow) els.consensusRow.classList.remove('hidden');
+        renderConsensusTable(els.consensusBuysBody, els.consensusBuysEmpty, 'BUY', state.consensus.BUY);
+        renderConsensusTable(els.consensusSellsBody, els.consensusSellsEmpty, 'SELL', state.consensus.SELL);
+        updateConsensusSortArrows('BUY');
+        updateConsensusSortArrows('SELL');
+    } catch (e) {
+        console.error('Failed to load consensus', e);
+        if (els.consensusRow) els.consensusRow.classList.add('hidden');
+    }
+}
 
     async function load() {
         showLoading(true);
         try {
             const res = await getStrategyResults();
             renderAll((res && res.data) || []);
-            await loadTopStocks();
+            await loadConsensus();
         } catch (e) {
             console.error('Failed to load strategy results', e);
             renderAll([]);
@@ -609,11 +679,11 @@ function paintExpansionList(container, strategyName, rows) {
         els.snapshotMeta = document.getElementById('snapshotMeta');
         els.sortSelect = document.getElementById('sortSelect');
         els.activeOnlyToggle = document.getElementById('activeOnlyToggle');
-        els.top5Row = document.getElementById('top5Row');
-        els.topBuysList = document.getElementById('topBuysList');
-        els.topSellsList = document.getElementById('topSellsList');
-        els.topBuysEmpty = document.getElementById('topBuysEmpty');
-        els.topSellsEmpty = document.getElementById('topSellsEmpty');
+        els.consensusRow = document.getElementById('consensusRow');
+        els.consensusBuysBody = document.getElementById('consensusBuysBody');
+        els.consensusSellsBody = document.getElementById('consensusSellsBody');
+        els.consensusBuysEmpty = document.getElementById('consensusBuysEmpty');
+        els.consensusSellsEmpty = document.getElementById('consensusSellsEmpty');
 
         if (!els.tbody || !els.refreshBtn) return;
 
@@ -629,9 +699,14 @@ function paintExpansionList(container, strategyName, rows) {
                 state.activeOnly = els.activeOnlyToggle.checked;
                 state.expanded.clear();
                 renderAll(state.counts);
-                await loadTopStocks();
+                await loadConsensus();
             });
         }
+        document.querySelectorAll('.consensus-sort').forEach(th => {
+            th.addEventListener('click', () => {
+                cycleConsensusSort(th.dataset.consensusSide, th.dataset.consensusKey);
+            });
+        });
         load();
     });
 })();
