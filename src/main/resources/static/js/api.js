@@ -226,7 +226,11 @@ async function getPortfolioHistory(days = 365, all = false, portfolioId = null) 
     if (!all) params.push(`days=${days}`);
     if (all) params.push('all=true');
     if (portfolioId) params.push(`portfolioId=${portfolioId}`);
-    params.push('source=daily');
+    // source=ledger computes value live from portfolio_transactions + daily_prices.
+    // source=daily reads the persisted portfolio_daily_values table, which only
+    // refreshes when a transaction is recorded — so it goes stale between trades
+    // and is empty for portfolios that were never backfilled.
+    params.push('source=ledger');
     return apiCall(`/portfolio/history?${params.join('&')}`);
 }
 

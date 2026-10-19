@@ -302,7 +302,7 @@ function renderTrendChart() {
     if (!emptyMsg) {
       const msg = document.createElement('p');
       msg.className = 'trend-empty-msg text-secondary text-center py-8';
-      msg.textContent = 'No historical data yet. Sync portfolio or add snapshots.';
+      msg.textContent = 'No valuation history yet — this portfolio has no recorded transactions.';
       container.appendChild(msg);
     } else {
       emptyMsg.style.display = 'block';
@@ -315,11 +315,19 @@ function renderTrendChart() {
   if (emptyMsg) emptyMsg.style.display = 'none';
 
   // Parse date strings into Date objects for the Chart.js time scale.
-  // Use Date.UTC to anchor to midnight UTC so the chart displays the correct
-  // calendar date regardless of the user's local timezone offset.
+  // Use Date.UTC to anchor to midnight UTC, then always format back in UTC.
+  // Formatting in local time would shift the label a day backwards for any
+  // negative-UTC-offset zone (e.g. 2026-01-05 UTC midnight renders as 04 Jan
+  // in America/New_York), so the tooltip and axis must both read UTC parts.
   const parseDate = (d) => {
     const p = d.split('-');
     return new Date(Date.UTC(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2])));
+  };
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtUtcDate = (d, withYear) => {
+    const t = new Date(d).toISOString().slice(0, 10).split('-');
+    return t[2] + ' ' + MONTHS[Number(t[1]) - 1] + (withYear ? ' ' + t[0] : '');
   };
 
   charts.trend = new Chart(document.getElementById('portfolioTrendChart'), {
@@ -354,10 +362,7 @@ function renderTrendChart() {
           callbacks: {
             title: (items) => {
               if (items.length && items[0].parsed.x != null) {
-                const d = new Date(items[0].parsed.x);
-                return d.toLocaleDateString('en-IN', {
-                  day: 'numeric', month: 'short', year: 'numeric'
-                });
+                return fmtUtcDate(items[0].parsed.x, true);
               }
               return '';
             },
@@ -390,7 +395,9 @@ function renderTrendChart() {
           ticks: {
             source: 'data',
             maxRotation: 45,
-            autoSkip: true
+            autoSkip: true,
+            // Same UTC rationale as fmtUtcDate — local formatting shifts labels.
+            callback: (value) => fmtUtcDate(value, false)
           },
           title: {
             display: true,
