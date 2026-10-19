@@ -19,9 +19,20 @@ const PortfolioTransactions = (() => {
       stockSearch: '',
       dateFrom: null,
       dateTo: null,
-      status: ['OPEN', 'PARTIALLY_SOLD', 'SOLD']
+      status: ['OPEN', 'PARTIALLY_SOLD', 'SOLD'],
+      type: 'all',
+      pl: 'all'
     }
   };
+
+  // ETFs have no instrument-type column in the DB, so they are identified by name.
+  // Matches all currently held ETFs; deliberately excludes bare GOLD/SILVER words
+  // to avoid false-positives on equities whose name merely contains them.
+  const ETF_NAME_PATTERN = /(\bETF\b|\bETFS\b|\bBEES\b|EXCHANGE\s+TRADED|INDEX\s+FUND)/i;
+
+  function isEtf(lot) {
+    return ETF_NAME_PATTERN.test(lot.stockName || '');
+  }
 
   let debounceTimer = null;
   let buySearchTimer = null;
@@ -51,6 +62,10 @@ const PortfolioTransactions = (() => {
     els.filterStock = document.getElementById('filter-stock');
     els.filterDateFrom = document.getElementById('filter-date-from');
     els.filterDateTo = document.getElementById('filter-date-to');
+    els.filterType = document.getElementById('filter-type');
+    els.filterPl = document.getElementById('filter-pl');
+    els.activeFilters = document.getElementById('active-filters');
+    els.statTotalSub = document.getElementById('stat-total-sub');
     els.filterStatusBtn = document.getElementById('filter-status-btn');
     els.filterStatusDropdown = document.getElementById('filter-status-dropdown');
     els.filterStatusLabel = document.getElementById('filter-status-label');
@@ -82,6 +97,14 @@ const PortfolioTransactions = (() => {
     });
     if (els.filterDateTo) els.filterDateTo.addEventListener('change', (e) => {
       state.filters.dateTo = e.target.value || null;
+      applyFiltersAndRender();
+    });
+    if (els.filterType) els.filterType.addEventListener('change', (e) => {
+      state.filters.type = e.target.value;
+      applyFiltersAndRender();
+    });
+    if (els.filterPl) els.filterPl.addEventListener('change', (e) => {
+      state.filters.pl = e.target.value;
       applyFiltersAndRender();
     });
     if (els.filterStatusBtn && els.filterStatusDropdown) {
@@ -237,6 +260,18 @@ const PortfolioTransactions = (() => {
     } else if (state.filters.status !== 'all') {
       filtered = filtered.filter(l => l.status === state.filters.status);
     }
+    if (state.filters.type === 'stocks') {
+      filtered = filtered.filter(l => !isEtf(l));
+    } else if (state.filters.type === 'etfs') {
+      filtered = filtered.filter(isEtf);
+    }
+    // Open (unrealised) P/L only — closed lots have openPl of 0 and match neither.
+    // Uses the same 0.005 dead zone as the row colouring at renderTable.
+    if (state.filters.pl === 'profit') {
+      filtered = filtered.filter(l => l.openPl != null && l.openPl > 0.005);
+    } else if (state.filters.pl === 'loss') {
+      filtered = filtered.filter(l => l.openPl != null && l.openPl < -0.005);
+    }
 
     const col = state.sort.column;
     const dir = state.sort.direction === 'asc' ? 1 : -1;
@@ -263,6 +298,7 @@ const PortfolioTransactions = (() => {
     renderTable();
     renderPagination();
     updateTableCount();
+    renderActiveFilters();
   }
 
   function sortBy(column) {
@@ -459,19 +495,24 @@ const PortfolioTransactions = (() => {
     const invested = data.reduce((sum, l) => sum + Number(l.price) * Number(l.quantity), 0);
     if (els.statInvested) els.statInvested.textContent = fmtPriceCompact(invested);
 
+    // "Total P/L" must include unrealised P/L on open quantity, not just booked
+    // realised P/L — otherwise it contradicts the page's own "P/L at current
+    // market price" framing and the Open P/L column.
     const realized = data.reduce((sum, l) => sum + Number(l.realizedPnl || 0), 0);
+    const unrealised = data.reduce((sum, l) => sum + Number(l.openPl || 0), 0);
+    const totalPl = realized + unrealised;
     if (els.statPl) {
-      els.statPl.textContent = fmtPriceWithSign(realized);
-      els.statPl.className = 'text-xl font-bold ' + (realized > 0.005 ? 'text-green-400' : realized < -0.005 ? 'text-red-400' : 'text-gray-400');
+      els.statPl.textContent = fmtPriceWithSign(totalPl);
+      els.statPl.className = 'text-xl font-bold ' + (totalPl > 0.005 ? 'text-green-400' : totalPl < -0.005 ? 'text-red-400' : 'text-gray-400');
     }
-    const investedSold = data.reduce((sum, l) => sum + Number(l.price) * Number(l.soldQuantity || 0), 0);
-    const plPct = investedSold > 0 ? (realized / investedSold) * 100 : 0;
+    const costBasis = data.reduce((sum, l) => sum + Number(l.price) * Number(l.quantity), 0);
+    const plPct = costBasis > 0 ? (totalPl / costBasis) * 100 : 0;
     if (els.statPlPct) {
       els.statPlPct.textContent = (plPct >= 0 ? '+' : '') + plPct.toFixed(2) + '%';
       els.statPlPct.className = 'text-xs font-semibold ' + (plPct > 0.005 ? 'text-green-400' : plPct < -0.005 ? 'text-red-400' : 'text-gray-400');
     }
     if (els.cardPl) {
-      els.cardPl.className = 'card rounded-xl p-4 shadow-lg text-center ' + (realized > 0.005 ? 'border border-green-500/30' : realized < -0.005 ? 'border border-red-500/30' : '');
+      els.cardPl.className = 'card rounded-xl p-4 shadow-lg text-center ' + (totalPl > 0.005 ? 'border border-green-500/30' : totalPl < -0.005 ? 'border border-red-500/30' : '');
     }
 
     const soldLots = data.filter(l => l.status === 'SOLD').length;
@@ -481,6 +522,77 @@ const PortfolioTransactions = (() => {
 
     const uniqueStocks = new Set(data.map(l => l.stockSymbol)).size;
     if (els.statUnique) els.statUnique.textContent = uniqueStocks.toLocaleString('en-IN');
+  }
+
+  // ─── ACTIVE FILTER CHIPS ───
+  // Renders one removable chip per active filter so the user can see why rows
+  // are missing, and reset a single dimension without touching the others.
+  function renderActiveFilters() {
+    const box = els.activeFilters;
+    if (!box) return;
+    const f = state.filters;
+    const chips = [];
+
+    if (f.portfolioId !== 'all') {
+      const pf = state.portfolios.find(p => String(p.id) === String(f.portfolioId));
+      chips.push({ key: 'portfolio', label: 'Portfolio: ' + (pf ? pf.name : f.portfolioId) });
+    }
+    if (f.stockSearch) chips.push({ key: 'stockSearch', label: 'Stock: ' + f.stockSearch });
+    if (f.dateFrom || f.dateTo) {
+      chips.push({ key: 'date', label: 'Date: ' + (f.dateFrom || '...') + ' → ' + (f.dateTo || '...') });
+    }
+    const sel = f.status;
+    if (Array.isArray(sel) && sel.length !== 3) {
+      const map = { OPEN: 'Open', PARTIALLY_SOLD: 'Partially Sold', SOLD: 'Sold' };
+      const names = sel.map(s => map[s] || s);
+      chips.push({ key: 'status', label: 'Status: ' + (names.length ? names.join(', ') : 'None') });
+    }
+    if (f.type && f.type !== 'all') {
+      chips.push({ key: 'type', label: 'Type: ' + (f.type === 'stocks' ? 'Stocks only' : 'ETFs only') });
+    }
+    if (f.pl && f.pl !== 'all') {
+      chips.push({ key: 'pl', label: 'P/L: ' + (f.pl === 'profit' ? 'Profit only' : 'Loss only') });
+    }
+
+    box.innerHTML = '';
+    box.classList.toggle('hidden', chips.length === 0);
+
+    chips.forEach(c => {
+      const el = document.createElement('span');
+      el.className = 'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-600/20 text-blue-300 border border-blue-500/30';
+      el.textContent = c.label;
+      const x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'hover:text-white';
+      x.innerHTML = '&times;';
+      x.title = 'Remove this filter';
+      x.addEventListener('click', () => clearFilter(c.key));
+      el.appendChild(x);
+      box.appendChild(el);
+    });
+
+    if (els.statTotalSub) {
+      const pf = f.portfolioId === 'all' ? null : state.portfolios.find(p => String(p.id) === String(f.portfolioId));
+      els.statTotalSub.textContent = pf ? pf.name : 'All portfolios';
+    }
+  }
+
+  // Resets a single filter dimension and re-syncs its DOM control.
+  function clearFilter(key) {
+    const f = state.filters;
+    if (key === 'portfolio') { f.portfolioId = 'all'; if (els.filterPortfolio) els.filterPortfolio.value = 'all'; }
+    else if (key === 'stockSearch') { f.stockSearch = ''; if (els.filterStock) els.filterStock.value = ''; }
+    else if (key === 'date') {
+      f.dateFrom = null; f.dateTo = null;
+      if (els.filterDateFrom) els.filterDateFrom.value = '';
+      if (els.filterDateTo) els.filterDateTo.value = '';
+    } else if (key === 'status') {
+      f.status = ['OPEN', 'PARTIALLY_SOLD', 'SOLD'];
+      document.querySelectorAll('.status-checkbox').forEach(cb => { cb.checked = true; });
+      updateStatusLabel();
+    } else if (key === 'type') { f.type = 'all'; if (els.filterType) els.filterType.value = 'all'; }
+    else if (key === 'pl') { f.pl = 'all'; if (els.filterPl) els.filterPl.value = 'all'; }
+    applyFiltersAndRender();
   }
 
   // ─── EXPAND/COLLAPSE ───
@@ -782,7 +894,11 @@ const PortfolioTransactions = (() => {
       return;
     }
     container.innerHTML = results.map(stock => {
-      const payload = encodeURIComponent(JSON.stringify(stock));
+      // The payload is interpolated into an onclick attribute. encodeURIComponent
+      // leaves ' unescaped, which would terminate the JS string literal — so a stock
+      // named e.g. SAM'S CORP made the whole result row throw. escHtml is NOT usable
+      // here: &#39; is decoded back to ' before the JS is parsed.
+      const payload = encodeURIComponent(JSON.stringify(stock)).replace(/'/g, '%27');
       const localBadge = stock.isLocal ? '<span class="text-xs bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded ml-2">Local</span>' : '';
       const yahooBadge = stock.isYahoo ? '<span class="text-xs bg-purple-600/20 text-purple-400 px-1.5 py-0.5 rounded ml-1">Yahoo</span>' : '';
       const exchBadge = stock.exchange ? `<span class="text-xs bg-gray-600 text-gray-300 px-1.5 py-0.5 rounded">${escHtml(stock.exchange)}</span>` : '';
@@ -889,8 +1005,12 @@ const PortfolioTransactions = (() => {
         transactionDate: dateVal || undefined,
         notes: notes || undefined
       });
+      // Capture the symbol BEFORE closeBuyModal(): that call clears
+      // _selectedBuyStock, and reading it afterwards threw, which skipped the
+      // success toast and prevented loadAll() from refreshing the table.
+      const boughtSymbol = (_selectedBuyStock && _selectedBuyStock.symbol) || '';
       closeBuyModal();
-      showToast(`Bought ${qty} × ${_selectedBuyStock.symbol}`, 'success');
+      showToast(`Bought ${qty} × ${boughtSymbol}`, 'success');
       await loadAll();
     } catch (err) {
       errEl.textContent = err.message || 'Failed to record buy transaction';
@@ -957,11 +1077,14 @@ const PortfolioTransactions = (() => {
 
   function clearFilters() {
     clearTimeout(debounceTimer);
-    state.filters = { portfolioId: 'all', stockSearch: '', dateFrom: null, dateTo: null, status: ['OPEN', 'PARTIALLY_SOLD', 'SOLD'] };
+    state.filters = { portfolioId: 'all', stockSearch: '', dateFrom: null, dateTo: null,
+      status: ['OPEN', 'PARTIALLY_SOLD', 'SOLD'], type: 'all', pl: 'all' };
     if (els.filterPortfolio) els.filterPortfolio.value = 'all';
     if (els.filterStock) els.filterStock.value = '';
     if (els.filterDateFrom) els.filterDateFrom.value = '';
     if (els.filterDateTo) els.filterDateTo.value = '';
+    if (els.filterType) els.filterType.value = 'all';
+    if (els.filterPl) els.filterPl.value = 'all';
     document.querySelectorAll('.status-checkbox').forEach(cb => { cb.checked = true; });
     updateStatusLabel();
     state.expandedLotId = null;
