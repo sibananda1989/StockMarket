@@ -221,7 +221,10 @@ test.describe('Empty Data Graceful Handling', () => {
     // The frontend appends it to the chart container, not the direct parent.
     const emptyMsg = page.locator('.trend-empty-msg');
     await expect(emptyMsg).toBeVisible();
-    await expect(emptyMsg).toContainText(/no histor/i);
+    // Message wording changed: it no longer points at the dead snapshot
+    // subsystem. Assert on the meaning (no valuation history) rather than the
+    // old 'sync portfolio / add snapshots' phrasing.
+    await expect(emptyMsg).toContainText(/no valuation history/i);
 
     // Should not contain 'undefined' string anywhere on the page
     await expect(page.locator('body')).not.toContainText('undefined');
@@ -274,7 +277,10 @@ test.describe('Empty Data Graceful Handling', () => {
     // UI should show appropriate empty-state message in the chart container
     const emptyMsg = page.locator('.trend-empty-msg');
     await expect(emptyMsg).toBeVisible();
-    await expect(emptyMsg).toContainText(/no histor/i);
+    // Message wording changed: it no longer points at the dead snapshot
+    // subsystem. Assert on the meaning (no valuation history) rather than the
+    // old 'sync portfolio / add snapshots' phrasing.
+    await expect(emptyMsg).toContainText(/no valuation history/i);
   });
 
   test('should handle null API responses gracefully', async ({ page }) => {
